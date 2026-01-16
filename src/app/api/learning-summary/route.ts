@@ -1,3 +1,8 @@
+// /src/app/api/learning-summary/route.ts
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -6,7 +11,7 @@ interface Document {
   title: string;
   current_version: string;
   status: string;
-  google_doc_url: string;
+  google_doc_url: string | null;
   source_url: string | null;
   doc_type: string | null;
   domain: string | null;
@@ -24,16 +29,24 @@ export async function GET() {
     // Pull documents with taxonomy fields
     const { data: docs, error: docsErr } = await supabase
       .from("documents")
-      .select("doc_id,title,current_version,status,google_doc_url,source_url,doc_type,domain,tags");
-      
-    // 🔍 DEBUG LOGS — ADD HERE
+      .select(
+        "doc_id,title,current_version,status,google_doc_url,source_url,doc_type,domain,tags"
+      );
+
+    // 🔍 DEBUG LOGS (remove later)
     console.log("ROUTE: /api/learning-summary");
     console.log("DOCS LENGTH:", docs?.length);
     console.log("DOC IDS:", (docs ?? []).map((d: any) => d.doc_id));
     console.log("DOCS ERR:", docsErr);
 
     if (docsErr) {
-      return NextResponse.json({ error: docsErr.message }, { status: 500 });
+      return NextResponse.json(
+        { error: docsErr.message },
+        {
+          status: 500,
+          headers: { "Cache-Control": "no-store, max-age=0" },
+        }
+      );
     }
 
     // Pull feedback events only
@@ -43,7 +56,13 @@ export async function GET() {
       .eq("event_type", "feedback");
 
     if (fbErr) {
-      return NextResponse.json({ error: fbErr.message }, { status: 500 });
+      return NextResponse.json(
+        { error: fbErr.message },
+        {
+          status: 500,
+          headers: { "Cache-Control": "no-store, max-age=0" },
+        }
+      );
     }
 
     // Aggregate counts by doc_id + version + value
@@ -57,7 +76,7 @@ export async function GET() {
       counts[docId][ver][val] = (counts[docId][ver][val] ?? 0) + 1;
     }
 
-    // Merge counts with docs (show only current_version counts for v1)
+    // Merge counts with docs (show only current_version counts)
     const enriched = ((docs ?? []) as Document[]).map((d) => {
       const docCounts = counts[d.doc_id]?.[d.current_version] ?? {};
       return {
@@ -70,9 +89,15 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ documents: enriched });
+    return NextResponse.json(
+      { documents: enriched },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
   }
 }
