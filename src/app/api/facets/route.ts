@@ -21,7 +21,7 @@ export async function GET() {
     const domains = new Set<string>();
     const maturityStages = new Set<string>();
     const statuses = new Set<string>();
-    const tagCounts = new Map<string, number>();
+    const tagCounts: Record<string, number> = {};
 
     for (const d of (docs ?? []) as DocRow[]) {
       if (d.doc_type) docTypes.add(d.doc_type);
@@ -33,23 +33,24 @@ export async function GET() {
       for (const t of tags) {
         const key = String(t).trim();
         if (!key) continue;
-        tagCounts.set(key, (tagCounts.get(key) ?? 0) + 1);
+        tagCounts[key] = (tagCounts[key] ?? 0) + 1;
       }
     }
 
-    const topTags = [...tagCounts.entries()]
+    const topTags = Object.entries(tagCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 30)
       .map(([tag, count]) => ({ tag, count }));
 
     return NextResponse.json({
-      doc_types: [...docTypes].sort(),
-      domains: [...domains].sort(),
-      ai_maturity_stages: [...maturityStages].sort(),
-      statuses: [...statuses].sort(),
+      doc_types: Array.from(docTypes).sort(),
+      domains: Array.from(domains).sort(),
+      ai_maturity_stages: Array.from(maturityStages).sort(),
+      statuses: Array.from(statuses).sort(),
       top_tags: topTags,
     });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
