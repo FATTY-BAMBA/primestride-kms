@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -14,17 +17,21 @@ interface DocRecord {
   title: string;
   current_version: string;
   status: string;
-  google_doc_url: string;
+  google_doc_url: string | null;
 }
 
-export async function GET() {
-  // Note: Page-level auth is handled by ProtectedRoute with requireAdmin
-  
+export async function GET(req: Request) {
   try {
+    console.log("ROUTE:", new URL(req.url).pathname);
+
     // 1) Load documents (current versions)
     const { data: docs, error: docsErr } = await supabase
       .from("documents")
       .select("doc_id,title,current_version,status,google_doc_url");
+
+    console.log("DOCS ERR:", docsErr?.message ?? null);
+    console.log("DOCS LENGTH:", docs?.length ?? 0);
+    console.log("DOC IDS:", (docs ?? []).map((d: any) => d.doc_id));
 
     if (docsErr) {
       return NextResponse.json({ error: docsErr.message }, { status: 500 });
@@ -34,14 +41,17 @@ export async function GET() {
     const docIds = docRecords.map((d) => d.doc_id);
 
     if (docIds.length === 0) {
-      return NextResponse.json({ documents: [] });
+      return NextResponse.json({ summary: null, documents: [] });
     }
 
-    // 2) Pull events for these docs (all versions), we'll filter to current_version per doc in code
+    // 2) Pull events for these docs (all versions), filter to current_version in code
     const { data: events, error: evErr } = await supabase
       .from("events")
       .select("doc_id,version,event_type,value,notes")
       .in("doc_id", docIds);
+
+    console.log("EVENTS ERR:", evErr?.message ?? null);
+    console.log("EVENTS LENGTH:", events?.length ?? 0);
 
     if (evErr) {
       return NextResponse.json({ error: evErr.message }, { status: 500 });
@@ -53,7 +63,9 @@ export async function GET() {
     const rollups = docRecords.map((doc) => {
       const ver = doc.current_version;
 
-      const docEvents = rows.filter((r) => r.doc_id === doc.doc_id && r.version === ver);
+      const docEvents = rows.filter(
+        (r) => r.doc_id === doc.doc_id && r.version === ver
+      );
 
       const counts = {
         view: 0,
@@ -78,7 +90,6 @@ export async function GET() {
           if (r.value === "not_confident") counts.feedback.not_confident += 1;
           if (r.value === "didnt_help") counts.feedback.didnt_help += 1;
 
-          // Treat notes on not_confident/didnt_help as "confusion notes"
           if ((r.value === "not_confident" || r.value === "didnt_help") && r.notes) {
             const trimmed = r.notes.trim();
             if (trimmed.length > 0) confusionNotes.push(trimmed);
@@ -86,10 +97,7 @@ export async function GET() {
         }
       }
 
-      // Simple "ambiguity score" to rank docs
       const ambiguityScore = counts.feedback.not_confident + 2 * counts.feedback.didnt_help;
-
-      // Top notes: show up to 5 (no clustering yet in v1)
       const topNotes = confusionNotes.slice(0, 5);
 
       return {
