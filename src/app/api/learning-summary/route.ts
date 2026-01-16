@@ -25,6 +25,12 @@ export async function GET() {
     const { data: docs, error: docsErr } = await supabase
       .from("documents")
       .select("doc_id,title,current_version,status,google_doc_url,source_url,doc_type,domain,tags");
+      
+    // 🔍 DEBUG LOGS — ADD HERE
+    console.log("ROUTE: /api/learning-summary");
+    console.log("DOCS LENGTH:", docs?.length);
+    console.log("DOC IDS:", (docs ?? []).map((d: any) => d.doc_id));
+    console.log("DOCS ERR:", docsErr);
 
     if (docsErr) {
       return NextResponse.json({ error: docsErr.message }, { status: 500 });

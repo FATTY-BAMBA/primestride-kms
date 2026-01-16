@@ -47,6 +47,12 @@ export async function GET(req: Request) {
     if (status) docsQuery = docsQuery.eq("status", status);
 
     const { data: docs, error: docsErr } = await docsQuery;
+
+    // 🔍 DEBUG LOGS — ADD HERE
+    console.log("ROUTE: /api/search");
+    console.log("DOC IDS:", (docs ?? []).map((d: any) => d.doc_id));
+    console.log("DOCS ERR:", docsErr);
+
     if (docsErr) return NextResponse.json({ error: docsErr.message }, { status: 500 });
 
     if (!docs || docs.length === 0) return NextResponse.json({ results: [] });
