@@ -146,16 +146,23 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="btn btn-primary"
-              style={{ width: "100%", padding: "12px 16px", fontSize: 15, opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer" }}
+              style={{ width: "100%", padding: "12px 16px", fontSize: 15, opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer", marginBottom: 16 }}
             >
               {loading ? "Signing in…" : "Sign in"}
             </button>
+
+            {/* Forgot Password Link */}
+            <div style={{ textAlign: "center", fontSize: 14 }}>
+              <Link href="/reset-password" style={{ color: "#4F46E5" }}>
+                Forgot password?
+              </Link>
+            </div>
           </form>
         </div>
 
         <p style={{ textAlign: "center", marginTop: 24, color: "var(--text-secondary)", fontSize: 14 }}>
           Don&apos;t have an account?{" "}
-          <Link href="/signup" style={{ color: "var(--accent-blue)", fontWeight: 500 }}>
+          <Link href="/signup" style={{ color: "#4F46E5", fontWeight: 500 }}>
             Sign up
           </Link>
         </p>
