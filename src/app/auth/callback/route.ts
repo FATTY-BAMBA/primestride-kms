@@ -5,10 +5,10 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const next = requestUrl.searchParams.get("next") ?? "/library";
 
   if (code) {
     const cookieStore = cookies();
-    
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -33,5 +33,6 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(new URL("/", requestUrl.origin));
+  // Redirect to 'next' parameter if provided, otherwise /library
+  return NextResponse.redirect(new URL(next, requestUrl.origin));
 }
