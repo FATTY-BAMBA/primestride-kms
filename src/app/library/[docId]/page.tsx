@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import DocumentFeedback from "@/components/DocumentFeedback";
+import { cosineSimilarity } from "@/lib/ai-embeddings";
 
 interface PageProps {
   params: {
@@ -28,28 +30,75 @@ export default async function DocumentPage({ params }: PageProps) {
     .eq("id", user.id)
     .single();
 
+  if (!profile?.organization_id) {
+    return <div>Profile not found.</div>;
+  }
+
   // Fetch the document
   const { data: document, error } = await supabase
     .from("documents")
     .select("*")
     .eq("doc_id", docId)
-    .eq("organization_id", profile?.organization_id)
+    .eq("organization_id", profile.organization_id)
     .single();
 
   if (error || !document) {
     notFound();
   }
 
-  // Fetch similar documents
-  let similarDocs = [];
+  // Fetch similar documents (inline, no API call)
+  let similarDocs: Array<{
+    docId: string;
+    title: string;
+    similarity: number;
+  }> = [];
+
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/embeddings/similar?docId=${docId}&limit=3`,
-      { cache: "no-store" }
-    );
-    if (response.ok) {
-      const data = await response.json();
-      similarDocs = data.similar || [];
+    const { data: targetDoc } = await supabase
+      .from("document_embeddings")
+      .select("embedding")
+      .eq("doc_id", docId)
+      .eq("organization_id", profile.organization_id)
+      .single();
+
+    if (targetDoc) {
+      const { data: allDocs } = await supabase
+        .from("document_embeddings")
+        .select("doc_id, embedding")
+        .eq("organization_id", profile.organization_id)
+        .neq("doc_id", docId);
+
+      if (allDocs && allDocs.length > 0) {
+        const targetEmbedding = JSON.parse(targetDoc.embedding as string);
+
+        const similarities = allDocs.map((doc) => {
+          const docEmbedding = JSON.parse(doc.embedding as string);
+          const similarity = cosineSimilarity(targetEmbedding, docEmbedding);
+
+          return {
+            docId: doc.doc_id,
+            similarity,
+          };
+        });
+
+        similarities.sort((a, b) => b.similarity - a.similarity);
+        const topSimilar = similarities.slice(0, 3);
+
+        const docIds = topSimilar.map((s) => s.docId);
+        const { data: documents } = await supabase
+          .from("documents")
+          .select("doc_id, title")
+          .in("doc_id", docIds);
+
+        similarDocs = topSimilar.map((sim) => {
+          const doc = documents?.find((d) => d.doc_id === sim.docId);
+          return {
+            docId: sim.docId,
+            title: doc?.title || sim.docId,
+            similarity: sim.similarity,
+          };
+        });
+      }
     }
   } catch (error) {
     console.error("Failed to fetch similar docs:", error);
@@ -181,43 +230,12 @@ export default async function DocumentPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Feedback Section */}
-      <div className="card" style={{ padding: 24, marginBottom: 24 }}>
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>
-          Was this document helpful?
-        </h3>
-        <div style={{ display: "flex", gap: 12 }}>
-          <button
-            className="btn"
-            style={{
-              padding: "10px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-            onClick={() => {
-              // We'll add this functionality next
-              alert("Feedback feature coming soon!");
-            }}
-          >
-            👍 Helpful
-          </button>
-          <button
-            className="btn"
-            style={{
-              padding: "10px 20px",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-            onClick={() => {
-              alert("Feedback feature coming soon!");
-            }}
-          >
-            👎 Not Helpful
-          </button>
-        </div>
-      </div>
+      {/* Feedback Section - CLIENT COMPONENT (NO onClick in server component!) */}
+      <DocumentFeedback
+        docId={docId}
+        helpfulCount={helpfulCount}
+        notHelpfulCount={notHelpfulCount}
+      />
 
       {/* Similar Documents */}
       {similarDocs.length > 0 && (
@@ -235,7 +253,7 @@ export default async function DocumentPage({ params }: PageProps) {
             🔗 Related Documents
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {similarDocs.map((doc: any) => (
+            {similarDocs.map((doc) => (
               <Link
                 key={doc.docId}
                 href={`/library/${doc.docId}`}
@@ -246,14 +264,7 @@ export default async function DocumentPage({ params }: PageProps) {
                   textDecoration: "none",
                   color: "inherit",
                   transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#4F46E5";
-                  e.currentTarget.style.background = "#F9FAFB";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                  e.currentTarget.style.background = "white";
+                  display: "block",
                 }}
               >
                 <div
