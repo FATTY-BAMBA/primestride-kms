@@ -44,7 +44,7 @@ export default function ResetPasswordPage() {
           <div className="logo" style={{ fontSize: 40, marginBottom: 8 }}>
             📚
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
             Reset Password
           </h1>
           <p style={{ color: "#6B7280", fontSize: 14 }}>
@@ -55,32 +55,34 @@ export default function ResetPasswordPage() {
         {message && (
           <div
             style={{
-              padding: 12,
+              padding: 16,
               background: "#D1FAE5",
               border: "1px solid #10B981",
               borderRadius: 8,
               color: "#065F46",
-              marginBottom: 16,
+              marginBottom: 24,
               fontSize: 14,
+              lineHeight: 1.5,
             }}
           >
-            {message}
+            ✅ {message}
           </div>
         )}
 
         {error && (
           <div
             style={{
-              padding: 12,
+              padding: 16,
               background: "#FEE2E2",
               border: "1px solid #EF4444",
               borderRadius: 8,
               color: "#991B1B",
-              marginBottom: 16,
+              marginBottom: 24,
               fontSize: 14,
+              lineHeight: 1.5,
             }}
           >
-            {error}
+            ❌ {error}
           </div>
         )}
 
@@ -107,7 +109,7 @@ export default function ResetPasswordPage() {
           </button>
 
           <div style={{ textAlign: "center", fontSize: 14 }}>
-            <Link href="/login" style={{ color: "#4F46E5" }}>
+            <Link href="/login" style={{ color: "#4F46E5", textDecoration: "none" }}>
               ← Back to login
             </Link>
           </div>

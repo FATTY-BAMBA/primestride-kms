@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function UpdatePasswordPage() {
@@ -8,7 +8,12 @@ export default function UpdatePasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +42,7 @@ export default function UpdatePasswordPage() {
       const data = await res.json();
 
       if (res.ok) {
-        alert("Password updated successfully!");
+        alert("✅ Password updated successfully!");
         router.push("/library");
       } else {
         setError(data.error);
@@ -49,6 +54,10 @@ export default function UpdatePasswordPage() {
     }
   };
 
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <div className="auth-container">
       <div className="auth-card">
@@ -56,27 +65,28 @@ export default function UpdatePasswordPage() {
           <div className="logo" style={{ fontSize: 40, marginBottom: 8 }}>
             🔒
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
             Update Password
           </h1>
           <p style={{ color: "#6B7280", fontSize: 14 }}>
-            Enter your new password
+            Choose a strong password for your account
           </p>
         </div>
 
         {error && (
           <div
             style={{
-              padding: 12,
+              padding: 16,
               background: "#FEE2E2",
               border: "1px solid #EF4444",
               borderRadius: 8,
               color: "#991B1B",
-              marginBottom: 16,
+              marginBottom: 24,
               fontSize: 14,
+              lineHeight: 1.5,
             }}
           >
-            {error}
+            ❌ {error}
           </div>
         )}
 
@@ -87,9 +97,10 @@ export default function UpdatePasswordPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="Minimum 6 characters"
               required
               disabled={loading}
+              minLength={6}
             />
           </div>
 
@@ -99,9 +110,10 @@ export default function UpdatePasswordPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="Re-enter your password"
               required
               disabled={loading}
+              minLength={6}
             />
           </div>
 
