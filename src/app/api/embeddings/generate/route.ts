@@ -23,8 +23,16 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
+    // Check if profile exists
+    if (!profile || !profile.organization_id) {
+      return NextResponse.json(
+        { error: 'User profile not found' },
+        { status: 400 }
+      );
+    }
+
     // Only admins can generate embeddings
-    if (!['admin', 'owner'].includes(profile?.role || '')) {
+    if (!['admin', 'owner'].includes(profile.role)) {
       return NextResponse.json(
         { error: 'Only admins can generate embeddings' },
         { status: 403 }

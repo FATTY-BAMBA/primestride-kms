@@ -20,11 +20,21 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
+    // Check if profile exists
+    if (!profile || !profile.organization_id) {
+      return NextResponse.json({
+        nodes: [],
+        edges: [],
+        clusters: {},
+        clusterNames: {},
+      });
+    }
+
     // Get all embeddings for this organization
     const { data: embeddings } = await supabase
       .from('document_embeddings')
       .select('doc_id, embedding')
-      .eq('organization_id', profile?.organization_id);
+      .eq('organization_id', profile.organization_id);
 
     if (!embeddings || embeddings.length === 0) {
       return NextResponse.json({
@@ -39,7 +49,7 @@ export async function GET(request: NextRequest) {
     const { data: documents } = await supabase
       .from('documents')
       .select('doc_id, title')
-      .eq('organization_id', profile?.organization_id);
+      .eq('organization_id', profile.organization_id);
 
     const docMap = new Map(documents?.map((d) => [d.doc_id, d.title]));
 
@@ -71,7 +81,7 @@ export async function GET(request: NextRequest) {
 
       similarities.sort((a, b) => b.score - a.score);
 
-      // Add edges for top 3 similarities (threshold: 0.7)
+      // Add edges for top 3 similarities (threshold: 0.5)
       similarities.slice(0, 3).forEach((sim) => {
         if (sim.score > 0.5) {
           edges.push({
@@ -98,7 +108,7 @@ export async function GET(request: NextRequest) {
     const { data: clusterNames } = await supabase
       .from('cluster_names')
       .select('cluster_index, cluster_name')
-      .eq('organization_id', profile?.organization_id);
+      .eq('organization_id', profile.organization_id);
 
     const clusterNameMap: { [key: number]: string } = {};
     clusterNames?.forEach((cn) => {
