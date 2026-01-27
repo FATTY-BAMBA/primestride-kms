@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       await resend.emails.send({
         from: process.env.EMAIL_FROM || 'PrimeStride Atlas <onboarding@resend.dev>',
         to: email.toLowerCase(),
-        reply_to: user.email || undefined,
+        replyTo: user.email || undefined,
         subject: emailContent.subject,
         html: emailContent.html,
         text: emailContent.text,
