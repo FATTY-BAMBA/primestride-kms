@@ -1,19 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/lib/AuthContext";
 
 export default function SignupPage() {
-  const [fullName, setFullName] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { signUpWithEmail, signInWithGoogle } = useAuth();
 
-  const handleEmailSignup = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -24,44 +26,45 @@ export default function SignupPage() {
       return;
     }
 
-    const { error } = await signUpWithEmail(email, password, fullName);
-    
-    if (error) {
-      setError(error);
-    } else {
-      setSuccess(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          companyName: inviteToken ? undefined : companyName,
+          inviteToken,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Signup failed");
+        setLoading(false);
+        return;
+      }
+
+      // Success! Redirect to library
+      router.push("/library");
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
-
-  const handleGoogleSignup = async () => {
-    setError("");
-    setLoading(true);
-    await signInWithGoogle();
-  };
-
-  if (success) {
-    return (
-      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-        <div className="card" style={{ maxWidth: 420, textAlign: "center", padding: 40 }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--accent-green-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 20px" }}>
-            ✓
-          </div>
-          <h2 style={{ marginBottom: 12 }}>Check your email</h2>
-          <p style={{ color: "var(--text-secondary)", marginBottom: 24 }}>
-            We sent a confirmation link to <strong>{email}</strong>. Click the link to activate your account.
-          </p>
-          <Link href="/login" className="btn btn-primary">
-            Back to Login
-          </Link>
-        </div>
-      </main>
-    );
-  }
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        background: "#F8F7FF",
+      }}
+    >
       <div style={{ width: "100%", maxWidth: 420 }}>
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
@@ -70,7 +73,7 @@ export default function SignupPage() {
               width: 56,
               height: 56,
               borderRadius: 14,
-              background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
+              background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -78,87 +81,92 @@ export default function SignupPage() {
               margin: "0 auto 16px",
             }}
           >
-            📚
+            🧭
           </div>
-          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, color: "var(--text-secondary)" }}>
-            Performance-Aware Knowledge System
+          <h1
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              marginBottom: 20,
+              color: "#6B7280",
+            }}
+          >
+            PrimeStride Atlas
           </h1>
-          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Create an account</h2>
-          <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: 14 }}>
-            Get started with your knowledge system
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
+            {inviteToken ? "Accept Invitation" : "Create your account"}
+          </h2>
+          <p style={{ color: "#6B7280", margin: 0, fontSize: 14 }}>
+            {inviteToken
+              ? "Join your team on Atlas"
+              : "Start managing knowledge with your team"}
           </p>
         </div>
 
         <div className="card" style={{ padding: 32 }}>
-          {/* Google Sign Up */}
-          <button
-            onClick={handleGoogleSignup}
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "12px 16px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-color)",
-              background: "var(--bg-primary)",
-              color: "var(--text-primary)",
-              fontSize: 15,
-              fontWeight: 500,
-              cursor: loading ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            Continue with Google
-          </button>
-
-          {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "24px 0" }}>
-            <div style={{ flex: 1, height: 1, background: "var(--border-color)" }} />
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>or</span>
-            <div style={{ flex: 1, height: 1, background: "var(--border-color)" }} />
-          </div>
+          {/* Show invitation notice */}
+          {inviteToken && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                background: "#EDE9FE",
+                border: "1px solid #DDD6FE",
+                color: "#7C3AED",
+                fontSize: 14,
+                marginBottom: 24,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>✉️</span>
+              <span>
+                You've been invited to join an organization. Sign up to accept.
+              </span>
+            </div>
+          )}
 
           {/* Email Form */}
-          <form onSubmit={handleEmailSignup}>
+          <form onSubmit={handleSignup}>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "var(--text-secondary)" }}>
-                Full Name
-              </label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="John Doe"
-                required
-                style={{ width: "100%" }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "var(--text-secondary)" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "#374151",
+                }}
+              >
                 Email
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="you@company.com"
                 required
-                style={{ width: "100%" }}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 8,
+                  fontSize: 15,
+                }}
               />
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 14, fontWeight: 500, marginBottom: 6, color: "var(--text-secondary)" }}>
+            <div style={{ marginBottom: 16 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "#374151",
+                }}
+              >
                 Password
               </label>
               <input
@@ -168,15 +176,78 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 required
                 minLength={6}
-                style={{ width: "100%" }}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 8,
+                  fontSize: 15,
+                }}
               />
-              <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, marginBottom: 0 }}>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "#9CA3AF",
+                  marginTop: 6,
+                  marginBottom: 0,
+                }}
+              >
                 Must be at least 6 characters
               </p>
             </div>
 
+            {/* Only show company name if NOT invited */}
+            {!inviteToken && (
+              <div style={{ marginBottom: 24 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    marginBottom: 6,
+                    color: "#374151",
+                  }}
+                >
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Acme Corp"
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 8,
+                    fontSize: 15,
+                  }}
+                />
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "#9CA3AF",
+                    marginTop: 6,
+                    marginBottom: 0,
+                  }}
+                >
+                  Your organization name (optional)
+                </p>
+              </div>
+            )}
+
             {error && (
-              <div style={{ padding: 12, borderRadius: "var(--radius-md)", background: "var(--accent-red-soft)", color: "var(--accent-red)", fontSize: 14, marginBottom: 16 }}>
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: "#FEE2E2",
+                  border: "1px solid #FCA5A5",
+                  color: "#991B1B",
+                  fontSize: 14,
+                  marginBottom: 16,
+                }}
+              >
                 {error}
               </div>
             )}
@@ -184,17 +255,42 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn btn-primary"
-              style={{ width: "100%", padding: "12px 16px", fontSize: 15, opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer" }}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                fontSize: 15,
+                fontWeight: 600,
+                borderRadius: 10,
+                border: "none",
+                background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+                color: "white",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                boxShadow: "0 4px 14px rgba(124, 58, 237, 0.25)",
+              }}
             >
-              {loading ? "Creating account…" : "Create account"}
+              {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
         </div>
 
-        <p style={{ textAlign: "center", marginTop: 24, color: "var(--text-secondary)", fontSize: 14 }}>
+        <p
+          style={{
+            textAlign: "center",
+            marginTop: 24,
+            color: "#6B7280",
+            fontSize: 14,
+          }}
+        >
           Already have an account?{" "}
-          <Link href="/login" style={{ color: "var(--accent-blue)", fontWeight: 500 }}>
+          <Link
+            href="/login"
+            style={{
+              color: "#7C3AED",
+              fontWeight: 500,
+              textDecoration: "none",
+            }}
+          >
             Sign in
           </Link>
         </p>
