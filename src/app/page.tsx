@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 export default function LandingPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, isLoading: loading } = useAuth();
   const [activeTab, setActiveTab] = useState<"library" | "feedback" | "dashboard">("library");
 
   useEffect(() => {
