@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
@@ -46,7 +46,6 @@ export default function SignupPage() {
         return;
       }
 
-      // Success! Redirect to library
       router.push("/library");
     } catch (err) {
       setError("An error occurred. Please try again.");
@@ -55,81 +54,137 @@ export default function SignupPage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-        background: "#F8F7FF",
-      }}
-    >
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
+    <div style={{ width: "100%", maxWidth: 420 }}>
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 28,
+            margin: "0 auto 16px",
+          }}
+        >
+          🧭
+        </div>
+        <h1
+          style={{
+            fontSize: 18,
+            fontWeight: 600,
+            marginBottom: 20,
+            color: "#6B7280",
+          }}
+        >
+          PrimeStride Atlas
+        </h1>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
+          {inviteToken ? "Accept Invitation" : "Create your account"}
+        </h2>
+        <p style={{ color: "#6B7280", margin: 0, fontSize: 14 }}>
+          {inviteToken
+            ? "Join your team on Atlas"
+            : "Start managing knowledge with your team"}
+        </p>
+      </div>
+
+      <div className="card" style={{ padding: 32 }}>
+        {inviteToken && (
           <div
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+              padding: 12,
+              borderRadius: 8,
+              background: "#EDE9FE",
+              border: "1px solid #DDD6FE",
+              color: "#7C3AED",
+              fontSize: 14,
+              marginBottom: 24,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              fontSize: 28,
-              margin: "0 auto 16px",
+              gap: 10,
             }}
           >
-            🧭
+            <span style={{ fontSize: 18 }}>✉️</span>
+            <span>
+              You've been invited to join an organization. Sign up to accept.
+            </span>
           </div>
-          <h1
-            style={{
-              fontSize: 18,
-              fontWeight: 600,
-              marginBottom: 20,
-              color: "#6B7280",
-            }}
-          >
-            PrimeStride Atlas
-          </h1>
-          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
-            {inviteToken ? "Accept Invitation" : "Create your account"}
-          </h2>
-          <p style={{ color: "#6B7280", margin: 0, fontSize: 14 }}>
-            {inviteToken
-              ? "Join your team on Atlas"
-              : "Start managing knowledge with your team"}
-          </p>
-        </div>
+        )}
 
-        <div className="card" style={{ padding: 32 }}>
-          {/* Show invitation notice */}
-          {inviteToken && (
-            <div
+        <form onSubmit={handleSignup}>
+          <div style={{ marginBottom: 16 }}>
+            <label
               style={{
-                padding: 12,
-                borderRadius: 8,
-                background: "#EDE9FE",
-                border: "1px solid #DDD6FE",
-                color: "#7C3AED",
+                display: "block",
                 fontSize: 14,
-                marginBottom: 24,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "#374151",
               }}
             >
-              <span style={{ fontSize: 18 }}>✉️</span>
-              <span>
-                You've been invited to join an organization. Sign up to accept.
-              </span>
-            </div>
-          )}
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                border: "1px solid #E5E7EB",
+                borderRadius: 8,
+                fontSize: 15,
+              }}
+            />
+          </div>
 
-          {/* Email Form */}
-          <form onSubmit={handleSignup}>
-            <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 14,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "#374151",
+              }}
+            >
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                border: "1px solid #E5E7EB",
+                borderRadius: 8,
+                fontSize: 15,
+              }}
+            />
+            <p
+              style={{
+                fontSize: 12,
+                color: "#9CA3AF",
+                marginTop: 6,
+                marginBottom: 0,
+              }}
+            >
+              Must be at least 6 characters
+            </p>
+          </div>
+
+          {!inviteToken && (
+            <div style={{ marginBottom: 24 }}>
               <label
                 style={{
                   display: "block",
@@ -139,43 +194,13 @@ export default function SignupPage() {
                   color: "#374151",
                 }}
               >
-                Email
+                Company Name
               </label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  border: "1px solid #E5E7EB",
-                  borderRadius: 8,
-                  fontSize: 15,
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  marginBottom: 6,
-                  color: "#374151",
-                }}
-              >
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
+                type="text"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Acme Corp"
                 style={{
                   width: "100%",
                   padding: "10px 14px",
@@ -192,109 +217,88 @@ export default function SignupPage() {
                   marginBottom: 0,
                 }}
               >
-                Must be at least 6 characters
+                Your organization name (optional)
               </p>
             </div>
+          )}
 
-            {/* Only show company name if NOT invited */}
-            {!inviteToken && (
-              <div style={{ marginBottom: 24 }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    marginBottom: 6,
-                    color: "#374151",
-                  }}
-                >
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Acme Corp"
-                  style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: 8,
-                    fontSize: 15,
-                  }}
-                />
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "#9CA3AF",
-                    marginTop: 6,
-                    marginBottom: 0,
-                  }}
-                >
-                  Your organization name (optional)
-                </p>
-              </div>
-            )}
-
-            {error && (
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: 8,
-                  background: "#FEE2E2",
-                  border: "1px solid #FCA5A5",
-                  color: "#991B1B",
-                  fontSize: 14,
-                  marginBottom: 16,
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
+          {error && (
+            <div
               style={{
-                width: "100%",
-                padding: "12px 16px",
-                fontSize: 15,
-                fontWeight: 600,
-                borderRadius: 10,
-                border: "none",
-                background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-                color: "white",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                boxShadow: "0 4px 14px rgba(124, 58, 237, 0.25)",
+                padding: 12,
+                borderRadius: 8,
+                background: "#FEE2E2",
+                border: "1px solid #FCA5A5",
+                color: "#991B1B",
+                fontSize: 14,
+                marginBottom: 16,
               }}
             >
-              {loading ? "Creating account..." : "Create account"}
-            </button>
-          </form>
-        </div>
+              {error}
+            </div>
+          )}
 
-        <p
-          style={{
-            textAlign: "center",
-            marginTop: 24,
-            color: "#6B7280",
-            fontSize: 14,
-          }}
-        >
-          Already have an account?{" "}
-          <Link
-            href="/login"
+          <button
+            type="submit"
+            disabled={loading}
             style={{
-              color: "#7C3AED",
-              fontWeight: 500,
-              textDecoration: "none",
+              width: "100%",
+              padding: "12px 16px",
+              fontSize: 15,
+              fontWeight: 600,
+              borderRadius: 10,
+              border: "none",
+              background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+              color: "white",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.7 : 1,
+              boxShadow: "0 4px 14px rgba(124, 58, 237, 0.25)",
             }}
           >
-            Sign in
-          </Link>
-        </p>
+            {loading ? "Creating account..." : "Create account"}
+          </button>
+        </form>
       </div>
+
+      <p
+        style={{
+          textAlign: "center",
+          marginTop: 24,
+          color: "#6B7280",
+          fontSize: 14,
+        }}
+      >
+        Already have an account?{" "}
+        <Link
+          href="/login"
+          style={{
+            color: "#7C3AED",
+            fontWeight: 500,
+            textDecoration: "none",
+          }}
+        >
+          Sign in
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        background: "#F8F7FF",
+      }}
+    >
+      <Suspense fallback={<div>Loading...</div>}>
+        <SignupForm />
+      </Suspense>
     </main>
   );
 }
