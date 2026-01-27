@@ -1,132 +1,159 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import Link from "next/link";
 
-export default function UpdatePasswordPage() {
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+export default function ResetPasswordPage() {
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [mounted, setMounted] = useState(false);
-  const router = useRouter();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const handleUpdatePassword = async (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-
-    if (password !== confirmPassword) {
-      setError("Passwords don't match");
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      setLoading(false);
-      return;
-    }
+    setMessage("");
 
     try {
-      const res = await fetch("/api/auth/update-password", {
+      const res = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        alert("✅ Password updated successfully!");
-        router.push("/library");
+        setMessage(data.message);
+        setEmail("");
       } else {
         setError(data.error);
       }
     } catch (err) {
-      setError("Failed to update password");
+      setError("Failed to send reset email");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!mounted) {
-    return null;
-  }
-
   return (
-    <div className="auth-container">
-      <div className="auth-card">
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div className="logo" style={{ fontSize: 40, marginBottom: 8 }}>
-            🔒
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 28,
+              margin: "0 auto 16px",
+            }}
+          >
+            🔑
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
-            Update Password
+          <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 20, color: "var(--text-secondary)" }}>
+            Performance-Aware Knowledge System
           </h1>
-          <p style={{ color: "#6B7280", fontSize: 14 }}>
-            Choose a strong password for your account
+          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Reset Password</h2>
+          <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: 14 }}>
+            Enter your email and we'll send you a reset link
           </p>
         </div>
 
-        {error && (
-          <div
-            style={{
-              padding: 16,
-              background: "#FEE2E2",
-              border: "1px solid #EF4444",
-              borderRadius: 8,
-              color: "#991B1B",
-              marginBottom: 24,
-              fontSize: 14,
-              lineHeight: 1.5,
-            }}
-          >
-            ❌ {error}
-          </div>
-        )}
+        <div className="card" style={{ padding: 32 }}>
+          {message && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: "var(--radius-md)",
+                background: "#D1FAE5",
+                color: "#065F46",
+                fontSize: 14,
+                marginBottom: 16,
+                border: "1px solid #10B981",
+              }}
+            >
+              ✅ {message}
+            </div>
+          )}
 
-        <form onSubmit={handleUpdatePassword}>
-          <div className="form-group">
-            <label>New Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Minimum 6 characters"
-              required
+          {error && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: "var(--radius-md)",
+                background: "var(--accent-red-soft)",
+                color: "var(--accent-red)",
+                fontSize: 14,
+                marginBottom: 16,
+              }}
+            >
+              ❌ {error}
+            </div>
+          )}
+
+          <form onSubmit={handleResetPassword}>
+            <div style={{ marginBottom: 24 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  marginBottom: 6,
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                disabled={loading}
+                style={{ width: "100%" }}
+              />
+            </div>
+
+            <button
+              type="submit"
               disabled={loading}
-              minLength={6}
-            />
-          </div>
+              className="btn btn-primary"
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                fontSize: 15,
+                opacity: loading ? 0.7 : 1,
+                cursor: loading ? "not-allowed" : "pointer",
+                marginBottom: 16,
+              }}
+            >
+              {loading ? "Sending..." : "Send Reset Link"}
+            </button>
 
-          <div className="form-group">
-            <label>Confirm Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter your password"
-              required
-              disabled={loading}
-              minLength={6}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-            style={{ width: "100%" }}
-          >
-            {loading ? "Updating..." : "Update Password"}
-          </button>
-        </form>
+            <div style={{ textAlign: "center", fontSize: 14 }}>
+              <Link href="/login" style={{ color: "#4F46E5", fontWeight: 500 }}>
+                ← Back to login
+              </Link>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

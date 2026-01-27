@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import ReactFlow, {
   Node,
@@ -14,11 +14,11 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 const CLUSTER_COLORS = [
-  "#7C3AED", // Purple
-  "#3B82F6", // Blue  
-  "#10B981", // Green
-  "#F59E0B", // Orange
-  "#EF4444", // Red
+  "#7C3AED",
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
 ];
 
 export default function AIGraphPage() {
@@ -30,7 +30,11 @@ export default function AIGraphPage() {
   const [stats, setStats] = useState({ docs: 0, connections: 0 });
   const [clusterCounts, setClusterCounts] = useState<{[key: number]: number}>({});
   const [clusterNames, setClusterNames] = useState<{[key: number]: string}>({});
+  const [clusterMap, setClusterMap] = useState<{[key: string]: number}>({});
   const [showInfo, setShowInfo] = useState(false);
+  const [showClusterModal, setShowClusterModal] = useState(false);
+  const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
+  const [selectedClusterDocs, setSelectedClusterDocs] = useState<Node[]>([]);
 
   useEffect(() => {
     loadGraph();
@@ -48,6 +52,7 @@ export default function AIGraphPage() {
           counts[clusterIdx] = (counts[clusterIdx] || 0) + 1;
         });
         setClusterCounts(counts);
+        setClusterMap(data.clusters || {});
 
         const names: {[key: number]: string} = {};
         Object.keys(counts).forEach((idx) => {
@@ -64,7 +69,8 @@ export default function AIGraphPage() {
             id: node.id,
             data: { 
               label: node.label,
-              cluster: names[clusterIdx] || `Cluster ${clusterIdx + 1}`
+              cluster: names[clusterIdx] || `Cluster ${clusterIdx + 1}`,
+              docId: node.id,
             },
             position: { x: Math.random() * 500, y: Math.random() * 500 },
             style: {
@@ -75,6 +81,7 @@ export default function AIGraphPage() {
               padding: 10,
               fontSize: 12,
               fontWeight: 600,
+              cursor: "pointer",
             },
           };
         });
@@ -103,12 +110,25 @@ export default function AIGraphPage() {
       } else {
         setError(data.error || "Failed to load graph");
       }
-    } catch (error) {
+    } catch (err) {
       setError("Failed to load graph");
     } finally {
       setLoading(false);
     }
   };
+
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    window.location.href = `/library/${node.data.docId}`;
+  }, []);
+
+  const handleClusterClick = useCallback((clusterIdx: number) => {
+    const docsInCluster = nodes.filter(
+      (node) => clusterMap[node.id] === clusterIdx
+    );
+    setSelectedCluster(clusterIdx);
+    setSelectedClusterDocs(docsInCluster);
+    setShowClusterModal(true);
+  }, [nodes, clusterMap]);
 
   const generateEmbeddings = async () => {
     if (!confirm("Generate AI embeddings for all documents? This will use OpenAI API and may take a minute.")) {
@@ -126,12 +146,12 @@ export default function AIGraphPage() {
       const data = await res.json();
 
       if (res.ok) {
-        alert(`✅ Generated embeddings for ${data.processed} documents with AI-powered cluster names!`);
+        alert(`Generated embeddings for ${data.processed} documents with AI-powered cluster names!`);
         loadGraph();
       } else {
         setError(data.error || "Failed to generate embeddings");
       }
-    } catch (error) {
+    } catch (err) {
       setError("Failed to generate embeddings");
     } finally {
       setGenerating(false);
@@ -186,7 +206,7 @@ export default function AIGraphPage() {
             </div>
             
             <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 12px 0" }}>
-              {stats.docs} documents • {stats.connections} connections
+              {stats.docs} documents • {stats.connections} connections • Click nodes to view documents
             </p>
 
             {Object.keys(clusterCounts).length > 0 && (
@@ -199,25 +219,39 @@ export default function AIGraphPage() {
               }}>
                 <span style={{ fontWeight: 600, color: "#6B7280" }}>AI Topic Clusters:</span>
                 {Object.entries(clusterCounts).map(([idx, count]) => (
-                  <div key={idx} style={{ 
-                    display: "flex", 
-                    alignItems: "center", 
-                    gap: 6,
-                    padding: "4px 10px",
-                    background: "#F9FAFB",
-                    borderRadius: 6,
-                    border: "1px solid #E5E7EB"
-                  }}>
+                  <button
+                    key={idx}
+                    onClick={() => handleClusterClick(parseInt(idx))}
+                    style={{ 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: 6,
+                      padding: "6px 12px",
+                      background: "#F9FAFB",
+                      borderRadius: 6,
+                      border: "1px solid #E5E7EB",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#E5E7EB";
+                      e.currentTarget.style.borderColor = CLUSTER_COLORS[parseInt(idx)];
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "#F9FAFB";
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                    }}
+                  >
                     <div style={{ 
                       width: 12, 
                       height: 12, 
                       borderRadius: "50%",
                       background: CLUSTER_COLORS[parseInt(idx)]
                     }} />
-                    <span style={{ color: "#374151", fontWeight: 500 }}>
+                    <span style={{ color: "#374151", fontWeight: 500, fontSize: 13 }}>
                       {clusterNames[parseInt(idx)]} ({count})
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -287,6 +321,7 @@ export default function AIGraphPage() {
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
+            onNodeClick={onNodeClick}
             fitView
           >
             <Background />
@@ -336,8 +371,9 @@ export default function AIGraphPage() {
                 How it works:
               </h3>
               <ul style={{ marginLeft: 20, lineHeight: 1.8, color: "#1F2937", fontSize: 14 }}>
-                <li><strong>Nodes (circles):</strong> Each node represents one document</li>
+                <li><strong>Nodes (circles):</strong> Each node represents one document - click to view</li>
                 <li><strong>Colors:</strong> Documents are automatically grouped by topic using AI</li>
+                <li><strong>Cluster badges:</strong> Click a cluster badge to see all documents in that topic</li>
                 <li><strong>Cluster names:</strong> AI analyzes content and generates meaningful category names</li>
                 <li><strong>Lines:</strong> Show relationships between similar documents</li>
                 <li><strong>Line thickness:</strong> Thicker lines = stronger relationship</li>
@@ -353,7 +389,7 @@ export default function AIGraphPage() {
             }}>
               <strong style={{ fontSize: 14, color: "#111827" }}>💡 Use this to:</strong>
               <ul style={{ marginLeft: 20, marginTop: 8, lineHeight: 1.6, fontSize: 14, color: "#1F2937" }}>
-                <li>Discover related content you didn't know existed</li>
+                <li>Discover related content you did not know existed</li>
                 <li>Identify gaps in your documentation</li>
                 <li>Understand knowledge structure across teams</li>
                 <li>Find similar documents when researching topics</li>
@@ -366,6 +402,95 @@ export default function AIGraphPage() {
               style={{ width: "100%" }}
             >
               Got it!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showClusterModal && selectedCluster !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowClusterModal(false)}
+        >
+          <div
+            className="card"
+            style={{ 
+              maxWidth: 600, 
+              width: "100%", 
+              padding: 32, 
+              margin: 20,
+              background: "white",
+              maxHeight: "80vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+              <div style={{ 
+                width: 16, 
+                height: 16, 
+                borderRadius: "50%",
+                background: CLUSTER_COLORS[selectedCluster % CLUSTER_COLORS.length]
+              }} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+                {clusterNames[selectedCluster]}
+              </h2>
+            </div>
+            <p style={{ color: "#6B7280", fontSize: 14, marginBottom: 20 }}>
+              {selectedClusterDocs.length} document{selectedClusterDocs.length !== 1 ? "s" : ""} in this cluster
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {selectedClusterDocs.map((doc) => (
+                <a
+                  key={doc.id}
+                  href={`/library/${doc.id}`}
+                  style={{
+                    padding: 16,
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 8,
+                    textDecoration: "none",
+                    color: "inherit",
+                    transition: "all 0.2s",
+                    display: "block",
+                    background: "white",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = CLUSTER_COLORS[selectedCluster % CLUSTER_COLORS.length];
+                    e.currentTarget.style.background = "#F9FAFB";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "#E5E7EB";
+                    e.currentTarget.style.background = "white";
+                  }}
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 4, color: "#111827" }}>
+                    {doc.data.label}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", fontFamily: "monospace" }}>
+                    {doc.id}
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowClusterModal(false)}
+              className="btn"
+              style={{ width: "100%", marginTop: 20 }}
+            >
+              Close
             </button>
           </div>
         </div>
