@@ -1,306 +1,195 @@
-import { createClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+"use client";
+
 import Link from "next/link";
-import DocumentFeedback from "@/components/DocumentFeedback";
-import { cosineSimilarity } from "@/lib/ai-embeddings";
+import { useEffect, useState } from "react";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import UserMenu from "@/components/UserMenu";
 
-interface PageProps {
-  params: {
-    docId: string;
-  };
-}
-
-interface SimilarDoc {
-  docId: string;
+type DocRow = {
+  doc_id: string;
   title: string;
-  similarity: number;
-}
+  current_version: string;
+  status: string;
+  doc_type: string | null;
+  domain: string | null;
+  tags: string[] | null;
+  feedback_counts: {
+    helped: number;
+    not_confident: number;
+    didnt_help: number;
+  };
+};
 
-export default async function DocumentPage({ params }: PageProps) {
-  const { docId } = params;
-  const supabase = await createClient();
+export default function LibraryPage() {
+  const [docs, setDocs] = useState<DocRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
-  // Get current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return <div>Please log in to view documents.</div>;
-  }
-
-  // Get user's organization
-  const { data: profile } = await supabase
-    .from("users")
-    .select("organization_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.organization_id) {
-    return <div>Profile not found.</div>;
-  }
-
-  // Fetch the document
-  const { data: document, error } = await supabase
-    .from("documents")
-    .select("*")
-    .eq("doc_id", docId)
-    .eq("organization_id", profile.organization_id)
-    .single();
-
-  if (error || !document) {
-    notFound();
-  }
-
-  // Fetch similar documents
-  let similarDocs: SimilarDoc[] = [];
-  try {
-    const { data: targetDoc } = await supabase
-      .from("document_embeddings")
-      .select("embedding")
-      .eq("doc_id", docId)
-      .eq("organization_id", profile.organization_id)
-      .single();
-
-    if (targetDoc) {
-      const { data: allDocs } = await supabase
-        .from("document_embeddings")
-        .select("doc_id, embedding")
-        .eq("organization_id", profile.organization_id)
-        .neq("doc_id", docId);
-
-      if (allDocs && allDocs.length > 0) {
-        const targetEmbedding = JSON.parse(targetDoc.embedding as string);
-
-        const similarities = allDocs.map((doc) => {
-          const docEmbedding = JSON.parse(doc.embedding as string);
-          const similarity = cosineSimilarity(targetEmbedding, docEmbedding);
-
-          return {
-            docId: doc.doc_id,
-            similarity,
-          };
-        });
-
-        similarities.sort((a, b) => b.similarity - a.similarity);
-        const topSimilar = similarities.slice(0, 3);
-
-        const docIds = topSimilar.map((s) => s.docId);
-        const { data: documents } = await supabase
-          .from("documents")
-          .select("doc_id, title")
-          .in("doc_id", docIds);
-
-        similarDocs = topSimilar.map((sim) => {
-          const doc = documents?.find((d) => d.doc_id === sim.docId);
-          return {
-            docId: sim.docId,
-            title: doc?.title || sim.docId,
-            similarity: sim.similarity,
-          };
-        });
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/learning-summary");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Failed to load");
+        setDocs(data.documents ?? []);
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Error");
+      } finally {
+        setLoading(false);
       }
-    }
-  } catch (err) {
-    console.error("Failed to fetch similar docs:", err);
-  }
+    })();
+  }, []);
 
-  // Fetch feedback stats
-  const { data: feedbackStats } = await supabase
-    .from("feedback")
-    .select("is_helpful")
-    .eq("doc_id", docId);
-
-  const helpfulCount = feedbackStats?.filter((f) => f.is_helpful).length || 0;
-  const notHelpfulCount = feedbackStats?.filter((f) => !f.is_helpful).length || 0;
+  const totalFeedback = docs.reduce(
+    (sum, d) =>
+      sum +
+      d.feedback_counts.helped +
+      d.feedback_counts.not_confident +
+      d.feedback_counts.didnt_help,
+    0
+  );
 
   return (
-    <div className="container" style={{ maxWidth: 1000, padding: "40px 20px" }}>
-      {/* Breadcrumb */}
-      <div style={{ marginBottom: 24 }}>
-        <Link
-          href="/library"
-          style={{
-            color: "#6B7280",
-            textDecoration: "none",
-            fontSize: 14,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          ← Back to Library
-        </Link>
-      </div>
-
-      {/* Document Header */}
-      <div
-        className="card"
-        style={{
-          padding: 32,
-          marginBottom: 24,
-        }}
-      >
-        {/* Metadata */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-          <span
+    <ProtectedRoute>
+      <main className="container">
+        <header style={{ marginBottom: 40 }}>
+          <div
             style={{
-              padding: "4px 12px",
-              background: "#EEF2FF",
-              color: "#4F46E5",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            {document.doc_id}
-          </span>
-          <span
-            style={{
-              padding: "4px 12px",
-              background: "#F3F4F6",
-              color: "#374151",
-              borderRadius: 6,
-              fontSize: 13,
-            }}
-          >
-            {document.current_version}
-          </span>
-          {document.doc_type && (
-            <span
-              style={{
-                padding: "4px 12px",
-                background: "#F3F4F6",
-                color: "#374151",
-                borderRadius: 6,
-                fontSize: 13,
-              }}
-            >
-              {document.doc_type}
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <h1
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            marginBottom: 16,
-            color: "#111827",
-          }}
-        >
-          {document.title}
-        </h1>
-
-        {/* Feedback Stats */}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            paddingTop: 16,
-            borderTop: "1px solid #E5E7EB",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 20 }}>👍</span>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>
-              {helpfulCount} helpful
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 20 }}>👎</span>
-            <span style={{ fontSize: 14, color: "#6B7280" }}>
-              {notHelpfulCount} not helpful
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Document Content */}
-      <div className="card" style={{ padding: 32, marginBottom: 24 }}>
-        <div
-          style={{
-            fontSize: 16,
-            lineHeight: 1.8,
-            color: "#374151",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {document.content || "No content available for this document."}
-        </div>
-      </div>
-
-      {/* Feedback Section - CLIENT COMPONENT */}
-      <DocumentFeedback
-        docId={docId}
-        helpfulCount={helpfulCount}
-        notHelpfulCount={notHelpfulCount}
-      />
-
-      {/* Similar Documents */}
-      {similarDocs.length > 0 && (
-        <div className="card" style={{ padding: 32, marginTop: 24 }}>
-          <h3
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              marginBottom: 16,
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+              marginBottom: 8,
             }}
           >
-            🔗 Related Documents
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {similarDocs.map((doc) => (
-              <Link
-                key={doc.docId}
-                href={`/library/${doc.docId}`}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
                 style={{
-                  padding: 16,
-                  border: "1px solid #E5E7EB",
-                  borderRadius: 8,
-                  textDecoration: "none",
-                  color: "inherit",
-                  transition: "all 0.2s",
-                  display: "block",
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 20,
                 }}
               >
+                📚
+              </div>
+              <h1>PrimeStride Atlas</h1>
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <Link href="/search" className="btn">
+                🔍 Search
+              </Link>
+              <Link href="/learning" className="btn">
+                📊 Learning
+              </Link>
+              <Link href="/admin" className="btn">
+                ⚙️ Admin
+              </Link>
+              <Link href="/team" className="btn">
+                👥 Team
+              </Link>
+              <Link href="/ai-graph" className="btn">
+                🧠 AI Graph
+              </Link>
+              <UserMenu />
+            </div>
+          </div>
+          <p style={{ color: "var(--text-secondary)", fontSize: 15 }}>
+            Learning-enabled docs with feedback → weekly improvements
+          </p>
+        </header>
+
+        {!loading && !err && (
+          <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
+            <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>
+                {docs.length}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Documents</div>
+            </div>
+            <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
+              <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "var(--accent-blue)" }}>
+                {totalFeedback}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Total Feedback</div>
+            </div>
+          </div>
+        )}
+
+        <section>
+          <h2 style={{ marginBottom: 20, fontSize: 18 }}>Knowledge Library</h2>
+
+          {loading && <div className="loading"><span>Loading documents...</span></div>}
+
+          {err && (
+            <div className="card" style={{ borderColor: "var(--accent-red)", background: "var(--accent-red-soft)" }}>
+              <p style={{ color: "var(--accent-red)" }}>Error: {err}</p>
+            </div>
+          )}
+
+          {!loading && !err && (
+            <div style={{ display: "grid", gap: 16 }}>
+              {docs.map((d, i) => (
                 <div
+                  key={d.doc_id}
+                  className="card animate-in"
                   style={{
+                    animationDelay: `${i * 0.05}s`,
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "flex-start",
+                    alignItems: "center",
+                    gap: 20,
+                    flexWrap: "wrap",
                   }}
                 >
-                  <div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                      {doc.title}
-                    </div>
-                    <div style={{ fontSize: 13, color: "#6B7280" }}>
-                      {doc.docId}
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>{d.title}</h3>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                      <span className="badge mono">{d.doc_id}</span>
+                      <span className="badge">{d.current_version}</span>
+                      <span className="badge badge-success">{d.status}</span>
+                      {d.doc_type && <span className="badge">{d.doc_type}</span>}
                     </div>
                   </div>
-                  <div
-                    style={{
-                      padding: "4px 12px",
-                      background: "#EEF2FF",
-                      color: "#4F46E5",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {Math.round(doc.similarity * 100)}% match
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 16, fontSize: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-green)" }}>
+                        <span>✓</span>
+                        <span style={{ fontWeight: 600 }}>{d.feedback_counts.helped}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-yellow)" }}>
+                        <span>⚠</span>
+                        <span style={{ fontWeight: 600 }}>{d.feedback_counts.not_confident}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-red)" }}>
+                        <span>✗</span>
+                        <span style={{ fontWeight: 600 }}>{d.feedback_counts.didnt_help}</span>
+                      </div>
+                    </div>
+
+                    <Link href={`/library/${encodeURIComponent(d.doc_id)}`} className="btn btn-primary">
+                      View & Feedback →
+                    </Link>
                   </div>
                 </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && !err && docs.length === 0 && (
+            <div className="card" style={{ textAlign: "center", padding: 40 }}>
+              <p style={{ color: "var(--text-muted)" }}>No documents found.</p>
+            </div>
+          )}
+        </section>
+      </main>
+    </ProtectedRoute>
   );
 }
