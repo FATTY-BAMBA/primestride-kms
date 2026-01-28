@@ -58,6 +58,15 @@ export default async function LibraryPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F9FAFB" }}>
+      <style>{`
+        .doc-card {
+          transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .doc-card:hover {
+          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+          transform: translateY(-2px);
+        }
+      `}</style>
       <div className="container" style={{ maxWidth: 1200, padding: "40px 20px" }}>
         {/* Header */}
         <div style={{ marginBottom: 32 }}>
@@ -132,20 +141,12 @@ export default async function LibraryPage() {
               return (
                 <div
                   key={doc.doc_id}
+                  className="doc-card"
                   style={{
                     background: "white",
                     borderRadius: 12,
                     border: "1px solid #E5E7EB",
                     overflow: "hidden",
-                    transition: "box-shadow 0.2s, transform 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)";
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = "none";
-                    e.currentTarget.style.transform = "none";
                   }}
                 >
                   {/* Card Header */}
