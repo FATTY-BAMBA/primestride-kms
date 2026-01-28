@@ -39,6 +39,18 @@ export default function CreateDocumentForm() {
     }
   };
 
+  // Shared input styles
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 16px",
+    fontSize: 16,
+    border: "1px solid #D1D5DB",
+    borderRadius: 8,
+    background: "#FFFFFF",
+    color: "#111827",
+    outline: "none",
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#F9FAFB", paddingBottom: 60 }}>
       <div className="container" style={{ maxWidth: 900, padding: "40px 20px" }}>
@@ -108,11 +120,8 @@ export default function CreateDocumentForm() {
                 disabled={creating}
                 pattern="[A-Z0-9-]+"
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  fontSize: 16,
-                  border: "2px solid #E5E7EB",
-                  borderRadius: 8,
+                  ...inputStyle,
+                  opacity: creating ? 0.6 : 1,
                 }}
               />
               <p style={{ fontSize: 13, color: "#6B7280", marginTop: 8 }}>
@@ -140,11 +149,8 @@ export default function CreateDocumentForm() {
                 required
                 disabled={creating}
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  fontSize: 16,
-                  border: "2px solid #E5E7EB",
-                  borderRadius: 8,
+                  ...inputStyle,
+                  opacity: creating ? 0.6 : 1,
                 }}
               />
             </div>
@@ -168,11 +174,8 @@ export default function CreateDocumentForm() {
                 placeholder="e.g., guide, playbook, strategy"
                 disabled={creating}
                 style={{
-                  width: "100%",
-                  padding: "12px 16px",
-                  fontSize: 16,
-                  border: "2px solid #E5E7EB",
-                  borderRadius: 8,
+                  ...inputStyle,
+                  opacity: creating ? 0.6 : 1,
                 }}
               />
             </div>
@@ -197,13 +200,13 @@ export default function CreateDocumentForm() {
                 disabled={creating}
                 rows={20}
                 style={{
-                  width: "100%",
+                  ...inputStyle,
                   padding: "16px",
                   fontSize: 15,
-                  border: "2px solid #E5E7EB",
-                  borderRadius: 8,
                   fontFamily: "monospace",
                   lineHeight: 1.6,
+                  resize: "vertical",
+                  opacity: creating ? 0.6 : 1,
                 }}
               />
               <p style={{ fontSize: 13, color: "#6B7280", marginTop: 8 }}>
