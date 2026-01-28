@@ -1,17 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function CreateDocumentForm() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [docId, setDocId] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [docType, setDocType] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [fileName, setFileName] = useState("");
+
+  // Shared input styles
+  const inputStyle = {
+    width: "100%",
+    padding: "12px 16px",
+    fontSize: 16,
+    border: "1px solid #D1D5DB",
+    borderRadius: 8,
+    background: "#FFFFFF",
+    color: "#111827",
+    outline: "none",
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,16 +55,59 @@ export default function CreateDocumentForm() {
     }
   };
 
-  // Shared input styles
-  const inputStyle = {
-    width: "100%",
-    padding: "12px 16px",
-    fontSize: 16,
-    border: "1px solid #D1D5DB",
-    borderRadius: 8,
-    background: "#FFFFFF",
-    color: "#111827",
-    outline: "none",
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    setError("");
+    setMessage("");
+    setFileName(file.name);
+
+    try {
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      // Auto-fill title from filename if empty
+      if (!title) {
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+        setTitle(nameWithoutExt.replace(/[-_]/g, " "));
+      }
+
+      // Handle plain text files directly
+      if (fileExtension === 'txt' || fileExtension === 'md') {
+        const text = await file.text();
+        setContent(text);
+        setMessage(`✅ Loaded content from ${file.name}`);
+        setUploadingFile(false);
+        return;
+      }
+
+      // For PDF and DOCX, send to API for parsing
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/documents/parse', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.content) {
+        setContent(data.content);
+        setMessage(`✅ Extracted content from ${file.name}`);
+      } else {
+        setError(data.error || 'Failed to extract content from file');
+      }
+    } catch (err) {
+      setError('Failed to process file');
+    } finally {
+      setUploadingFile(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -82,6 +141,21 @@ export default function CreateDocumentForm() {
           <p style={{ color: "#6B7280", marginBottom: 32 }}>
             Add a new document to your knowledge base
           </p>
+
+          {message && (
+            <div
+              style={{
+                padding: 16,
+                marginBottom: 24,
+                borderRadius: 8,
+                background: "#D1FAE5",
+                color: "#065F46",
+                fontSize: 15,
+              }}
+            >
+              {message}
+            </div>
+          )}
 
           {error && (
             <div
@@ -192,6 +266,84 @@ export default function CreateDocumentForm() {
               >
                 Content *
               </label>
+
+              {/* File Upload Option */}
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 20,
+                  border: "2px dashed #D1D5DB",
+                  borderRadius: 8,
+                  background: "#F9FAFB",
+                  textAlign: "center",
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.doc,.txt,.md"
+                  onChange={handleFileUpload}
+                  disabled={uploadingFile || creating}
+                  style={{ display: "none" }}
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  style={{
+                    cursor: uploadingFile || creating ? "not-allowed" : "pointer",
+                    display: "block",
+                  }}
+                >
+                  <div style={{ marginBottom: 8 }}>
+                    <span style={{ fontSize: 32 }}>📄</span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#374151",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {uploadingFile ? "Processing..." : "Upload a file"}
+                  </div>
+                  <div style={{ fontSize: 13, color: "#6B7280" }}>
+                    Supports PDF, DOCX, TXT, MD files
+                  </div>
+                  {fileName && !uploadingFile && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: 13,
+                        color: "#059669",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Loaded: {fileName}
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{ flex: 1, height: 1, background: "#E5E7EB" }}
+                ></div>
+                <span style={{ fontSize: 13, color: "#6B7280", fontWeight: 500 }}>
+                  or write content directly
+                </span>
+                <div
+                  style={{ flex: 1, height: 1, background: "#E5E7EB" }}
+                ></div>
+              </div>
+
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -217,13 +369,13 @@ export default function CreateDocumentForm() {
             <div style={{ display: "flex", gap: 12 }}>
               <button
                 type="submit"
-                disabled={creating}
+                disabled={creating || uploadingFile}
                 className="btn btn-primary"
                 style={{
                   padding: "12px 24px",
                   fontSize: 16,
                   fontWeight: 600,
-                  opacity: creating ? 0.7 : 1,
+                  opacity: creating || uploadingFile ? 0.7 : 1,
                 }}
               >
                 {creating ? "Creating..." : "Create Document"}
