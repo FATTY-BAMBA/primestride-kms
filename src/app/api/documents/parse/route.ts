@@ -16,31 +16,53 @@ export async function POST(request: NextRequest) {
 
     let content = "";
 
-    // Handle plain text files directly (no external libraries needed)
+    // Handle plain text files directly
     if (fileExtension === "txt" || fileExtension === "md") {
       content = buffer.toString("utf-8");
-    } 
-    // Handle PDF
+    }
+    // Handle PDF using pdfjs-dist
     else if (fileExtension === "pdf") {
       try {
-        // Use the lib path directly to avoid test file issues on Vercel
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const pdfParse = require("pdf-parse/lib/pdf-parse");
-        const pdfData = await pdfParse(buffer);
-        content = pdfData.text;
+        // Dynamic import of pdfjs-dist for serverless compatibility
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        
+        // Load the PDF document
+        const loadingTask = pdfjsLib.getDocument({
+          data: new Uint8Array(arrayBuffer),
+          useSystemFonts: true,
+        });
+        
+        const pdfDoc = await loadingTask.promise;
+        const numPages = pdfDoc.numPages;
+        const textParts: string[] = [];
+
+        // Extract text from each page
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdfDoc.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: unknown) => {
+              const textItem = item as { str?: string };
+              return textItem.str || "";
+            })
+            .join(" ");
+          textParts.push(pageText);
+        }
+
+        content = textParts.join("\n\n");
       } catch (err) {
         console.error("PDF parsing error:", err);
-        // Return partial success - file can still be stored
         return NextResponse.json({
           content: "",
           fileName,
           characterCount: 0,
           warning: "Could not extract text from PDF. The file will still be stored and viewable.",
           extractionFailed: true,
+          error: String(err),
         });
       }
-    } 
-    // Handle DOCX/DOC
+    }
+    // Handle DOCX/DOC using mammoth
     else if (fileExtension === "docx" || fileExtension === "doc") {
       try {
         const mammoth = await import("mammoth");
@@ -56,7 +78,7 @@ export async function POST(request: NextRequest) {
           extractionFailed: true,
         });
       }
-    } 
+    }
     // Unsupported file type
     else {
       return NextResponse.json(
@@ -69,6 +91,7 @@ export async function POST(request: NextRequest) {
     content = content
       .replace(/\r\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
+      .replace(/\s{2,}/g, " ")
       .trim();
 
     return NextResponse.json({
