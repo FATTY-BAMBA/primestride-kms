@@ -1,195 +1,283 @@
-"use client";
-
+import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import UserMenu from "@/components/UserMenu";
+import { redirect } from "next/navigation";
 
-type DocRow = {
-  doc_id: string;
-  title: string;
-  current_version: string;
-  status: string;
-  doc_type: string | null;
-  domain: string | null;
-  tags: string[] | null;
-  feedback_counts: {
-    helped: number;
-    not_confident: number;
-    didnt_help: number;
-  };
-};
+export default async function LibraryPage() {
+  const supabase = await createClient();
 
-export default function LibraryPage() {
-  const [docs, setDocs] = useState<DocRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const res = await fetch("/api/learning-summary");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error ?? "Failed to load");
-        setDocs(data.documents ?? []);
-      } catch (e: unknown) {
-        setErr(e instanceof Error ? e.message : "Error");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  if (!user) {
+    redirect("/login");
+  }
 
-  const totalFeedback = docs.reduce(
-    (sum, d) =>
-      sum +
-      d.feedback_counts.helped +
-      d.feedback_counts.not_confident +
-      d.feedback_counts.didnt_help,
-    0
-  );
+  const { data: profile } = await supabase
+    .from("users")
+    .select("organization_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || !profile.organization_id) {
+    return (
+      <div className="container" style={{ padding: "40px 20px", textAlign: "center" }}>
+        <h1>Profile Not Found</h1>
+        <p style={{ color: "#6B7280", marginBottom: 20 }}>Unable to load your profile.</p>
+      </div>
+    );
+  }
+
+  const isAdmin = ["owner", "admin"].includes(profile.role || "");
+
+  // Get all documents
+  const { data: documents } = await supabase
+    .from("documents")
+    .select("*")
+    .eq("organization_id", profile.organization_id)
+    .order("title", { ascending: true });
+
+  // Get feedback counts for each document
+  const { data: feedback } = await supabase
+    .from("feedback")
+    .select("doc_id, is_helpful")
+    .eq("organization_id", profile.organization_id);
+
+  // Calculate feedback per document
+  const feedbackByDoc: Record<string, { helpful: number; notHelpful: number }> = {};
+  feedback?.forEach((f) => {
+    if (!feedbackByDoc[f.doc_id]) {
+      feedbackByDoc[f.doc_id] = { helpful: 0, notHelpful: 0 };
+    }
+    if (f.is_helpful) {
+      feedbackByDoc[f.doc_id].helpful++;
+    } else {
+      feedbackByDoc[f.doc_id].notHelpful++;
+    }
+  });
 
   return (
-    <ProtectedRoute>
-      <main className="container">
-        <header style={{ marginBottom: 40 }}>
+    <div style={{ minHeight: "100vh", background: "#F9FAFB" }}>
+      <div className="container" style={{ maxWidth: 1200, padding: "40px 20px" }}>
+        {/* Header */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
+                📚 Knowledge Library
+              </h1>
+              <p style={{ color: "#6B7280", fontSize: 16 }}>
+                Browse and learn from your organization's knowledge base
+              </p>
+            </div>
+            {isAdmin && (
+              <div style={{ display: "flex", gap: 12 }}>
+                <Link
+                  href="/library/new"
+                  className="btn btn-primary"
+                  style={{ padding: "10px 20px", fontSize: 15 }}
+                >
+                  ➕ New Document
+                </Link>
+                <Link
+                  href="/admin"
+                  className="btn"
+                  style={{ padding: "10px 20px", fontSize: 15 }}
+                >
+                  📊 Admin Dashboard
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Documents Grid */}
+        {!documents || documents.length === 0 ? (
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
-              marginBottom: 8,
+              padding: 60,
+              textAlign: "center",
+              background: "white",
+              borderRadius: 16,
+              border: "1px solid #E5E7EB",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20,
-                }}
-              >
-                📚
-              </div>
-              <h1>PrimeStride Atlas</h1>
-            </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <Link href="/search" className="btn">
-                🔍 Search
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
+            <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8, color: "#111827" }}>
+              No documents yet
+            </h2>
+            <p style={{ color: "#6B7280", marginBottom: 24 }}>
+              {isAdmin
+                ? "Get started by creating your first document."
+                : "No documents have been added to the library yet."}
+            </p>
+            {isAdmin && (
+              <Link href="/library/new" className="btn btn-primary" style={{ padding: "12px 24px" }}>
+                ➕ Create First Document
               </Link>
-              <Link href="/learning" className="btn">
-                📊 Learning
-              </Link>
-              <Link href="/admin" className="btn">
-                ⚙️ Admin
-              </Link>
-              <Link href="/team" className="btn">
-                👥 Team
-              </Link>
-              <Link href="/ai-graph" className="btn">
-                🧠 AI Graph
-              </Link>
-              <UserMenu />
-            </div>
+            )}
           </div>
-          <p style={{ color: "var(--text-secondary)", fontSize: 15 }}>
-            Learning-enabled docs with feedback → weekly improvements
-          </p>
-        </header>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: 20,
+            }}
+          >
+            {documents.map((doc) => {
+              const docFeedback = feedbackByDoc[doc.doc_id] || { helpful: 0, notHelpful: 0 };
+              const totalFeedback = docFeedback.helpful + docFeedback.notHelpful;
 
-        {!loading && !err && (
-          <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
-            <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>
-                {docs.length}
-              </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Documents</div>
-            </div>
-            <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "var(--accent-blue)" }}>
-                {totalFeedback}
-              </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Total Feedback</div>
-            </div>
-          </div>
-        )}
-
-        <section>
-          <h2 style={{ marginBottom: 20, fontSize: 18 }}>Knowledge Library</h2>
-
-          {loading && <div className="loading"><span>Loading documents...</span></div>}
-
-          {err && (
-            <div className="card" style={{ borderColor: "var(--accent-red)", background: "var(--accent-red-soft)" }}>
-              <p style={{ color: "var(--accent-red)" }}>Error: {err}</p>
-            </div>
-          )}
-
-          {!loading && !err && (
-            <div style={{ display: "grid", gap: 16 }}>
-              {docs.map((d, i) => (
+              return (
                 <div
-                  key={d.doc_id}
-                  className="card animate-in"
+                  key={doc.doc_id}
                   style={{
-                    animationDelay: `${i * 0.05}s`,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 20,
-                    flexWrap: "wrap",
+                    background: "white",
+                    borderRadius: 12,
+                    border: "1px solid #E5E7EB",
+                    overflow: "hidden",
+                    transition: "box-shadow 0.2s, transform 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.1)";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                    e.currentTarget.style.transform = "none";
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>{d.title}</h3>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <span className="badge mono">{d.doc_id}</span>
-                      <span className="badge">{d.current_version}</span>
-                      <span className="badge badge-success">{d.status}</span>
-                      {d.doc_type && <span className="badge">{d.doc_type}</span>}
+                  {/* Card Header */}
+                  <div style={{ padding: "20px 20px 0" }}>
+                    {/* Badges */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+                      <span
+                        style={{
+                          padding: "4px 10px",
+                          background: "#EEF2FF",
+                          color: "#4F46E5",
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {doc.doc_id}
+                      </span>
+                      {doc.doc_type && (
+                        <span
+                          style={{
+                            padding: "4px 10px",
+                            background: "#ECFDF5",
+                            color: "#059669",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 500,
+                          }}
+                        >
+                          {doc.doc_type}
+                        </span>
+                      )}
+                      {doc.file_url && (
+                        <span
+                          style={{
+                            padding: "4px 10px",
+                            background: "#FEF3C7",
+                            color: "#D97706",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 500,
+                          }}
+                        >
+                          📎 File
+                        </span>
+                      )}
                     </div>
+
+                    {/* Title */}
+                    <Link
+                      href={`/library/${doc.doc_id}`}
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 600,
+                        color: "#111827",
+                        textDecoration: "none",
+                        display: "block",
+                        marginBottom: 8,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {doc.title}
+                    </Link>
+
+                    {/* Preview */}
+                    <p
+                      style={{
+                        fontSize: 14,
+                        color: "#6B7280",
+                        lineHeight: 1.5,
+                        marginBottom: 16,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {doc.content?.slice(0, 150) || "No content preview available"}
+                      {doc.content?.length > 150 ? "..." : ""}
+                    </p>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", gap: 16, fontSize: 14 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-green)" }}>
-                        <span>✓</span>
-                        <span style={{ fontWeight: 600 }}>{d.feedback_counts.helped}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-yellow)" }}>
-                        <span>⚠</span>
-                        <span style={{ fontWeight: 600 }}>{d.feedback_counts.not_confident}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-red)" }}>
-                        <span>✗</span>
-                        <span style={{ fontWeight: 600 }}>{d.feedback_counts.didnt_help}</span>
-                      </div>
+                  {/* Card Footer */}
+                  <div
+                    style={{
+                      padding: "12px 20px",
+                      background: "#F9FAFB",
+                      borderTop: "1px solid #E5E7EB",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    {/* Feedback Stats */}
+                    <div style={{ display: "flex", gap: 12, fontSize: 13, color: "#6B7280" }}>
+                      {totalFeedback > 0 ? (
+                        <>
+                          <span>👍 {docFeedback.helpful}</span>
+                          <span>👎 {docFeedback.notHelpful}</span>
+                        </>
+                      ) : (
+                        <span>No feedback yet</span>
+                      )}
                     </div>
 
-                    <Link href={`/library/${encodeURIComponent(d.doc_id)}`} className="btn btn-primary">
-                      View & Feedback →
-                    </Link>
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {isAdmin && (
+                        <Link
+                          href={`/library/${doc.doc_id}/edit`}
+                          className="btn"
+                          style={{ padding: "6px 12px", fontSize: 12 }}
+                        >
+                          ✏️ Edit
+                        </Link>
+                      )}
+                      <Link
+                        href={`/library/${doc.doc_id}`}
+                        className="btn btn-primary"
+                        style={{ padding: "6px 12px", fontSize: 12 }}
+                      >
+                        View →
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {!loading && !err && docs.length === 0 && (
-            <div className="card" style={{ textAlign: "center", padding: 40 }}>
-              <p style={{ color: "var(--text-muted)" }}>No documents found.</p>
-            </div>
-          )}
-        </section>
-      </main>
-    </ProtectedRoute>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
