@@ -65,6 +65,26 @@ export default function DocumentView({
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this document? This cannot be undone.")) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/documents/${document.doc_id}`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        window.location.href = "/library";
+      } else {
+        alert("Failed to delete document");
+      }
+    } catch (err) {
+      alert("Failed to delete document");
+    }
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#F9FAFB", paddingBottom: 60 }}>
       <div className="container" style={{ maxWidth: 900, padding: "40px 20px" }}>
@@ -84,6 +104,30 @@ export default function DocumentView({
           >
             ← Back to Library
           </Link>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+          <Link
+            href={`/library/${document.doc_id}/edit`}
+            className="btn"
+            style={{ padding: "10px 20px", fontSize: 14 }}
+          >
+            ✏️ Edit
+          </Link>
+          <button
+            className="btn"
+            onClick={handleDelete}
+            style={{
+              padding: "10px 20px",
+              fontSize: 14,
+              background: "#FEE2E2",
+              color: "#991B1B",
+              border: "1px solid #FCA5A5",
+            }}
+          >
+            🗑️ Delete
+          </button>
         </div>
 
         {/* Document Header Card */}
