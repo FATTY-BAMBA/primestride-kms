@@ -1,18 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { Resend } from 'resend';
-import { invitationEmail } from '@/lib/email-templates';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { Resend } from "resend";
+import { invitationEmail } from "@/lib/email-templates";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { email, role } = await request.json();
+    const { email, role = "member" } = await request.json();
 
-    if (!email || !role) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'Email and role are required' },
+        { error: "Email is required" },
         { status: 400 }
       );
     }
@@ -22,70 +22,79 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', user.id)
+    // Get user's organization membership
+    const { data: myMembership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .limit(1)
       .single();
 
-    if (!['admin', 'owner'].includes(profile?.role || '')) {
+    if (!myMembership) {
       return NextResponse.json(
-        { error: 'Only admins can resend invitations' },
+        { error: "Not authorized to resend invitations" },
         { status: 403 }
       );
     }
 
-    // Delete old invitation
-    await supabase
-      .from('organization_invitations')
-      .delete()
-      .eq('email', email.toLowerCase())
-      .eq('organization_id', profile?.organization_id);
+    // Find the existing pending invitation
+    const { data: existingInvitation } = await supabase
+      .from("invitations")
+      .select("id, token, email, role")
+      .eq("email", email.toLowerCase())
+      .eq("organization_id", myMembership.organization_id)
+      .eq("status", "pending")
+      .single();
 
-    // Create new invitation with new token
-    const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
+    if (!existingInvitation) {
+      return NextResponse.json(
+        { error: "No pending invitation found for this email" },
+        { status: 404 }
+      );
+    }
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    const { data: invitation } = await supabase
-      .from('organization_invitations')
-      .insert({
-        organization_id: profile?.organization_id,
-        email: email.toLowerCase(),
-        role,
-        token,
-        invited_by: user.id,
-        expires_at: expiresAt.toISOString(),
+    // Update the invitation with new expiry and potentially new token
+    const { data: updatedInvitation, error: updateError } = await supabase
+      .from("invitations")
+      .update({
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+        token: crypto.randomUUID(), // Generate new token
       })
-      .select()
+      .eq("id", existingInvitation.id)
+      .select("id, token, email, role, expires_at")
       .single();
 
-    // Get organization name for email
+    if (updateError) {
+      console.error("Error updating invitation:", updateError);
+      throw updateError;
+    }
+
+    // Get organization name
     const { data: org } = await supabase
-      .from('organizations')
-      .select('name')
-      .eq('id', profile?.organization_id)
+      .from("organizations")
+      .select("name")
+      .eq("id", myMembership.organization_id)
       .single();
 
-    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup?invite=${token}`;
+    // Build invite URL with new token
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
+    const inviteUrl = `${baseUrl}/invite/${updatedInvitation.token}`;
 
     // Send email
     try {
       const emailContent = invitationEmail({
         inviteUrl,
-        organizationName: org?.name || 'Your Team',
-        inviterEmail: user.email || 'A team member',
-        role,
+        organizationName: org?.name || "Your Team",
+        inviterEmail: user.email || "A team member",
+        role: updatedInvitation.role,
       });
 
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || 'PrimeStride Atlas <onboarding@resend.dev>',
+        from: process.env.EMAIL_FROM || "PrimeStride Atlas <onboarding@resend.dev>",
         to: email.toLowerCase(),
         replyTo: user.email || undefined,
         subject: emailContent.subject,
@@ -93,9 +102,9 @@ export async function POST(request: NextRequest) {
         text: emailContent.text,
       });
 
-      console.log('✅ Invitation email resent to:', email);
+      console.log("✅ Invitation email resent to:", email);
     } catch (emailError) {
-      console.error('⚠️ Failed to send email:', emailError);
+      console.error("⚠️ Failed to send email:", emailError);
     }
 
     return NextResponse.json({
@@ -103,9 +112,9 @@ export async function POST(request: NextRequest) {
       message: `Invitation resent to ${email}`,
     });
   } catch (error) {
-    console.error('Error resending invitation:', error);
+    console.error("Error resending invitation:", error);
     return NextResponse.json(
-      { error: 'Failed to resend invitation' },
+      { error: "Failed to resend invitation" },
       { status: 500 }
     );
   }

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
     if (!invitationId) {
       return NextResponse.json(
-        { error: 'Invitation ID is required' },
+        { error: "Invitation ID is required" },
         { status: 400 }
       );
     }
@@ -18,37 +18,55 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', user.id)
+    // Get user's organization membership
+    const { data: myMembership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .limit(1)
       .single();
 
-    if (!['admin', 'owner'].includes(profile?.role || '')) {
+    if (!myMembership) {
       return NextResponse.json(
-        { error: 'Only admins can cancel invitations' },
+        { error: "Not authorized to cancel invitations" },
         { status: 403 }
       );
     }
 
-    // Delete invitation
-    await supabase
-      .from('organization_invitations')
-      .delete()
-      .eq('id', invitationId)
-      .eq('organization_id', profile?.organization_id);
+    // Verify the invitation belongs to this organization
+    const { data: invitation } = await supabase
+      .from("invitations")
+      .select("id, organization_id")
+      .eq("id", invitationId)
+      .single();
 
-    return NextResponse.json({
-      success: true,
-      message: 'Invitation cancelled',
-    });
+    if (!invitation || invitation.organization_id !== myMembership.organization_id) {
+      return NextResponse.json(
+        { error: "Invitation not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update status to cancelled
+    const { error } = await supabase
+      .from("invitations")
+      .update({ status: "cancelled" })
+      .eq("id", invitationId);
+
+    if (error) {
+      console.error("Error cancelling invitation:", error);
+      throw error;
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error cancelling invitation:', error);
+    console.error("Error in cancel invitation API:", error);
     return NextResponse.json(
-      { error: 'Failed to cancel invitation' },
+      { error: "Failed to cancel invitation" },
       { status: 500 }
     );
   }

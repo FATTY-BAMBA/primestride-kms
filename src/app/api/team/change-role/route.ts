@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,14 +8,14 @@ export async function POST(request: NextRequest) {
 
     if (!userId || !role) {
       return NextResponse.json(
-        { error: 'User ID and role are required' },
+        { error: "User ID and role are required" },
         { status: 400 }
       );
     }
 
-    if (!['member', 'admin'].includes(role)) {
+    if (!["member", "admin"].includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role' },
+        { error: "Invalid role. Must be 'member' or 'admin'" },
         { status: 400 }
       );
     }
@@ -25,66 +25,88 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', user.id)
+    // Get current user's membership
+    const { data: myMembership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .limit(1)
       .single();
 
-    if (!['admin', 'owner'].includes(profile?.role || '')) {
+    if (!myMembership) {
       return NextResponse.json(
-        { error: 'Only admins can change roles' },
+        { error: "Not authorized to change roles" },
         { status: 403 }
       );
     }
 
-    // Check if trying to change own role
+    // Can't change your own role
     if (userId === user.id) {
       return NextResponse.json(
-        { error: 'You cannot change your own role' },
+        { error: "Cannot change your own role" },
         { status: 400 }
       );
     }
 
-    // Check if user is in same organization
-    const { data: targetUser } = await supabase
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', userId)
+    // Get the target member's membership
+    const { data: targetMembership } = await supabase
+      .from("organization_members")
+      .select("id, role")
+      .eq("user_id", userId)
+      .eq("organization_id", myMembership.organization_id)
       .single();
 
-    if (targetUser?.organization_id !== profile?.organization_id) {
+    if (!targetMembership) {
       return NextResponse.json(
-        { error: 'User not in your organization' },
+        { error: "Member not found" },
+        { status: 404 }
+      );
+    }
+
+    // Can't change owner's role
+    if (targetMembership.role === "owner") {
+      return NextResponse.json(
+        { error: "Cannot change organization owner's role" },
         { status: 403 }
       );
     }
 
-    // Cannot change owner role
-    if (targetUser?.role === 'owner') {
+    // Admins can only change members, not other admins
+    if (myMembership.role === "admin" && targetMembership.role === "admin") {
       return NextResponse.json(
-        { error: 'Cannot change owner role' },
+        { error: "Admins cannot change other admins' roles" },
         { status: 403 }
       );
     }
 
-    // Update role
-    await supabase
-      .from('users')
+    // Only owners can promote to admin
+    if (role === "admin" && myMembership.role !== "owner") {
+      return NextResponse.json(
+        { error: "Only owners can promote members to admin" },
+        { status: 403 }
+      );
+    }
+
+    // Update the role
+    const { error } = await supabase
+      .from("organization_members")
       .update({ role })
-      .eq('id', userId);
+      .eq("id", targetMembership.id);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Role updated successfully',
-    });
+    if (error) {
+      console.error("Error changing role:", error);
+      throw error;
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error changing role:', error);
+    console.error("Error in change role API:", error);
     return NextResponse.json(
-      { error: 'Failed to change role' },
+      { error: "Failed to change role" },
       { status: 500 }
     );
   }

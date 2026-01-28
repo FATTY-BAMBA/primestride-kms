@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: 'User ID is required' },
+        { error: "User ID is required" },
         { status: 400 }
       );
     }
@@ -18,66 +18,80 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', user.id)
+    // Get current user's membership
+    const { data: myMembership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .limit(1)
       .single();
 
-    if (!['admin', 'owner'].includes(profile?.role || '')) {
+    if (!myMembership) {
       return NextResponse.json(
-        { error: 'Only admins can remove members' },
+        { error: "Not authorized to remove members" },
         { status: 403 }
       );
     }
 
-    // Check if trying to remove self
+    // Can't remove yourself
     if (userId === user.id) {
       return NextResponse.json(
-        { error: 'You cannot remove yourself' },
+        { error: "Cannot remove yourself" },
         { status: 400 }
       );
     }
 
-    // Check if user being removed is in same organization
-    const { data: targetUser } = await supabase
-      .from('users')
-      .select('organization_id, role')
-      .eq('id', userId)
+    // Get the target member's membership
+    const { data: targetMembership } = await supabase
+      .from("organization_members")
+      .select("id, role")
+      .eq("user_id", userId)
+      .eq("organization_id", myMembership.organization_id)
       .single();
 
-    if (targetUser?.organization_id !== profile?.organization_id) {
+    if (!targetMembership) {
       return NextResponse.json(
-        { error: 'User not in your organization' },
+        { error: "Member not found" },
+        { status: 404 }
+      );
+    }
+
+    // Can't remove owner
+    if (targetMembership.role === "owner") {
+      return NextResponse.json(
+        { error: "Cannot remove organization owner" },
         { status: 403 }
       );
     }
 
-    // Cannot remove owners
-    if (targetUser?.role === 'owner') {
+    // Admins can only remove members, not other admins
+    if (myMembership.role === "admin" && targetMembership.role === "admin") {
       return NextResponse.json(
-        { error: 'Cannot remove organization owner' },
+        { error: "Admins cannot remove other admins" },
         { status: 403 }
       );
     }
 
-    // Remove user from organization
-    await supabase
-      .from('users')
-      .update({ organization_id: null, role: 'user' })
-      .eq('id', userId);
+    // Remove the member (soft delete by setting is_active = false, or hard delete)
+    const { error } = await supabase
+      .from("organization_members")
+      .delete()
+      .eq("id", targetMembership.id);
 
-    return NextResponse.json({
-      success: true,
-      message: 'Member removed successfully',
-    });
+    if (error) {
+      console.error("Error removing member:", error);
+      throw error;
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error removing member:', error);
+    console.error("Error in remove member API:", error);
     return NextResponse.json(
-      { error: 'Failed to remove member' },
+      { error: "Failed to remove member" },
       { status: 500 }
     );
   }
