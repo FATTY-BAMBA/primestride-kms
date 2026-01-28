@@ -333,7 +333,7 @@ export default function DocumentView({
                       fontWeight: 700,
                       whiteSpace: "nowrap",
                     }}>
-                      {Math.round(doc.similarity * 100)}% match
+                      {Math.round(doc.similarity > 1 ? doc.similarity : doc.similarity * 100)}% match
                     </div>
                   </div>
                 </Link>
