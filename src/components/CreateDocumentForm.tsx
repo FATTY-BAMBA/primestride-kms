@@ -145,12 +145,18 @@ export default function CreateDocumentForm() {
 
       const data = await res.json();
 
-      if (res.ok && data.content) {
-        setContent(data.content);
-        setMessage(`✅ Extracted text from ${file.name}. Original file will be stored.`);
+      if (res.ok) {
+        if (data.content) {
+          setContent(data.content);
+          setMessage(`✅ Extracted ${data.characterCount} characters from ${file.name}. Original file will be stored.`);
+        } else if (data.extractionFailed) {
+          // Extraction failed but file can still be stored
+          setMessage(`⚠️ Could not extract text from ${file.name}, but the file will be stored and viewable. Please add a description manually.`);
+        }
       } else {
-        // Even if text extraction fails, keep the file for storage
-        setMessage(`⚠️ Could not extract text, but file will be stored. You can add content manually.`);
+        setError(data.error || "Failed to extract content from file");
+        // Still keep the file for storage even if extraction fails
+        setMessage(`⚠️ Text extraction failed. File will still be stored.`);
       }
     } catch (err) {
       setError("Failed to process file");
@@ -249,11 +255,12 @@ export default function CreateDocumentForm() {
               <input
                 type="text"
                 value={docId}
-                onChange={(e) => setDocId(e.target.value.toUpperCase())}
+                onChange={(e) => setDocId(e.target.value.toUpperCase().replace(/\s/g, '-'))}
                 placeholder="PS-GUIDE-001"
                 required
                 disabled={creating}
                 pattern="[A-Z0-9-]+"
+                title="Only letters, numbers, and hyphens allowed (no spaces)"
                 style={{
                   ...inputStyle,
                   opacity: creating ? 0.6 : 1,
@@ -369,7 +376,7 @@ export default function CreateDocumentForm() {
                       {uploadingFile ? "Processing..." : "Click to upload a file"}
                     </div>
                     <div style={{ fontSize: 13, color: "#6B7280" }}>
-                      PDF, DOCX, TXT, MD • Text will be extracted, original file stored
+                      PDF, DOCX, DOC, TXT, MD • Text extracted automatically
                     </div>
                   </label>
                 </div>
