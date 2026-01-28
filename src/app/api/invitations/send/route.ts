@@ -5,6 +5,8 @@ import { invitationEmail } from '@/lib/email-templates';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -25,42 +27,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
+    // Check user's organization membership
+    const { data: membership } = await supabase
+      .from('organization_members')
       .select('organization_id, role')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single();
 
-    if (!profile?.organization_id) {
+    if (!membership?.organization_id) {
       return NextResponse.json(
         { error: 'User has no organization' },
         { status: 400 }
       );
     }
 
-    if (!['admin', 'owner'].includes(profile.role)) {
+    if (!['admin', 'owner'].includes(membership.role)) {
       return NextResponse.json(
         { error: 'Only admins can invite team members' },
         { status: 403 }
       );
     }
 
-    // Check if already a member
-    const { data: existingUser } = await supabase
-      .from('users')
+    // Check if user already has invitation pending
+    const { data: existingInvite } = await supabase
+      .from('organization_invitations')
       .select('id')
-      .eq('email', email)
-      .eq('organization_id', profile.organization_id)
+      .eq('email', email.toLowerCase())
+      .eq('organization_id', membership.organization_id)
+      .is('accepted_at', null)
       .single();
 
-    if (existingUser) {
+    if (existingInvite) {
       return NextResponse.json(
-        { error: 'User is already in this organization' },
+        { error: 'Invitation already sent to this email' },
         { status: 400 }
       );
     }
 
-    // Generate token
+    // Check if already a member
+    const { data: existingMember } = await supabase
+      .from('organization_members')
+      .select('id, user_id')
+      .eq('organization_id', membership.organization_id)
+      .single();
+
+    if (existingMember) {
+      // Get the user's email to check
+      const { data: existingUserData } = await supabase
+        .from('auth.users')
+        .select('email')
+        .eq('id', existingMember.user_id)
+        .single();
+
+      if (existingUserData?.email === email.toLowerCase()) {
+        return NextResponse.json(
+          { error: 'User is already in this organization' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Generate secure token
     const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
@@ -71,7 +98,7 @@ export async function POST(request: NextRequest) {
     const { data: invitation, error: inviteError } = await supabase
       .from('organization_invitations')
       .insert({
-        organization_id: profile.organization_id,
+        organization_id: membership.organization_id,
         email: email.toLowerCase(),
         role,
         token,
@@ -82,6 +109,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (inviteError) {
+      console.error('Error creating invitation:', inviteError);
       if (inviteError.code === '23505') {
         return NextResponse.json(
           { error: 'Invitation already sent to this email' },
@@ -95,10 +123,19 @@ export async function POST(request: NextRequest) {
     const { data: org } = await supabase
       .from('organizations')
       .select('name')
-      .eq('id', profile.organization_id)
+      .eq('id', membership.organization_id)
       .single();
 
-    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup?invite=${token}`;
+    // FIXED: Use /invite/[token] format with production URL
+    if (!process.env.NEXT_PUBLIC_APP_URL) {
+      console.error('⚠️ NEXT_PUBLIC_APP_URL is not set!');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${token}`;
 
     // Send email
     try {
@@ -119,6 +156,7 @@ export async function POST(request: NextRequest) {
       });
 
       console.log('✅ Invitation email sent to:', email);
+      console.log('📧 Invite URL:', inviteUrl);
     } catch (emailError) {
       console.error('⚠️ Failed to send email:', emailError);
       // Don't fail the whole request if email fails
