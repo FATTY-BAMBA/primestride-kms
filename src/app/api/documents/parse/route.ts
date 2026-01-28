@@ -20,36 +20,13 @@ export async function POST(request: NextRequest) {
     if (fileExtension === "txt" || fileExtension === "md") {
       content = buffer.toString("utf-8");
     }
-    // Handle PDF using pdfjs-dist
+    // Handle PDF using unpdf (serverless-compatible)
     else if (fileExtension === "pdf") {
       try {
-        // Dynamic import of pdfjs-dist for serverless compatibility
-        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-        
-        // Load the PDF document
-        const loadingTask = pdfjsLib.getDocument({
-          data: new Uint8Array(arrayBuffer),
-          useSystemFonts: true,
-        });
-        
-        const pdfDoc = await loadingTask.promise;
-        const numPages = pdfDoc.numPages;
-        const textParts: string[] = [];
-
-        // Extract text from each page
-        for (let i = 1; i <= numPages; i++) {
-          const page = await pdfDoc.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .map((item: unknown) => {
-              const textItem = item as { str?: string };
-              return textItem.str || "";
-            })
-            .join(" ");
-          textParts.push(pageText);
-        }
-
-        content = textParts.join("\n\n");
+        const { extractText } = await import("unpdf");
+        const result = await extractText(new Uint8Array(arrayBuffer));
+        // text is an array of strings (one per page), join them
+        content = Array.isArray(result.text) ? result.text.join("\n\n") : result.text;
       } catch (err) {
         console.error("PDF parsing error:", err);
         return NextResponse.json({
