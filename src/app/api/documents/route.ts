@@ -67,8 +67,6 @@ export async function POST(request: NextRequest) {
         organization_id: profile.organization_id,
         current_version: "v1.0",
         status: "published",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       })
       .select()
       .single();

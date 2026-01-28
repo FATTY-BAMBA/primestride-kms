@@ -118,7 +118,6 @@ export async function PUT(
         file_name: fileName || null,
         file_type: fileType || null,
         current_version: newVersion,
-        updated_at: new Date().toISOString(),
       })
       .eq("doc_id", params.docId)
       .eq("organization_id", profile.organization_id)
