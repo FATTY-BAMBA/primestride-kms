@@ -18,10 +18,12 @@ export default async function AdminPage() {
     );
   }
 
+  // Updated: Use organization_members table instead of users
   const { data: profile } = await supabase
-    .from("users")
+    .from("organization_members")
     .select("organization_id, role")
-    .eq("id", user.id)
+    .eq("user_id", user.id)
+    .limit(1)
     .single();
 
   // Check if profile exists
