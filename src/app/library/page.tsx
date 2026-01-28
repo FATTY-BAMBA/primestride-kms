@@ -13,6 +13,7 @@ type DocRow = {
   doc_type: string | null;
   domain: string | null;
   tags: string[] | null;
+  file_url?: string | null;
   feedback_counts: {
     helped: number;
     not_confident: number;
@@ -24,15 +25,25 @@ export default function LibraryPage() {
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
+        
+        // Fetch documents
         const res = await fetch("/api/learning-summary");
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error ?? "Failed to load");
         setDocs(data.documents ?? []);
+        
+        // Fetch user role to check if admin
+        const profileRes = await fetch("/api/profile");
+        const profileData = await profileRes.json();
+        if (profileRes.ok && profileData.role) {
+          setIsAdmin(["owner", "admin"].includes(profileData.role));
+        }
       } catch (e: unknown) {
         setErr(e instanceof Error ? e.message : "Error");
       } finally {
@@ -82,6 +93,11 @@ export default function LibraryPage() {
               <h1>PrimeStride Atlas</h1>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              {isAdmin && (
+                <Link href="/library/new" className="btn btn-primary">
+                  ➕ New Document
+                </Link>
+              )}
               <Link href="/search" className="btn">
                 🔍 Search
               </Link>
@@ -155,6 +171,7 @@ export default function LibraryPage() {
                       <span className="badge">{d.current_version}</span>
                       <span className="badge badge-success">{d.status}</span>
                       {d.doc_type && <span className="badge">{d.doc_type}</span>}
+                      {d.file_url && <span className="badge" title="Has attached file">📎 File</span>}
                     </div>
                   </div>
 
@@ -174,9 +191,16 @@ export default function LibraryPage() {
                       </div>
                     </div>
 
-                    <Link href={`/library/${encodeURIComponent(d.doc_id)}`} className="btn btn-primary">
-                      View & Feedback →
-                    </Link>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {isAdmin && (
+                        <Link href={`/library/${encodeURIComponent(d.doc_id)}/edit`} className="btn">
+                          ✏️ Edit
+                        </Link>
+                      )}
+                      <Link href={`/library/${encodeURIComponent(d.doc_id)}`} className="btn btn-primary">
+                        View & Feedback →
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -186,6 +210,11 @@ export default function LibraryPage() {
           {!loading && !err && docs.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: 40 }}>
               <p style={{ color: "var(--text-muted)" }}>No documents found.</p>
+              {isAdmin && (
+                <Link href="/library/new" className="btn btn-primary" style={{ marginTop: 16 }}>
+                  ➕ Create First Document
+                </Link>
+              )}
             </div>
           )}
         </section>
