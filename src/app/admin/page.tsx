@@ -125,7 +125,7 @@ export default async function AdminPage() {
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
             gap: 20,
-            marginBottom: 24,
+            marginBottom: 40,
           }}
         >
           <div
@@ -193,52 +193,6 @@ export default async function AdminPage() {
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div
-          style={{
-            padding: 32,
-            marginBottom: 24,
-            background: "white",
-            borderRadius: 16,
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
-          }}
-        >
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20, color: "#111827" }}>
-            ⚡ Quick Actions
-          </h2>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link
-              href="/library/new"
-              className="btn btn-primary"
-              style={{ padding: "12px 24px", fontSize: 15 }}
-            >
-              ➕ Create New Document
-            </Link>
-            <Link
-              href="/library"
-              className="btn"
-              style={{ padding: "12px 24px", fontSize: 15 }}
-            >
-              📚 View Library
-            </Link>
-            <Link
-              href="/ai-graph"
-              className="btn"
-              style={{ padding: "12px 24px", fontSize: 15 }}
-            >
-              🧠 AI Knowledge Graph
-            </Link>
-            <Link
-              href="/team"
-              className="btn"
-              style={{ padding: "12px 24px", fontSize: 15 }}
-            >
-              👥 Manage Team
-            </Link>
-          </div>
-        </div>
-
         {/* Most Helpful Documents */}
         <div
           style={{
@@ -268,11 +222,9 @@ export default async function AdminPage() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     background: "#FAFAFA",
-                    flexWrap: "wrap",
-                    gap: 16,
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ flex: 1 }}>
                     <Link
                       href={`/library/${doc.doc_id}`}
                       style={{ fontWeight: 600, fontSize: 16, color: "#111827", textDecoration: "none" }}
@@ -283,7 +235,7 @@ export default async function AdminPage() {
                       {doc.doc_id}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: 20, fontWeight: 700, color: "#10B981" }}>
                         {doc.helpful}
@@ -307,22 +259,6 @@ export default async function AdminPage() {
                       }}
                     >
                       {doc.helpfulPercentage}%
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Link
-                        href={`/library/${doc.doc_id}/edit`}
-                        className="btn"
-                        style={{ fontSize: 13, padding: "6px 12px" }}
-                      >
-                        ✏️ Edit
-                      </Link>
-                      <Link
-                        href={`/library/${doc.doc_id}`}
-                        className="btn"
-                        style={{ fontSize: 13, padding: "6px 12px" }}
-                      >
-                        👁️ View
-                      </Link>
                     </div>
                   </div>
                 </div>
@@ -400,22 +336,6 @@ export default async function AdminPage() {
                     >
                       {doc.helpfulPercentage}%
                     </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Link
-                        href={`/library/${doc.doc_id}/edit`}
-                        className="btn btn-primary"
-                        style={{ fontSize: 13, padding: "6px 12px" }}
-                      >
-                        ✏️ Edit
-                      </Link>
-                      <Link
-                        href={`/library/${doc.doc_id}`}
-                        className="btn"
-                        style={{ fontSize: 13, padding: "6px 12px" }}
-                      >
-                        👁️ View
-                      </Link>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -427,7 +347,6 @@ export default async function AdminPage() {
         <div
           style={{
             padding: 32,
-            marginBottom: 24,
             background: "white",
             borderRadius: 16,
             border: "1px solid #E5E7EB",
@@ -452,11 +371,9 @@ export default async function AdminPage() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     background: "#FAFAFA",
-                    flexWrap: "wrap",
-                    gap: 16,
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 200 }}>
+                  <div>
                     <Link
                       href={`/library/${doc.doc_id}`}
                       style={{ fontWeight: 600, fontSize: 16, color: "#111827", textDecoration: "none" }}
@@ -467,121 +384,17 @@ export default async function AdminPage() {
                       {doc.doc_id}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-                    <div
-                      style={{
-                        padding: "8px 16px",
-                        background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-                        color: "white",
-                        borderRadius: 8,
-                        fontSize: 14,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {doc.total} feedback entries
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Link
-                        href={`/library/${doc.doc_id}/edit`}
-                        className="btn"
-                        style={{ fontSize: 13, padding: "6px 12px" }}
-                      >
-                        ✏️ Edit
-                      </Link>
-                      <Link
-                        href={`/library/${doc.doc_id}`}
-                        className="btn"
-                        style={{ fontSize: 13, padding: "6px 12px" }}
-                      >
-                        👁️ View
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* All Documents - Full Management */}
-        <div
-          style={{
-            padding: 32,
-            background: "white",
-            borderRadius: 16,
-            border: "1px solid #E5E7EB",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>
-              📚 All Documents ({totalDocs})
-            </h2>
-            <Link
-              href="/library/new"
-              className="btn btn-primary"
-              style={{ fontSize: 14, padding: "8px 16px" }}
-            >
-              ➕ New Document
-            </Link>
-          </div>
-          {docStats.length === 0 ? (
-            <p style={{ color: "#6B7280" }}>No documents yet. Create your first document!</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {docStats
-                .sort((a, b) => a.title.localeCompare(b.title))
-                .map((doc) => (
-                <div
-                  key={doc.doc_id}
-                  style={{
-                    padding: "12px 16px",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: 8,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    background: "#FAFAFA",
-                    flexWrap: "wrap",
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15, color: "#111827" }}>
-                      {doc.title}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
-                      <span style={{ fontFamily: "monospace" }}>{doc.doc_id}</span>
-                      {doc.doc_type && (
-                        <span style={{ marginLeft: 8, padding: "2px 6px", background: "#E5E7EB", borderRadius: 4 }}>
-                          {doc.doc_type}
-                        </span>
-                      )}
-                      {doc.file_url && (
-                        <span style={{ marginLeft: 8 }}>📎</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    {doc.total > 0 && (
-                      <span style={{ fontSize: 12, color: "#6B7280", marginRight: 8 }}>
-                        👍 {doc.helpful} / 👎 {doc.notHelpful}
-                      </span>
-                    )}
-                    <Link
-                      href={`/library/${doc.doc_id}/edit`}
-                      className="btn"
-                      style={{ fontSize: 12, padding: "4px 10px" }}
-                    >
-                      ✏️ Edit
-                    </Link>
-                    <Link
-                      href={`/library/${doc.doc_id}`}
-                      className="btn"
-                      style={{ fontSize: 12, padding: "4px 10px" }}
-                    >
-                      👁️ View
-                    </Link>
+                  <div
+                    style={{
+                      padding: "8px 16px",
+                      background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+                      color: "white",
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {doc.total} feedback entries
                   </div>
                 </div>
               ))}
