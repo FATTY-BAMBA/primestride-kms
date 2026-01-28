@@ -15,7 +15,7 @@ interface Document {
 }
 
 interface SimilarDoc {
-  docId: string;
+  doc_id: string;
   title: string;
   similarity: number;
 }
@@ -441,8 +441,8 @@ export default function DocumentView({
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {similarDocs.map((doc) => (
                 <Link
-                  key={doc.docId}
-                  href={`/library/${encodeURIComponent(doc.docId)}`}
+                  key={doc.doc_id}
+                  href={`/library/${encodeURIComponent(doc.doc_id)}`}
                   className="card"
                   style={{
                     padding: 20,
@@ -473,7 +473,7 @@ export default function DocumentView({
                       >
                         {doc.title}
                       </div>
-                      <div style={{ fontSize: 14, color: "#6B7280", fontFamily: "monospace" }}>{doc.docId}</div>
+                      <div style={{ fontSize: 14, color: "#6B7280", fontFamily: "monospace" }}>{doc.doc_id}</div>
                     </div>
                     <div
                       style={{
