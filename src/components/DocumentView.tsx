@@ -438,11 +438,12 @@ export default function DocumentView({
               🔗 Related Documents
             </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {similarDocs.map((doc) => (
                 <Link
                   key={doc.docId}
-                  href={`/library/${doc.docId}`}
+                  href={`/library/${encodeURIComponent(doc.docId)}`}
+                  className="card"
                   style={{
                     padding: 20,
                     border: "2px solid #E5E7EB",
@@ -450,17 +451,7 @@ export default function DocumentView({
                     textDecoration: "none",
                     color: "inherit",
                     display: "block",
-                    transition: "all 0.2s",
                     background: "white",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "#4F46E5";
-                    e.currentTarget.style.boxShadow =
-                      "0 4px 12px rgba(79, 70, 237, 0.15)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.boxShadow = "none";
                   }}
                 >
                   <div
@@ -482,7 +473,7 @@ export default function DocumentView({
                       >
                         {doc.title}
                       </div>
-                      <div style={{ fontSize: 14, color: "#6B7280" }}>{doc.docId}</div>
+                      <div style={{ fontSize: 14, color: "#6B7280", fontFamily: "monospace" }}>{doc.docId}</div>
                     </div>
                     <div
                       style={{
@@ -497,8 +488,7 @@ export default function DocumentView({
                     >
                       {Math.round(
                         doc.similarity > 1 ? doc.similarity : doc.similarity * 100
-                      )}
-                      % match
+                      )}% match
                     </div>
                   </div>
                 </Link>
