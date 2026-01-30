@@ -1,53 +1,59 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { generateEmbedding, kMeansClustering } from '@/lib/ai-embeddings';
-import OpenAI from 'openai';
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { generateEmbedding, kMeansClustering } from "@/lib/ai-embeddings";
+import OpenAI from "openai";
+
+export const dynamic = "force-dynamic";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id, role, email')
-      .eq('id', user.id)
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    // Check if profile exists
-    if (!profile || !profile.organization_id) {
+    if (!membership) {
       return NextResponse.json(
-        { error: 'User profile not found' },
+        { error: "No organization found" },
         { status: 400 }
       );
     }
 
     // Only admins can generate embeddings
-    if (!['admin', 'owner'].includes(profile.role)) {
+    if (!["admin", "owner"].includes(membership.role)) {
       return NextResponse.json(
-        { error: 'Only admins can generate embeddings' },
+        { error: "Only admins can generate embeddings" },
         { status: 403 }
       );
     }
 
     // Get all documents for this organization
     const { data: documents } = await supabase
-      .from('documents')
-      .select('doc_id, title, content, organization_id')
-      .eq('organization_id', profile.organization_id);
+      .from("documents")
+      .select("doc_id, title, content, organization_id")
+      .eq("organization_id", membership.organization_id);
 
     if (!documents || documents.length === 0) {
       return NextResponse.json(
-        { error: 'No documents found' },
+        { error: "No documents found" },
         { status: 404 }
       );
     }
@@ -72,13 +78,13 @@ export async function POST(request: NextRequest) {
 
         // Store in database (upsert)
         await supabase
-          .from('document_embeddings')
+          .from("document_embeddings")
           .upsert({
             doc_id: doc.doc_id,
             organization_id: doc.organization_id,
             embedding: JSON.stringify(embedding),
           }, {
-            onConflict: 'doc_id,organization_id'
+            onConflict: "doc_id,organization_id"
           });
 
         processed++;
@@ -91,13 +97,13 @@ export async function POST(request: NextRequest) {
 
     // Generate AI cluster names
     try {
-      console.log('🤖 Generating AI cluster names...');
+      console.log("🤖 Generating AI cluster names...");
       
       // Get all embeddings to perform clustering
       const { data: embeddings } = await supabase
-        .from('document_embeddings')
-        .select('doc_id, embedding')
-        .eq('organization_id', profile.organization_id);
+        .from("document_embeddings")
+        .select("doc_id, embedding")
+        .eq("organization_id", membership.organization_id);
 
       if (embeddings && embeddings.length > 0) {
         // Parse embeddings
@@ -116,22 +122,22 @@ export async function POST(request: NextRequest) {
 
           // Get document titles in this cluster
           const { data: clusterDocs } = await supabase
-            .from('documents')
-            .select('title')
-            .in('doc_id', docIds);
+            .from("documents")
+            .select("title")
+            .in("doc_id", docIds);
 
-          const titles = clusterDocs?.map(d => d.title).join(', ') || '';
+          const titles = clusterDocs?.map(d => d.title).join(", ") || "";
 
           // Ask GPT to name the cluster
           const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: "gpt-4o-mini",
             messages: [
               {
-                role: 'system',
-                content: 'You are a categorization expert. Given a list of document titles, generate a short, descriptive category name (2-4 words max) that captures the main theme. Respond with ONLY the category name, nothing else.'
+                role: "system",
+                content: "You are a categorization expert. Given a list of document titles, generate a short, descriptive category name (2-4 words max) that captures the main theme. Respond with ONLY the category name, nothing else."
               },
               {
-                role: 'user',
+                role: "user",
                 content: `Documents: ${titles}`
               }
             ],
@@ -143,20 +149,20 @@ export async function POST(request: NextRequest) {
 
           // Store cluster name (upsert)
           await supabase
-            .from('cluster_names')
+            .from("cluster_names")
             .upsert({
-              organization_id: profile.organization_id,
+              organization_id: membership.organization_id,
               cluster_index: clusterIdx,
               cluster_name: clusterName,
             }, {
-              onConflict: 'organization_id,cluster_index'
+              onConflict: "organization_id,cluster_index"
             });
 
           console.log(`✅ Cluster ${clusterIdx}: "${clusterName}" (${docIds.length} docs)`);
         }
       }
     } catch (error) {
-      console.error('⚠️ Failed to generate cluster names:', error);
+      console.error("⚠️ Failed to generate cluster names:", error);
       // Don't fail the whole request if cluster naming fails
     }
 
@@ -168,11 +174,11 @@ export async function POST(request: NextRequest) {
       message: `Generated embeddings for ${processed} documents`,
     });
   } catch (error) {
-    console.error('Error generating embeddings:', error);
+    console.error("Error generating embeddings:", error);
     return NextResponse.json(
       {
-        error: 'Failed to generate embeddings',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to generate embeddings",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );

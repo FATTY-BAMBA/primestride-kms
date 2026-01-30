@@ -1,29 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { cosineSimilarity, kMeansClustering } from '@/lib/ai-embeddings';
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { cosineSimilarity, kMeansClustering } from "@/lib/ai-embeddings";
 
-export const dynamic = 'force-dynamic'; // Add this line
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id')
-      .eq('id', user.id)
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    // Check if profile exists
-    if (!profile || !profile.organization_id) {
+    if (!membership) {
       return NextResponse.json({
         nodes: [],
         edges: [],
@@ -34,9 +38,9 @@ export async function GET(request: NextRequest) {
 
     // Get all embeddings for this organization
     const { data: embeddings } = await supabase
-      .from('document_embeddings')
-      .select('doc_id, embedding')
-      .eq('organization_id', profile.organization_id);
+      .from("document_embeddings")
+      .select("doc_id, embedding")
+      .eq("organization_id", membership.organization_id);
 
     if (!embeddings || embeddings.length === 0) {
       return NextResponse.json({
@@ -49,9 +53,9 @@ export async function GET(request: NextRequest) {
 
     // Get document details
     const { data: documents } = await supabase
-      .from('documents')
-      .select('doc_id, title')
-      .eq('organization_id', profile.organization_id);
+      .from("documents")
+      .select("doc_id, title")
+      .eq("organization_id", membership.organization_id);
 
     const docMap = new Map(documents?.map((d) => [d.doc_id, d.title]));
 
@@ -106,16 +110,21 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Fetch AI-generated cluster names
-    const { data: clusterNames } = await supabase
-      .from('cluster_names')
-      .select('cluster_index, cluster_name')
-      .eq('organization_id', profile.organization_id);
+    // Fetch AI-generated cluster names (if table exists)
+    let clusterNameMap: { [key: number]: string } = {};
+    try {
+      const { data: clusterNames } = await supabase
+        .from("cluster_names")
+        .select("cluster_index, cluster_name")
+        .eq("organization_id", membership.organization_id);
 
-    const clusterNameMap: { [key: number]: string } = {};
-    clusterNames?.forEach((cn) => {
-      clusterNameMap[cn.cluster_index] = cn.cluster_name;
-    });
+      clusterNames?.forEach((cn) => {
+        clusterNameMap[cn.cluster_index] = cn.cluster_name;
+      });
+    } catch (e) {
+      // cluster_names table may not exist yet
+      console.log("cluster_names table not found, using defaults");
+    }
 
     return NextResponse.json({
       nodes,
@@ -126,11 +135,11 @@ export async function GET(request: NextRequest) {
       totalConnections: edges.length,
     });
   } catch (error) {
-    console.error('Error getting similarities:', error);
+    console.error("Error getting similarities:", error);
     return NextResponse.json(
       {
-        error: 'Failed to get similarities',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to get similarities",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );
