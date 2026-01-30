@@ -1,83 +1,88 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   try {
     const { docId, isHelpful } = await request.json();
 
-    if (!docId || typeof isHelpful !== 'boolean') {
+    if (!docId || typeof isHelpful !== "boolean") {
       return NextResponse.json(
-        { error: 'Invalid request data' },
+        { error: "Invalid request data" },
         { status: 400 }
       );
     }
 
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('organization_id')
-      .eq('id', user.id)
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    if (!profile?.organization_id) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 400 });
+    if (!membership?.organization_id) {
+      return NextResponse.json({ error: "No organization found" }, { status: 400 });
     }
 
     // Check if user already gave feedback for this document
     const { data: existingFeedback } = await supabase
-      .from('feedback')
-      .select('id')
-      .eq('doc_id', docId)
-      .eq('user_id', user.id)
+      .from("feedback")
+      .select("id")
+      .eq("doc_id", docId)
+      .eq("user_id", userId)
       .single();
 
     if (existingFeedback) {
       // Update existing feedback
       const { error } = await supabase
-        .from('feedback')
+        .from("feedback")
         .update({ is_helpful: isHelpful, created_at: new Date().toISOString() })
-        .eq('id', existingFeedback.id);
+        .eq("id", existingFeedback.id);
 
       if (error) {
-        console.error('Error updating feedback:', error);
-        return NextResponse.json({ error: 'Failed to update feedback' }, { status: 500 });
+        console.error("Error updating feedback:", error);
+        return NextResponse.json({ error: "Failed to update feedback" }, { status: 500 });
       }
     } else {
       // Insert new feedback
       const { error } = await supabase
-        .from('feedback')
+        .from("feedback")
         .insert({
           doc_id: docId,
-          user_id: user.id,
-          organization_id: profile.organization_id,
+          user_id: userId,
+          organization_id: membership.organization_id,
           is_helpful: isHelpful,
         });
 
       if (error) {
-        console.error('Error inserting feedback:', error);
-        return NextResponse.json({ error: 'Failed to submit feedback' }, { status: 500 });
+        console.error("Error inserting feedback:", error);
+        return NextResponse.json({ error: "Failed to submit feedback" }, { status: 500 });
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Feedback submitted successfully',
+      message: "Feedback submitted successfully",
     });
   } catch (error) {
-    console.error('Error in feedback API:', error);
+    console.error("Error in feedback API:", error);
     return NextResponse.json(
-      { error: 'Failed to submit feedback' },
+      { error: "Failed to submit feedback" },
       { status: 500 }
     );
   }
