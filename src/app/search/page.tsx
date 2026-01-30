@@ -141,7 +141,7 @@ export default function SearchPage() {
       console.error("Failed to log click:", logErr);
     }
 
-    window.location.href = "/docs/" + encodeURIComponent(r.doc_id);
+    window.location.href = "/library/" + encodeURIComponent(r.doc_id);
   }
 
   const selectStyle: React.CSSProperties = {
