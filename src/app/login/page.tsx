@@ -71,77 +71,87 @@ function SignInForm() {
     <div style={{
       minHeight: "100vh",
       display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
       background: "linear-gradient(135deg, #F8F7FF 0%, #EDE9FE 100%)",
+      padding: 20,
     }}>
-      {/* Left Panel - Description */}
+      {/* Container that holds both panels together */}
       <div style={{
-        flex: 1,
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        padding: "60px 80px",
-        maxWidth: 560,
-      }}
-      className="hidden-mobile"
-      >
+        maxWidth: 900,
+        width: "100%",
+        background: "white",
+        borderRadius: 24,
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08)",
+        overflow: "hidden",
+      }}>
+        {/* Left Panel - Description */}
         <div style={{
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          padding: "48px 40px",
+          background: "linear-gradient(135deg, #FAFAFA 0%, #F5F3FF 100%)",
+          borderRight: "1px solid #F3F4F6",
+        }}
+        className="hidden-mobile"
+        >
+          <div style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            marginBottom: 28,
+          }}>
+            📚
+          </div>
+
+          <div>
+            <FeatureItem
+              icon="🚀"
+              title="Accelerate knowledge sharing"
+              description="Upload documents once, let your entire team access and learn from them instantly."
+            />
+            <FeatureItem
+              icon="🤖"
+              title="AI-powered insights"
+              description="Get intelligent summaries, answers, and connections across all your documents."
+            />
+            <FeatureItem
+              icon="👥"
+              title="Built for teams"
+              description="Collaborate seamlessly with role-based access and organization management."
+            />
+            <FeatureItem
+              icon="🔒"
+              title="Enterprise security"
+              description="Your data is encrypted and secure with industry-leading protection."
+            />
+          </div>
+
+          <p style={{ color: "#9CA3AF", fontSize: 12, marginTop: 24 }}>
+            © 2026 PrimeStride Atlas. All rights reserved.
+          </p>
+        </div>
+
+        {/* Right Panel - Sign In Form */}
+        <div style={{
+          flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 24,
-          marginBottom: 32,
-        }}>
-          📚
-        </div>
-
-        <div style={{ marginBottom: 48 }}>
-          <FeatureItem
-            icon="🚀"
-            title="Accelerate knowledge sharing"
-            description="Upload documents once, let your entire team access and learn from them instantly."
-          />
-          <FeatureItem
-            icon="🤖"
-            title="AI-powered insights"
-            description="Get intelligent summaries, answers, and connections across all your documents."
-          />
-          <FeatureItem
-            icon="👥"
-            title="Built for teams"
-            description="Collaborate seamlessly with role-based access and organization management."
-          />
-          <FeatureItem
-            icon="🔒"
-            title="Enterprise security"
-            description="Your data is encrypted and secure with industry-leading protection."
-          />
-        </div>
-
-        <p style={{ color: "#9CA3AF", fontSize: 13 }}>
-          © 2026 PrimeStride Atlas. All rights reserved.
-        </p>
-      </div>
-
-      {/* Right Panel - Sign In Form */}
-      <div style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 40,
-      }}>
-        <div style={{
-          background: "white",
-          borderRadius: 20,
           padding: "48px 40px",
-          width: "100%",
-          maxWidth: 420,
-          boxShadow: "0 4px 24px rgba(0, 0, 0, 0.06)",
         }}>
+          <div style={{
+            width: "100%",
+            maxWidth: 360,
+          }}>
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <h1 style={{ 
               fontSize: 26, 
@@ -386,11 +396,12 @@ function SignInForm() {
           }}>
             Secured by <span style={{ fontWeight: 600 }}>PrimeStride</span>
           </p>
+          </div>
         </div>
       </div>
 
       <style jsx global>{`
-        @media (max-width: 900px) {
+        @media (max-width: 768px) {
           .hidden-mobile {
             display: none !important;
           }
