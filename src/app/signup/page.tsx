@@ -3,486 +3,584 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useSignUp, useSignIn } from "@clerk/nextjs";
 
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const inviteToken = searchParams.get("invite");
-  const redirectTo = searchParams.get("redirect");
+  const { signUp, isLoaded: signUpLoaded, setActive } = useSignUp();
+  const { signIn, isLoaded: signInLoaded } = useSignIn();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [code, setCode] = useState("");
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleOAuthSignUp = async (provider: "oauth_google" | "oauth_github") => {
+    if (!signUp) return;
+    
+    try {
+      await signUp.authenticateWithRedirect({
+        strategy: provider,
+        redirectUrl: "/sso-callback",
+        redirectUrlComplete: "/library",
+      });
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "OAuth sign up failed");
+    }
+  };
+
+  const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!signUp) return;
+
     setError("");
     setLoading(true);
 
-    // Validate password length
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      setLoading(false);
-      return;
-    }
-
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      setLoading(false);
-      return;
-    }
-
-    // Validate company name if not invite
-    if (!inviteToken && !companyName.trim()) {
-      setError("Organization name is required");
-      setLoading(false);
-      return;
-    }
-
     try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.toLowerCase().trim(),
-          password,
-          companyName: inviteToken ? undefined : companyName.trim(),
-          inviteToken,
-          redirectTo: redirectTo || inviteToken ? `/invite/${inviteToken}` : undefined,
-        }),
+      await signUp.create({
+        emailAddress: email,
+        password,
       });
 
-      const data = await res.json();
+      // Send email verification code
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
+      });
 
-      if (!res.ok) {
-        setError(data.error || "Signup failed");
-        setLoading(false);
-        return;
-      }
-
-      // Show success message - user needs to confirm email
-      setSuccess(true);
-    } catch (err) {
-      setError("An error occurred. Please try again.");
+      setPendingVerification(true);
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.errors?.[0]?.message || "Sign up failed");
+    } finally {
       setLoading(false);
     }
   };
 
-  // Success state - show email confirmation message
-  if (success) {
+  const handleVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signUp) return;
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const result = await signUp.attemptEmailAddressVerification({
+        code,
+      });
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.push("/library");
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!signUpLoaded) {
     return (
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        <div className="card" style={{ padding: 40, textAlign: "center" }}>
-          <div
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #10B981 0%, #34D399 100%)",
+      <div style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center", 
+        minHeight: "100vh" 
+      }}>
+        <div style={{ color: "#6B7280" }}>Loading...</div>
+      </div>
+    );
+  }
+
+  // Verification code screen
+  if (pendingVerification) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #F8F7FF 0%, #EDE9FE 100%)",
+        padding: 20,
+      }}>
+        <div style={{
+          background: "white",
+          borderRadius: 16,
+          padding: 40,
+          width: "100%",
+          maxWidth: 400,
+          boxShadow: "0 4px 24px rgba(0, 0, 0, 0.08)",
+        }}>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{
+              width: 56,
+              height: 56,
+              borderRadius: 14,
+              background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 36,
-              margin: "0 auto 24px",
-            }}
-          >
-            ✉️
+              fontSize: 28,
+              margin: "0 auto 16px",
+            }}>
+              ✉️
+            </div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
+              Check your email
+            </h2>
+            <p style={{ color: "#6B7280", fontSize: 14 }}>
+              We sent a verification code to<br />
+              <strong style={{ color: "#111827" }}>{email}</strong>
+            </p>
           </div>
-          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, color: "#111827" }}>
-            Check your email
-          </h2>
-          <p style={{ color: "#6B7280", fontSize: 15, lineHeight: 1.6, marginBottom: 24 }}>
-            We've sent a confirmation link to<br />
-            <strong style={{ color: "#111827" }}>{email}</strong>
-          </p>
-          <p style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 24 }}>
-            Click the link in the email to verify your account and get started.
-          </p>
-          <div style={{ 
-            padding: 16, 
-            background: "#F3F4F6", 
-            borderRadius: 8,
-            fontSize: 13,
-            color: "#6B7280"
-          }}>
-            <strong>Didn't receive the email?</strong><br />
-            Check your spam folder or{" "}
+
+          <form onSubmit={handleVerification}>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{
+                display: "block",
+                fontSize: 14,
+                fontWeight: 500,
+                marginBottom: 8,
+                color: "#374151",
+              }}>
+                Verification code
+              </label>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter 6-digit code"
+                required
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 8,
+                  fontSize: 16,
+                  textAlign: "center",
+                  letterSpacing: 4,
+                }}
+              />
+            </div>
+
+            {error && (
+              <div style={{
+                padding: 12,
+                borderRadius: 8,
+                background: "#FEE2E2",
+                color: "#991B1B",
+                fontSize: 14,
+                marginBottom: 16,
+              }}>
+                {error}
+              </div>
+            )}
+
             <button
-              onClick={() => setSuccess(false)}
+              type="submit"
+              disabled={loading}
               style={{
-                background: "none",
-                border: "none",
-                color: "#7C3AED",
-                cursor: "pointer",
+                width: "100%",
+                padding: "12px 16px",
+                fontSize: 15,
                 fontWeight: 600,
-                padding: 0,
+                borderRadius: 8,
+                border: "none",
+                background: "linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)",
+                color: "white",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
               }}
             >
-              try again
+              {loading ? "Verifying..." : "Verify email"}
             </button>
-          </div>
+          </form>
         </div>
-        <p
-          style={{
-            textAlign: "center",
-            marginTop: 24,
-            color: "#6B7280",
-            fontSize: 14,
-          }}
-        >
-          Already confirmed?{" "}
-          <Link
-            href="/login"
-            style={{
-              color: "#7C3AED",
-              fontWeight: 500,
-              textDecoration: "none",
-            }}
-          >
-            Sign in
-          </Link>
-        </p>
       </div>
     );
   }
 
   return (
-    <div style={{ width: "100%", maxWidth: 420 }}>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 14,
-            background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 28,
-            margin: "0 auto 16px",
-          }}
-        >
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      background: "linear-gradient(135deg, #F8F7FF 0%, #EDE9FE 100%)",
+    }}>
+      {/* Left Panel - Description */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        padding: "60px 80px",
+        maxWidth: 560,
+      }}
+      className="hidden-mobile"
+      >
+        <div style={{
+          width: 48,
+          height: 48,
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 24,
+          marginBottom: 32,
+        }}>
           📚
         </div>
-        <h1
-          style={{
-            fontSize: 16,
-            fontWeight: 500,
-            marginBottom: 16,
-            color: "#9CA3AF",
-            letterSpacing: "0.5px",
-          }}
-        >
-          PrimeStride Atlas
-        </h1>
-        <h2 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
-          {inviteToken ? "Accept Invitation" : "Create your account"}
-        </h2>
-        <p style={{ color: "#6B7280", margin: 0, fontSize: 15 }}>
-          {inviteToken
-            ? "Sign up to join your team"
-            : "Start managing knowledge with your team"}
+
+        <div style={{ marginBottom: 48 }}>
+          <FeatureItem
+            icon="🚀"
+            title="Accelerate knowledge sharing"
+            description="Upload documents once, let your entire team access and learn from them instantly."
+          />
+          <FeatureItem
+            icon="🤖"
+            title="AI-powered insights"
+            description="Get intelligent summaries, answers, and connections across all your documents."
+          />
+          <FeatureItem
+            icon="👥"
+            title="Built for teams"
+            description="Collaborate seamlessly with role-based access and organization management."
+          />
+          <FeatureItem
+            icon="🔒"
+            title="Enterprise security"
+            description="Your data is encrypted and secure with industry-leading protection."
+          />
+        </div>
+
+        <p style={{ color: "#9CA3AF", fontSize: 13 }}>
+          © 2026 PrimeStride Atlas. All rights reserved.
         </p>
       </div>
 
-      <div className="card" style={{ padding: 32 }}>
-        {inviteToken && (
-          <div
-            style={{
-              padding: 14,
-              borderRadius: 10,
-              background: "#EDE9FE",
-              border: "1px solid #DDD6FE",
-              color: "#6D28D9",
-              fontSize: 14,
-              marginBottom: 24,
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <span style={{ fontSize: 20 }}>🎉</span>
-            <span>You've been invited to join an organization!</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSignup}>
-          {/* Email */}
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 14,
-                fontWeight: 600,
-                marginBottom: 8,
-                color: "#374151",
-              }}
-            >
-              Email address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              required
-              autoComplete="email"
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                border: "2px solid #E5E7EB",
-                borderRadius: 10,
-                fontSize: 15,
-                transition: "border-color 0.2s",
-                outline: "none",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = "#7C3AED")}
-              onBlur={(e) => (e.target.style.borderColor = "#E5E7EB")}
-            />
-          </div>
-
-          {/* Password */}
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 14,
-                fontWeight: 600,
-                marginBottom: 8,
-                color: "#374151",
-              }}
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                border: "2px solid #E5E7EB",
-                borderRadius: 10,
-                fontSize: 15,
-                transition: "border-color 0.2s",
-                outline: "none",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = "#7C3AED")}
-              onBlur={(e) => (e.target.style.borderColor = "#E5E7EB")}
-            />
-            <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6, marginBottom: 0 }}>
-              Must be at least 8 characters
+      {/* Right Panel - Signup Form */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 40,
+      }}>
+        <div style={{
+          background: "white",
+          borderRadius: 20,
+          padding: "48px 40px",
+          width: "100%",
+          maxWidth: 420,
+          boxShadow: "0 4px 24px rgba(0, 0, 0, 0.06)",
+        }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <h1 style={{ 
+              fontSize: 26, 
+              fontWeight: 700, 
+              marginBottom: 8, 
+              color: "#111827" 
+            }}>
+              Create your account
+            </h1>
+            <p style={{ color: "#6B7280", fontSize: 15 }}>
+              Welcome! Please fill in the details to get started.
             </p>
           </div>
 
-          {/* Confirm Password */}
-          <div style={{ marginBottom: 20 }}>
-            <label
+          {/* OAuth Buttons */}
+          <div style={{ 
+            display: "flex", 
+            gap: 12, 
+            marginBottom: 24 
+          }}>
+            <button
+              onClick={() => handleOAuthSignUp("oauth_github")}
               style={{
-                display: "block",
-                fontSize: 14,
-                fontWeight: 600,
-                marginBottom: 8,
-                color: "#374151",
-              }}
-            >
-              Confirm password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                border: confirmPassword && password !== confirmPassword 
-                  ? "2px solid #EF4444" 
-                  : "2px solid #E5E7EB",
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: "12px 16px",
+                border: "1px solid #E5E7EB",
                 borderRadius: 10,
-                fontSize: 15,
-                transition: "border-color 0.2s",
-                outline: "none",
+                background: "white",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 500,
+                color: "#374151",
+                transition: "all 0.2s",
               }}
-              onFocus={(e) => {
-                if (!(confirmPassword && password !== confirmPassword)) {
-                  e.target.style.borderColor = "#7C3AED";
-                }
+              onMouseOver={(e) => e.currentTarget.style.background = "#F9FAFB"}
+              onMouseOut={(e) => e.currentTarget.style.background = "white"}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              GitHub
+            </button>
+            <button
+              onClick={() => handleOAuthSignUp("oauth_google")}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: "12px 16px",
+                border: "1px solid #E5E7EB",
+                borderRadius: 10,
+                background: "white",
+                cursor: "pointer",
+                fontSize: 14,
+                fontWeight: 500,
+                color: "#374151",
+                transition: "all 0.2s",
               }}
-              onBlur={(e) => {
-                if (!(confirmPassword && password !== confirmPassword)) {
-                  e.target.style.borderColor = "#E5E7EB";
-                }
-              }}
-            />
-            {confirmPassword && password !== confirmPassword && (
-              <p style={{ fontSize: 12, color: "#EF4444", marginTop: 6, marginBottom: 0 }}>
-                Passwords do not match
-              </p>
-            )}
+              onMouseOver={(e) => e.currentTarget.style.background = "#F9FAFB"}
+              onMouseOut={(e) => e.currentTarget.style.background = "white"}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              Google
+            </button>
           </div>
 
-          {/* Company Name (only if not invite) */}
-          {!inviteToken && (
-            <div style={{ marginBottom: 24 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  color: "#374151",
-                }}
-              >
-                Organization name
+          {/* Divider */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: 24,
+          }}>
+            <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+            <span style={{ 
+              padding: "0 16px", 
+              color: "#9CA3AF", 
+              fontSize: 13 
+            }}>
+              or
+            </span>
+            <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+          </div>
+
+          {/* Email Form */}
+          <form onSubmit={handleEmailSignUp}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{
+                display: "block",
+                fontSize: 14,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "#374151",
+              }}>
+                Email address
               </label>
               <input
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Acme Corp"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email address"
                 required
                 style={{
                   width: "100%",
                   padding: "12px 14px",
-                  border: "2px solid #E5E7EB",
+                  border: "1px solid #E5E7EB",
                   borderRadius: 10,
                   fontSize: 15,
-                  transition: "border-color 0.2s",
                   outline: "none",
+                  transition: "border-color 0.2s",
                 }}
-                onFocus={(e) => (e.target.style.borderColor = "#7C3AED")}
-                onBlur={(e) => (e.target.style.borderColor = "#E5E7EB")}
+                onFocus={(e) => e.target.style.borderColor = "#7C3AED"}
+                onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
               />
-              <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 6, marginBottom: 0 }}>
-                This will be your workspace name
-              </p>
             </div>
-          )}
 
-          {/* Error Message */}
-          {error && (
-            <div
-              style={{
-                padding: 14,
+            <div style={{ marginBottom: 24 }}>
+              <label style={{
+                display: "block",
+                fontSize: 14,
+                fontWeight: 500,
+                marginBottom: 6,
+                color: "#374151",
+              }}>
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+                minLength={8}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 10,
+                  fontSize: 15,
+                  outline: "none",
+                  transition: "border-color 0.2s",
+                }}
+                onFocus={(e) => e.target.style.borderColor = "#7C3AED"}
+                onBlur={(e) => e.target.style.borderColor = "#E5E7EB"}
+              />
+            </div>
+
+            {error && (
+              <div style={{
+                padding: 12,
                 borderRadius: 10,
                 background: "#FEE2E2",
-                border: "1px solid #FCA5A5",
                 color: "#991B1B",
                 fontSize: 14,
-                marginBottom: 20,
+                marginBottom: 16,
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                fontSize: 15,
+                fontWeight: 600,
+                borderRadius: 10,
+                border: "none",
+                background: "linear-gradient(135deg, #7C3AED 0%, #9333EA 100%)",
+                color: "white",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
+                justifyContent: "center",
+                gap: 8,
+                transition: "all 0.2s",
               }}
             >
-              <span>⚠️</span>
-              <span>{error}</span>
-            </div>
-          )}
+              {loading ? "Creating account..." : (
+                <>
+                  Continue
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </>
+              )}
+            </button>
+          </form>
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || (confirmPassword !== "" && password !== confirmPassword)}
-            style={{
-              width: "100%",
-              padding: "14px 16px",
-              fontSize: 16,
-              fontWeight: 600,
-              borderRadius: 10,
-              border: "none",
-              background: loading || (confirmPassword !== "" && password !== confirmPassword)
-                ? "#D1D5DB"
-                : "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-              color: "white",
-              cursor: loading || (confirmPassword !== "" && password !== confirmPassword) 
-                ? "not-allowed" 
-                : "pointer",
-              boxShadow: loading ? "none" : "0 4px 14px rgba(124, 58, 237, 0.25)",
-              transition: "all 0.2s",
-            }}
-          >
-            {loading ? "Creating account..." : "Create account"}
-          </button>
-
-          {/* Terms */}
-          <p style={{ 
-            fontSize: 12, 
-            color: "#9CA3AF", 
-            textAlign: "center", 
-            marginTop: 16,
-            marginBottom: 0,
-            lineHeight: 1.5
+          <p style={{
+            textAlign: "center",
+            marginTop: 24,
+            color: "#6B7280",
+            fontSize: 14,
           }}>
-            By signing up, you agree to our{" "}
-            <a href="/terms" style={{ color: "#7C3AED", textDecoration: "none" }}>
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="/privacy" style={{ color: "#7C3AED", textDecoration: "none" }}>
-              Privacy Policy
-            </a>
+            Already have an account?{" "}
+            <Link
+              href="/sign-in"
+              style={{
+                color: "#7C3AED",
+                fontWeight: 600,
+                textDecoration: "none",
+              }}
+            >
+              Sign in
+            </Link>
           </p>
-        </form>
+
+          <p style={{
+            textAlign: "center",
+            marginTop: 20,
+            color: "#9CA3AF",
+            fontSize: 12,
+          }}>
+            Secured by <span style={{ fontWeight: 600 }}>PrimeStride</span>
+          </p>
+        </div>
       </div>
 
-      <p
-        style={{
-          textAlign: "center",
-          marginTop: 24,
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .hidden-mobile {
+            display: none !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function FeatureItem({ icon, title, description }: { 
+  icon: string; 
+  title: string; 
+  description: string;
+}) {
+  return (
+    <div style={{
+      display: "flex",
+      gap: 16,
+      marginBottom: 28,
+    }}>
+      <div style={{
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        background: "rgba(124, 58, 237, 0.1)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 20,
+        flexShrink: 0,
+      }}>
+        {icon}
+      </div>
+      <div>
+        <h3 style={{ 
+          fontSize: 16, 
+          fontWeight: 600, 
+          color: "#111827",
+          marginBottom: 4,
+        }}>
+          {title}
+        </h3>
+        <p style={{ 
+          fontSize: 14, 
           color: "#6B7280",
-          fontSize: 14,
-        }}
-      >
-        Already have an account?{" "}
-        <Link
-          href="/login"
-          style={{
-            color: "#7C3AED",
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
-        >
-          Sign in
-        </Link>
-      </p>
+          lineHeight: 1.5,
+          margin: 0,
+        }}>
+          {description}
+        </p>
+      </div>
     </div>
   );
 }
 
 export default function SignupPage() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
+    <Suspense fallback={
+      <div style={{ 
+        minHeight: "100vh", 
+        display: "flex", 
+        alignItems: "center", 
         justifyContent: "center",
-        padding: 20,
-        background: "linear-gradient(135deg, #F8F7FF 0%, #F3E8FF 100%)",
-      }}
-    >
-      <Suspense fallback={
-        <div style={{ textAlign: "center", color: "#6B7280" }}>
-          Loading...
-        </div>
-      }>
-        <SignupForm />
-      </Suspense>
-    </main>
+        background: "linear-gradient(135deg, #F8F7FF 0%, #EDE9FE 100%)",
+      }}>
+        <div style={{ color: "#6B7280" }}>Loading...</div>
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }
