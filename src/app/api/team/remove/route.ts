@@ -1,9 +1,23 @@
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { userId: clerkUserId } = await auth();
+
+    if (!clerkUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { userId } = await request.json();
 
     if (!userId) {
@@ -13,21 +27,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     // Get current user's membership
     const { data: myMembership } = await supabase
       .from("organization_members")
       .select("organization_id, role")
-      .eq("user_id", user.id)
+      .eq("user_id", clerkUserId)
+      .eq("is_active", true)
       .in("role", ["owner", "admin"])
-      .limit(1)
       .single();
 
     if (!myMembership) {
@@ -38,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Can't remove yourself
-    if (userId === user.id) {
+    if (userId === clerkUserId) {
       return NextResponse.json(
         { error: "Cannot remove yourself" },
         { status: 400 }
@@ -76,7 +82,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove the member (soft delete by setting is_active = false, or hard delete)
+    // Remove the member
     const { error } = await supabase
       .from("organization_members")
       .delete()

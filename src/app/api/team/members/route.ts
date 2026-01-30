@@ -1,17 +1,20 @@
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -19,8 +22,8 @@ export async function GET(request: NextRequest) {
     const { data: myMembership } = await supabase
       .from("organization_members")
       .select("organization_id, role")
-      .eq("user_id", user.id)
-      .limit(1)
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
     if (!myMembership?.organization_id) {
@@ -49,10 +52,9 @@ export async function GET(request: NextRequest) {
       throw membersError;
     }
 
-    // Get user details from auth.users for each member
+    // Get user details from profiles for each member
     const memberDetails = await Promise.all(
       (memberships || []).map(async (membership) => {
-        // Get user email from profiles or auth
         const { data: profile } = await supabase
           .from("profiles")
           .select("email, full_name")

@@ -1,5 +1,14 @@
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(
   request: NextRequest,
@@ -7,19 +16,18 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    // Check if user is logged in
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!userId) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
       );
     }
+
+    // Get user email from Clerk
+    const user = await currentUser();
+    const userEmail = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
 
     // Get invitation by token
     const { data: invitation, error } = await supabase
@@ -63,7 +71,7 @@ export async function GET(
     }
 
     // Check if email matches
-    if (invitation.email.toLowerCase() !== user.email?.toLowerCase()) {
+    if (invitation.email.toLowerCase() !== userEmail) {
       return NextResponse.json(
         { error: "This invitation was sent to a different email address" },
         { status: 403 }

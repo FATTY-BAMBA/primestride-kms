@@ -1,13 +1,30 @@
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 import { invitationEmail } from "@/lib/email-templates";
 
+export const dynamic = "force-dynamic";
+
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await currentUser();
+    const userEmail = user?.emailAddresses?.[0]?.emailAddress;
+
     const { email, role = "member" } = await request.json();
 
     if (!email || !email.includes("@")) {
@@ -17,21 +34,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     // Get user's organization membership
     const { data: myMembership } = await supabase
       .from("organization_members")
       .select("organization_id, role")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .in("role", ["owner", "admin"])
-      .limit(1)
       .single();
 
     if (!myMembership?.organization_id) {
@@ -87,7 +96,7 @@ export async function POST(request: NextRequest) {
         organization_id: myMembership.organization_id,
         email: email.toLowerCase(),
         role: role,
-        invited_by: user.id,
+        invited_by: userId,
         status: "pending",
       })
       .select("id, token, email, role, created_at, expires_at")
@@ -114,14 +123,14 @@ export async function POST(request: NextRequest) {
       const emailContent = invitationEmail({
         inviteUrl,
         organizationName: org?.name || "Your Team",
-        inviterEmail: user.email || "A team member",
+        inviterEmail: userEmail || "A team member",
         role,
       });
 
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "PrimeStride Atlas <onboarding@resend.dev>",
         to: email.toLowerCase(),
-        replyTo: user.email || undefined,
+        replyTo: userEmail || undefined,
         subject: emailContent.subject,
         html: emailContent.html,
         text: emailContent.text,
