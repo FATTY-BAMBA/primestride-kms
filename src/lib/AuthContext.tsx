@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useUser, useClerk, useAuth as useClerkAuth } from "@clerk/nextjs";
 import { createClient } from "@/lib/supabase";
-import type { User, Session, SupabaseClient } from "@supabase/supabase-js";
 
 interface Profile {
   id: string;
@@ -13,10 +13,16 @@ interface Profile {
   role: "user" | "admin";
 }
 
+// Create a user-like object from Clerk user
+interface UserLike {
+  id: string;
+  email?: string;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: UserLike | null;
   profile: Profile | null;
-  session: Session | null;
+  session: { user: UserLike } | null;
   isLoading: boolean;
   isAdmin: boolean;
   signInWithGoogle: () => Promise<void>;
@@ -28,159 +34,134 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [supabase] = useState<SupabaseClient>(() => createClient());
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+  const { signOut: clerkSignOut, openSignIn, openSignUp } = useClerk();
+  const { isSignedIn } = useClerkAuth();
   const router = useRouter();
+  
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [supabase] = useState(() => createClient());
 
-  const fetchProfile = async (userId: string) => {
-    try {
-      console.log("👤 Fetching profile for:", userId);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+  // Convert Clerk user to our user format
+  const user: UserLike | null = clerkUser ? {
+    id: clerkUser.id,
+    email: clerkUser.emailAddresses[0]?.emailAddress,
+  } : null;
 
-      if (error) {
-        console.error("❌ Profile fetch error:", error);
+  // Create session-like object
+  const session = user ? { user } : null;
+
+  // Fetch or create profile in Supabase when Clerk user changes
+  useEffect(() => {
+    const syncProfile = async () => {
+      if (!clerkUser) {
+        setProfile(null);
         return;
       }
+
+      setIsLoadingProfile(true);
       
-      console.log("✅ Profile loaded:", data);
-      setProfile(data as Profile);
-    } catch (err) {
-      console.error("❌ Profile fetch exception:", err);
-    }
-  };
-
-  useEffect(() => {
-    let mounted = true;
-
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log("🔄 Auth state changed:", event, session ? "has session" : "no session");
-        
-        if (!mounted) return;
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsLoading(false); // Set loading false IMMEDIATELY
-
-        if (session?.user) {
-          // Fetch profile in background (don't await)
-          fetchProfile(session.user.id);
-        } else {
-          setProfile(null);
-        }
-
-        if (event === "SIGNED_OUT") {
-          router.push("/login");
-        }
-      }
-    );
-
-    // Check for existing session
-    const initAuth = async () => {
       try {
-        console.log("🔍 Checking session...");
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const email = clerkUser.emailAddresses[0]?.emailAddress;
+        const fullName = clerkUser.fullName || clerkUser.firstName || email?.split('@')[0];
         
-        if (!mounted) return;
-        
-        if (error) {
-          console.error("❌ Session error:", error);
-          setIsLoading(false);
-          return;
-        }
-        
-        console.log("📋 Session found:", session ? "Yes" : "No");
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsLoading(false); // Set loading false IMMEDIATELY
+        // Try to fetch existing profile
+        const { data: existingProfile, error: fetchError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", clerkUser.id)
+          .single();
 
-        if (session?.user) {
-          // Fetch profile in background (don't await)
-          fetchProfile(session.user.id);
+        if (existingProfile) {
+          setProfile(existingProfile as Profile);
+        } else {
+          // Create new profile if doesn't exist
+          const { data: newProfile, error: createError } = await supabase
+            .from("profiles")
+            .upsert({
+              id: clerkUser.id,
+              email: email,
+              full_name: fullName,
+              avatar_url: clerkUser.imageUrl,
+              role: "user",
+            }, {
+              onConflict: "id"
+            })
+            .select()
+            .single();
+
+          if (newProfile) {
+            setProfile(newProfile as Profile);
+          } else if (createError) {
+            console.error("Error creating profile:", createError);
+            // Set a minimal profile even if DB fails
+            setProfile({
+              id: clerkUser.id,
+              email: email || "",
+              full_name: fullName || null,
+              avatar_url: clerkUser.imageUrl || null,
+              role: "user",
+            });
+          }
         }
-      } catch (error) {
-        console.error("❌ Auth init error:", error);
-        if (mounted) {
-          setIsLoading(false);
+      } catch (err) {
+        console.error("Profile sync error:", err);
+        // Set minimal profile on error
+        if (clerkUser) {
+          setProfile({
+            id: clerkUser.id,
+            email: clerkUser.emailAddresses[0]?.emailAddress || "",
+            full_name: clerkUser.fullName || null,
+            avatar_url: clerkUser.imageUrl || null,
+            role: "user",
+          });
         }
+      } finally {
+        setIsLoadingProfile(false);
       }
     };
 
-    initAuth();
+    if (clerkLoaded) {
+      syncProfile();
+    }
+  }, [clerkUser, clerkLoaded, supabase]);
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase, router]);
-
+  // Sign in with Google - Clerk handles this
   const signInWithGoogle = async () => {
-    const redirectTo = typeof window !== "undefined" 
-      ? `${window.location.origin}/auth/callback`
-      : "/auth/callback";
-
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-      },
+    openSignIn({
+      afterSignInUrl: "/library",
+      afterSignUpUrl: "/library",
     });
   };
 
+  // Sign in with email - redirect to Clerk sign-in
   const signInWithEmail = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      return { error: error.message };
-    }
-
-    router.push("/");
+    // Clerk handles email/password through its own UI
+    // This is here for compatibility - redirect to sign-in page
+    router.push("/sign-in");
     return { error: null };
   };
 
+  // Sign up with email - redirect to Clerk sign-up
   const signUpWithEmail = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
-
-    if (error) {
-      return { error: error.message };
-    }
-
+    // Clerk handles email/password through its own UI
+    router.push("/sign-up");
     return { error: null };
   };
 
+  // Sign out
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    await clerkSignOut();
     setProfile(null);
-    setSession(null);
-    router.push("/login");
+    router.push("/sign-in");
   };
 
   const value: AuthContextType = {
     user,
     profile,
     session,
-    isLoading,
+    isLoading: !clerkLoaded || isLoadingProfile,
     isAdmin: profile?.role === "admin",
     signInWithGoogle,
     signInWithEmail,
