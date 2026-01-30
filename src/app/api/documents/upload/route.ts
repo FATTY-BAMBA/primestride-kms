@@ -1,30 +1,37 @@
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("users")
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
       .select("organization_id, role")
-      .eq("id", user.id)
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (!membership) {
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
     // Only admins and owners can upload
-    if (!["owner", "admin"].includes(profile.role || "")) {
+    if (!["owner", "admin"].includes(membership.role || "")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
@@ -57,7 +64,7 @@ export async function POST(request: NextRequest) {
     const contentType = contentTypes[fileExtension || ""] || "application/octet-stream";
 
     // Create a unique file path: org_id/doc_id/filename
-    const filePath = `${profile.organization_id}/${docId}/${Date.now()}-${fileName}`;
+    const filePath = `${membership.organization_id}/${docId}/${Date.now()}-${fileName}`;
 
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
