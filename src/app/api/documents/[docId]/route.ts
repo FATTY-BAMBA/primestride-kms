@@ -1,5 +1,14 @@
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // GET a single document
 export async function GET(
@@ -7,30 +16,29 @@ export async function GET(
   { params }: { params: { docId: string } }
 ) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("users")
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
       .select("organization_id")
-      .eq("id", user.id)
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (!membership) {
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
     const { data: document, error } = await supabase
       .from("documents")
       .select("*")
       .eq("doc_id", params.docId)
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", membership.organization_id)
       .single();
 
     if (error || !document) {
@@ -53,27 +61,26 @@ export async function PUT(
   { params }: { params: { docId: string } }
 ) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("users")
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
       .select("organization_id, role")
-      .eq("id", user.id)
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (!membership) {
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
     // Only admins and owners can update
-    if (!["owner", "admin"].includes(profile.role || "")) {
+    if (!["owner", "admin"].includes(membership.role || "")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
@@ -92,7 +99,7 @@ export async function PUT(
       .from("documents")
       .select("current_version")
       .eq("doc_id", params.docId)
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", membership.organization_id)
       .single();
 
     if (!currentDoc) {
@@ -118,9 +125,10 @@ export async function PUT(
         file_name: fileName || null,
         file_type: fileType || null,
         current_version: newVersion,
+        updated_at: new Date().toISOString(),
       })
       .eq("doc_id", params.docId)
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", membership.organization_id)
       .select()
       .single();
 
@@ -152,27 +160,26 @@ export async function DELETE(
   { params }: { params: { docId: string } }
 ) {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("users")
+    // Get user's organization membership
+    const { data: membership } = await supabase
+      .from("organization_members")
       .select("organization_id, role")
-      .eq("id", user.id)
+      .eq("user_id", userId)
+      .eq("is_active", true)
       .single();
 
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (!membership) {
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
     // Only admins and owners can delete
-    if (!["owner", "admin"].includes(profile.role || "")) {
+    if (!["owner", "admin"].includes(membership.role || "")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
@@ -181,20 +188,18 @@ export async function DELETE(
       .from("documents")
       .select("file_url")
       .eq("doc_id", params.docId)
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", membership.organization_id)
       .single();
 
     // Delete file from storage if exists
     if (doc?.file_url) {
       try {
-        // Extract file path from URL
         const urlParts = doc.file_url.split("/documents/");
         if (urlParts[1]) {
           await supabase.storage.from("documents").remove([urlParts[1]]);
         }
       } catch (storageError) {
         console.error("Failed to delete file from storage:", storageError);
-        // Continue with document deletion even if file deletion fails
       }
     }
 
@@ -203,17 +208,20 @@ export async function DELETE(
       .from("feedback")
       .delete()
       .eq("doc_id", params.docId)
-      .eq("organization_id", profile.organization_id);
+      .eq("organization_id", membership.organization_id);
 
     // Delete associated embeddings (if any)
-    await supabase.from("embeddings").delete().eq("doc_id", params.docId);
+    await supabase
+      .from("document_embeddings")
+      .delete()
+      .eq("doc_id", params.docId);
 
     // Delete the document
     const { error } = await supabase
       .from("documents")
       .delete()
       .eq("doc_id", params.docId)
-      .eq("organization_id", profile.organization_id);
+      .eq("organization_id", membership.organization_id);
 
     if (error) {
       console.error("Delete error:", error);
