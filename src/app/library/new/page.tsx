@@ -1,25 +1,30 @@
-import { createClient } from "@/lib/supabase/server";
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import CreateDocumentForm from "@/components/CreateDocumentForm";
 
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export default async function NewDocumentPage() {
-  const supabase = await createClient();
+  const { userId } = await auth();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
+  // Get user's organization membership
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", userId)
+    .eq("is_active", true)
     .single();
 
-  if (!profile || !["owner", "admin"].includes(profile.role)) {
+  if (!membership || !["owner", "admin"].includes(membership.role)) {
     return (
       <div className="container" style={{ padding: "40px 20px" }}>
         <h1>Access Denied</h1>

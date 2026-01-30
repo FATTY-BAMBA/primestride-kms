@@ -27,7 +27,7 @@ interface Document {
 }
 
 interface FeedbackRow {
-  document_id: string;
+  doc_id: string;
   is_helpful: boolean;
 }
 
@@ -85,19 +85,19 @@ export async function GET() {
     if (docIds.length > 0) {
       const { data: feedback, error: fbErr } = await supabase
         .from("feedback")
-        .select("document_id,is_helpful")
-        .in("document_id", docIds);
+        .select("doc_id,is_helpful")
+        .in("doc_id", docIds);
 
       if (!fbErr && feedback) {
         // Aggregate feedback counts
         for (const f of feedback as FeedbackRow[]) {
-          if (!feedbackCounts[f.document_id]) {
-            feedbackCounts[f.document_id] = { helpful: 0, not_helpful: 0 };
+          if (!feedbackCounts[f.doc_id]) {
+            feedbackCounts[f.doc_id] = { helpful: 0, not_helpful: 0 };
           }
           if (f.is_helpful) {
-            feedbackCounts[f.document_id].helpful++;
+            feedbackCounts[f.doc_id].helpful++;
           } else {
-            feedbackCounts[f.document_id].not_helpful++;
+            feedbackCounts[f.doc_id].not_helpful++;
           }
         }
       }
