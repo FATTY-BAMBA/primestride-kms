@@ -1,18 +1,26 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useSignIn } from "@clerk/nextjs";
+import { useSignIn, useAuth as useClerkAuth } from "@clerk/nextjs";
 
 function SignInForm() {
   const router = useRouter();
   const { signIn, isLoaded, setActive } = useSignIn();
+  const { isSignedIn } = useClerkAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      router.push("/library");
+    }
+  }, [isSignedIn, router]);
 
   const handleOAuthSignIn = async (provider: "oauth_google" | "oauth_github") => {
     if (!signIn) return;

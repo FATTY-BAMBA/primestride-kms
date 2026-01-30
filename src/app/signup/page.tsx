@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useSignUp, useSignIn } from "@clerk/nextjs";
+import { useSignUp, useSignIn, useAuth as useClerkAuth } from "@clerk/nextjs";
 
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { signUp, isLoaded: signUpLoaded, setActive } = useSignUp();
   const { signIn, isLoaded: signInLoaded } = useSignIn();
+  const { isSignedIn } = useClerkAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +18,13 @@ function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [pendingVerification, setPendingVerification] = useState(false);
   const [code, setCode] = useState("");
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      router.push("/library");
+    }
+  }, [isSignedIn, router]);
 
   const handleOAuthSignUp = async (provider: "oauth_google" | "oauth_github") => {
     if (!signUp) return;
