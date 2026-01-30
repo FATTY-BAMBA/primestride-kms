@@ -1,32 +1,63 @@
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+
+export const dynamic = "force-dynamic";
+
+// Create Supabase admin client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface DocRow {
   doc_type: string | null;
   domain: string | null;
-  ai_maturity_stage: string | null;
   tags: string[] | null;
   status: string | null;
 }
 
 export async function GET() {
   try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get user's organization
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json({
+        doc_types: [],
+        domains: [],
+        statuses: [],
+        top_tags: [],
+      });
+    }
+
+    // Get documents for user's organization only
     const { data: docs, error } = await supabase
       .from("documents")
-      .select("doc_type,domain,ai_maturity_stage,tags,status");
+      .select("doc_type,domain,tags,status")
+      .eq("organization_id", membership.organization_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const docTypes = new Set<string>();
     const domains = new Set<string>();
-    const maturityStages = new Set<string>();
     const statuses = new Set<string>();
     const tagCounts: Record<string, number> = {};
 
     for (const d of (docs ?? []) as DocRow[]) {
       if (d.doc_type) docTypes.add(d.doc_type);
       if (d.domain) domains.add(d.domain);
-      if (d.ai_maturity_stage) maturityStages.add(d.ai_maturity_stage);
       if (d.status) statuses.add(d.status);
 
       const tags: string[] = Array.isArray(d.tags) ? d.tags : [];
@@ -45,12 +76,12 @@ export async function GET() {
     return NextResponse.json({
       doc_types: Array.from(docTypes).sort(),
       domains: Array.from(domains).sort(),
-      ai_maturity_stages: Array.from(maturityStages).sort(),
       statuses: Array.from(statuses).sort(),
       top_tags: topTags,
     });
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : "Unknown error";
+    console.error("Facets error:", e);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
