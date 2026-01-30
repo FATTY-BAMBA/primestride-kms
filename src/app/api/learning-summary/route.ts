@@ -4,87 +4,121 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@supabase/supabase-js";
+import { auth } from "@clerk/nextjs/server";
+
+// Create Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface Document {
   doc_id: string;
   title: string;
   current_version: string;
   status: string;
-  google_doc_url: string | null;
-  source_url: string | null;
   doc_type: string | null;
   domain: string | null;
   tags: string[] | null;
+  file_url: string | null;
+  file_name: string | null;
+  organization_id: string;
 }
 
-interface FeedbackEvent {
-  doc_id: string;
-  version: string;
-  value: string;
+interface FeedbackRow {
+  document_id: string;
+  is_helpful: boolean;
 }
 
 export async function GET() {
   try {
-    // Pull documents with taxonomy fields
+    // Get user from Clerk
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+    }
+
+    // Get user's organization
+    const { data: membership, error: memberError } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .single();
+
+    if (memberError || !membership) {
+      return NextResponse.json(
+        { documents: [] },
+        { headers: { "Cache-Control": "no-store, max-age=0" } }
+      );
+    }
+
+    // Pull documents for user's organization
     const { data: docs, error: docsErr } = await supabase
       .from("documents")
-      .select(
-        "doc_id,title,current_version,status,google_doc_url,source_url,doc_type,domain,tags"
-      );
+      .select("doc_id,title,current_version,status,doc_type,domain,tags,file_url,file_name,organization_id")
+      .eq("organization_id", membership.organization_id);
 
-    // 🔍 DEBUG LOGS (remove later)
     console.log("ROUTE: /api/learning-summary");
+    console.log("USER:", userId);
+    console.log("ORG:", membership.organization_id);
     console.log("DOCS LENGTH:", docs?.length);
-    console.log("DOC IDS:", (docs ?? []).map((d: any) => d.doc_id));
     console.log("DOCS ERR:", docsErr);
 
     if (docsErr) {
       return NextResponse.json(
         { error: docsErr.message },
-        {
-          status: 500,
-          headers: { "Cache-Control": "no-store, max-age=0" },
-        }
+        { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
       );
     }
 
-    // Pull feedback events only
-    const { data: feedback, error: fbErr } = await supabase
-      .from("events")
-      .select("doc_id,version,value")
-      .eq("event_type", "feedback");
+    // Pull feedback for these documents
+    const docIds = (docs ?? []).map((d: Document) => d.doc_id);
+    
+    let feedbackCounts: Record<string, { helpful: number; not_helpful: number }> = {};
+    
+    if (docIds.length > 0) {
+      const { data: feedback, error: fbErr } = await supabase
+        .from("feedback")
+        .select("document_id,is_helpful")
+        .in("document_id", docIds);
 
-    if (fbErr) {
-      return NextResponse.json(
-        { error: fbErr.message },
-        {
-          status: 500,
-          headers: { "Cache-Control": "no-store, max-age=0" },
+      if (!fbErr && feedback) {
+        // Aggregate feedback counts
+        for (const f of feedback as FeedbackRow[]) {
+          if (!feedbackCounts[f.document_id]) {
+            feedbackCounts[f.document_id] = { helpful: 0, not_helpful: 0 };
+          }
+          if (f.is_helpful) {
+            feedbackCounts[f.document_id].helpful++;
+          } else {
+            feedbackCounts[f.document_id].not_helpful++;
+          }
         }
-      );
+      }
     }
 
-    // Aggregate counts by doc_id + version + value
-    const counts: Record<string, Record<string, Record<string, number>>> = {};
-    for (const e of (feedback ?? []) as FeedbackEvent[]) {
-      const docId = e.doc_id;
-      const ver = e.version;
-      const val = e.value || "unknown";
-      counts[docId] ??= {};
-      counts[docId][ver] ??= {};
-      counts[docId][ver][val] = (counts[docId][ver][val] ?? 0) + 1;
-    }
-
-    // Merge counts with docs (show only current_version counts)
+    // Merge counts with docs
     const enriched = ((docs ?? []) as Document[]).map((d) => {
-      const docCounts = counts[d.doc_id]?.[d.current_version] ?? {};
+      const counts = feedbackCounts[d.doc_id] ?? { helpful: 0, not_helpful: 0 };
       return {
-        ...d,
+        doc_id: d.doc_id,
+        title: d.title,
+        current_version: d.current_version,
+        status: d.status,
+        doc_type: d.doc_type,
+        domain: d.domain,
+        tags: d.tags,
+        file_url: d.file_url,
         feedback_counts: {
-          helped: docCounts["helped"] ?? 0,
-          not_confident: docCounts["not_confident"] ?? 0,
-          didnt_help: docCounts["didnt_help"] ?? 0,
+          helped: counts.helpful,
+          not_confident: 0, // Legacy field
+          didnt_help: counts.not_helpful,
         },
       };
     });
@@ -95,6 +129,7 @@ export async function GET() {
     );
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : "Unknown error";
+    console.error("Learning summary error:", e);
     return NextResponse.json(
       { error: errorMessage },
       { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
