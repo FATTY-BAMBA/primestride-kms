@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const docId = searchParams.get("docId");
     const limit = parseInt(searchParams.get("limit") || "5");
+    const debug = searchParams.get("debug") === "true";
 
     if (!docId) {
       return NextResponse.json(
@@ -30,46 +31,147 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
+    const { data: membership, error: membershipError } = await supabase
       .from("organization_members")
       .select("organization_id")
       .eq("user_id", userId)
       .eq("is_active", true)
       .single();
 
-    if (!membership?.organization_id) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json({ 
+        error: "Organization not found",
+        debug: debug ? { userId, membershipError } : undefined
+      }, { status: 404 });
     }
 
-    // Try optimized pgvector function first
-    const { data: similar, error } = await supabase.rpc("find_similar_documents", {
-      target_doc_id: docId,
-      org_id: membership.organization_id,
-      match_count: limit,
+    const organizationId = membership.organization_id;
+
+    // Get target document embedding
+    const { data: targetEmb, error: targetError } = await supabase
+      .from("document_embeddings")
+      .select("embedding")
+      .eq("doc_id", docId)
+      .eq("organization_id", organizationId)
+      .single();
+
+    if (targetError || !targetEmb) {
+      if (debug) {
+        return NextResponse.json({ 
+          similar: [], 
+          debug: { 
+            message: "Target embedding not found",
+            docId,
+            organizationId,
+            targetError 
+          }
+        });
+      }
+      return NextResponse.json({ similar: [] });
+    }
+
+    // Get all other embeddings in the organization
+    const { data: embeddings, error: embeddingsError } = await supabase
+      .from("document_embeddings")
+      .select("doc_id, embedding")
+      .eq("organization_id", organizationId)
+      .neq("doc_id", docId);
+
+    if (embeddingsError || !embeddings || embeddings.length === 0) {
+      if (debug) {
+        return NextResponse.json({ 
+          similar: [], 
+          debug: { 
+            message: "No other embeddings found",
+            organizationId,
+            embeddingsError,
+            count: embeddings?.length || 0
+          }
+        });
+      }
+      return NextResponse.json({ similar: [] });
+    }
+
+    // Parse target embedding
+    let targetVector: number[];
+    try {
+      targetVector = typeof targetEmb.embedding === 'string' 
+        ? JSON.parse(targetEmb.embedding) 
+        : targetEmb.embedding;
+    } catch (e) {
+      if (debug) {
+        return NextResponse.json({ 
+          similar: [], 
+          debug: { message: "Failed to parse target embedding", error: String(e) }
+        });
+      }
+      return NextResponse.json({ similar: [] });
+    }
+
+    // Calculate similarities
+    const similarities: { doc_id: string; similarity: number }[] = [];
+
+    for (const emb of embeddings) {
+      try {
+        const vector = typeof emb.embedding === 'string' 
+          ? JSON.parse(emb.embedding) 
+          : emb.embedding;
+        const score = cosineSimilarity(targetVector, vector);
+        similarities.push({
+          doc_id: emb.doc_id,
+          similarity: score,
+        });
+      } catch (e) {
+        console.error(`Failed to parse embedding for ${emb.doc_id}:`, e);
+      }
+    }
+
+    // Sort by similarity and take top N
+    similarities.sort((a, b) => b.similarity - a.similarity);
+    const topSimilar = similarities.slice(0, limit);
+
+    if (topSimilar.length === 0) {
+      if (debug) {
+        return NextResponse.json({ 
+          similar: [], 
+          debug: { 
+            message: "No similarities calculated",
+            embeddingsCount: embeddings.length 
+          }
+        });
+      }
+      return NextResponse.json({ similar: [] });
+    }
+
+    // Get document details
+    const { data: documents } = await supabase
+      .from("documents")
+      .select("doc_id, title, doc_type")
+      .in("doc_id", topSimilar.map((s) => s.doc_id));
+
+    const result = topSimilar.map((sim) => {
+      const doc = documents?.find((d) => d.doc_id === sim.doc_id);
+      return {
+        doc_id: doc?.doc_id || sim.doc_id,
+        title: doc?.title || "Unknown",
+        doc_type: doc?.doc_type || null,
+        similarity: Math.round(sim.similarity * 100),
+      };
     });
 
-    if (error) {
-      console.error("Similarity search error:", error);
-
-      // Fallback to legacy method if pgvector function doesn't exist
-      if (error.message.includes("function") || error.code === "42883") {
-        console.log("Falling back to legacy similarity search...");
-        return await legacySimilaritySearch(docId, membership.organization_id, limit);
-      }
-
-      return NextResponse.json(
-        { error: "Failed to find similar documents", details: error.message },
-        { status: 500 }
-      );
+    if (debug) {
+      return NextResponse.json({ 
+        similar: result,
+        debug: {
+          userId,
+          organizationId,
+          targetDocId: docId,
+          totalEmbeddings: embeddings.length,
+          calculatedSimilarities: similarities.length,
+          topResults: topSimilar.length
+        }
+      });
     }
-
-    // Transform results
-    const result = (similar || []).map((doc: { doc_id: string; title: string; doc_type: string | null; similarity: number }) => ({
-      doc_id: doc.doc_id,
-      title: doc.title,
-      doc_type: doc.doc_type,
-      similarity: Math.round(doc.similarity * 100),
-    }));
 
     return NextResponse.json({ similar: result });
   } catch (error) {
@@ -84,73 +186,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Legacy fallback when pgvector isn't set up
-async function legacySimilaritySearch(
-  docId: string,
-  organizationId: string,
-  limit: number
-) {
-  // Get target document embedding
-  const { data: targetEmb } = await supabase
-    .from("document_embeddings")
-    .select("embedding")
-    .eq("doc_id", docId)
-    .eq("organization_id", organizationId)
-    .single();
-
-  if (!targetEmb) {
-    return NextResponse.json({ similar: [] });
-  }
-
-  // Get all embeddings
-  const { data: embeddings } = await supabase
-    .from("document_embeddings")
-    .select("doc_id, embedding")
-    .eq("organization_id", organizationId)
-    .neq("doc_id", docId);
-
-  if (!embeddings || embeddings.length === 0) {
-    return NextResponse.json({ similar: [] });
-  }
-
-  const targetVector = JSON.parse(targetEmb.embedding as string);
-
-  // Calculate similarities
-  const similarities = embeddings.map((emb) => {
-    const vector = JSON.parse(emb.embedding as string);
-    const score = cosineSimilarity(targetVector, vector);
-    return {
-      doc_id: emb.doc_id,
-      similarity: score,
-    };
-  });
-
-  // Sort by similarity and take top N
-  similarities.sort((a, b) => b.similarity - a.similarity);
-  const topSimilar = similarities.slice(0, limit);
-
-  // Get document details
-  const { data: documents } = await supabase
-    .from("documents")
-    .select("doc_id, title, doc_type")
-    .in("doc_id", topSimilar.map((s) => s.doc_id));
-
-  const result = topSimilar.map((sim) => {
-    const doc = documents?.find((d) => d.doc_id === sim.doc_id);
-    return {
-      doc_id: doc?.doc_id || sim.doc_id,
-      title: doc?.title || "Unknown",
-      doc_type: doc?.doc_type || null,
-      similarity: Math.round(sim.similarity * 100),
-    };
-  });
-
-  return NextResponse.json({ similar: result });
-}
-
 // Cosine similarity calculation
 function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0;
+  if (!a || !b || a.length !== b.length) return 0;
 
   let dotProduct = 0;
   let normA = 0;
