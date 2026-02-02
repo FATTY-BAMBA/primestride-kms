@@ -71,7 +71,6 @@ export default function LibraryPage() {
               alignItems: "center",
               justifyContent: "space-between",
               gap: 16,
-              flexWrap: "wrap",
               marginBottom: 8,
             }}
           >
@@ -92,7 +91,7 @@ export default function LibraryPage() {
               </div>
               <h1>PrimeStride Atlas</h1>
             </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               {isAdmin && (
                 <Link href="/library/new" className="btn btn-primary">
                   ➕ New Document
