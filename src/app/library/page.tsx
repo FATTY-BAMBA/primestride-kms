@@ -92,12 +92,39 @@ export default function LibraryPage() {
               </div>
               <h1>PrimeStride Atlas</h1>
             </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               {isAdmin && (
                 <Link href="/library/new" className="btn btn-primary">
                   ➕ New Document
                 </Link>
               )}
+              <Link 
+                href="/chat" 
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 18px",
+                  background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                  color: "white",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
+                }}
+              >
+                🤖 AI Chat
+              </Link>
               <Link href="/search" className="btn">
                 🔍 Search
               </Link>
