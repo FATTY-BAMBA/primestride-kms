@@ -74,27 +74,30 @@ export default function LibraryPage() {
               marginBottom: 8,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {/* Logo & Title */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <div
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
                   background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 20,
+                  fontSize: 18,
                 }}
               >
                 📚
               </div>
-              <h1>PrimeStride Atlas</h1>
+              <h1 style={{ fontSize: 20, margin: 0 }}>PS Atlas</h1>
             </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+
+            {/* Navigation */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {isAdmin && (
-                <Link href="/library/new" className="btn btn-primary">
-                  ➕ New Document
+                <Link href="/library/new" className="btn btn-primary" style={{ padding: "8px 14px", fontSize: 13 }}>
+                  ➕ New
                 </Link>
               )}
               <Link 
@@ -102,47 +105,38 @@ export default function LibraryPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 6,
-                  padding: "10px 18px",
+                  gap: 4,
+                  padding: "8px 14px",
                   background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
                   color: "white",
-                  borderRadius: 10,
+                  borderRadius: 8,
                   textDecoration: "none",
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
-                  boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(16, 185, 129, 0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
+                  boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)",
                 }}
               >
-                🤖 AI Chat
+                🤖 Chat
               </Link>
-              <Link href="/search" className="btn">
+              <Link href="/search" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 🔍 Search
               </Link>
-              <Link href="/learning" className="btn">
+              <Link href="/learning" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 📊 Learning
               </Link>
-              <Link href="/admin" className="btn">
+              <Link href="/admin" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 ⚙️ Admin
               </Link>
-              <Link href="/team" className="btn">
+              <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 👥 Team
               </Link>
-              <Link href="/ai-graph" className="btn">
-                🧠 AI Graph
+              <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+                🧠 Graph
               </Link>
               <UserMenu />
             </div>
           </div>
-          <p style={{ color: "var(--text-secondary)", fontSize: 15 }}>
+          <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>
             Learning-enabled docs with feedback → weekly improvements
           </p>
         </header>
