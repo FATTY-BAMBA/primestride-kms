@@ -21,6 +21,7 @@ type ResultRow = {
   section_title?: string;
   section_path?: string;
   why_matched?: string[];
+  search_mode?: string;
 };
 
 type Facets = {
@@ -43,6 +44,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [facets, setFacets] = useState<Facets | null>(null);
+  const [searchMode, setSearchMode] = useState<"keyword" | "semantic">("keyword");
 
   // Load facets on mount
   useEffect(() => {
@@ -68,13 +70,14 @@ export default function SearchPage() {
       if (maturity.trim()) params.set("ai_maturity_stage", maturity.trim());
       if (status.trim()) params.set("status", status.trim());
       if (tag.trim()) params.set("tag", tag.trim());
+      params.set("mode", searchMode);
 
       const res = await fetch("/api/search?" + params.toString());
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Search failed");
       setResults(data.results || []);
 
-      // Log search event with actual user email
+      // Log search event
       try {
         await fetch("/api/search-log", {
           method: "POST",
@@ -89,6 +92,7 @@ export default function SearchPage() {
               ai_maturity_stage: maturity || null,
               status: status || null,
               tag: tag || null,
+              mode: searchMode,
             },
             results_count: (data.results ?? []).length,
           }),
@@ -114,7 +118,6 @@ export default function SearchPage() {
   }
 
   async function handleResultClick(r: ResultRow, index: number) {
-    // Log click event with actual user email
     try {
       await fetch("/api/search-log", {
         method: "POST",
@@ -129,6 +132,7 @@ export default function SearchPage() {
             ai_maturity_stage: maturity || null,
             status: status || null,
             tag: tag || null,
+            mode: searchMode,
           },
           clicked_doc_id: r.doc_id,
           clicked_version: r.version,
@@ -178,7 +182,7 @@ export default function SearchPage() {
                 <h1 style={{ margin: 0 }}>Search</h1>
               </div>
               <p style={{ color: "var(--text-secondary)", margin: 0 }}>
-                Search current-version snapshots with filters
+                Search by keywords or use AI to search by meaning
               </p>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -191,15 +195,85 @@ export default function SearchPage() {
         </header>
 
         <div className="card" style={{ marginBottom: 24 }}>
+          {/* Search Mode Toggle */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+              Search Mode
+            </label>
+            <div
+              style={{
+                display: "inline-flex",
+                borderRadius: 10,
+                overflow: "hidden",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <button
+                onClick={() => setSearchMode("keyword")}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: searchMode === "keyword"
+                    ? "var(--accent-blue)"
+                    : "var(--bg-secondary)",
+                  color: searchMode === "keyword"
+                    ? "white"
+                    : "var(--text-secondary)",
+                  transition: "all 0.2s",
+                }}
+              >
+                🔤 Keyword
+              </button>
+              <button
+                onClick={() => setSearchMode("semantic")}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: "none",
+                  borderLeft: "1px solid var(--border-color)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: searchMode === "semantic"
+                    ? "linear-gradient(135deg, #7C3AED, #6366F1)"
+                    : "var(--bg-secondary)",
+                  color: searchMode === "semantic"
+                    ? "white"
+                    : "var(--text-secondary)",
+                  transition: "all 0.2s",
+                }}
+              >
+                🧠 AI Semantic
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, marginBottom: 0 }}>
+              {searchMode === "semantic"
+                ? "AI search finds documents by meaning — \"keeping clients happy\" finds docs about \"customer retention\""
+                : "Keyword search finds exact text matches in document titles and content"}
+            </p>
+          </div>
+
           {/* Text search */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
-              Search text
+              {searchMode === "semantic" ? "Describe what you're looking for" : "Search text"}
             </label>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="e.g., performance evidence"
+              placeholder={
+                searchMode === "semantic"
+                  ? "e.g., how do we keep clients happy and engaged?"
+                  : "e.g., performance evidence"
+              }
               style={{ width: "100%" }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSearch();
@@ -289,17 +363,23 @@ export default function SearchPage() {
 
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <button onClick={handleSearch} className="btn btn-primary">
-              Search →
+              {searchMode === "semantic" ? "🧠 AI Search →" : "Search →"}
             </button>
             <button onClick={handleClear} className="btn">
               Clear
             </button>
-            {loading && <span style={{ color: "var(--text-muted)" }}>Searching…</span>}
+            {loading && (
+              <span style={{ color: "var(--text-muted)" }}>
+                {searchMode === "semantic" ? "🧠 AI searching by meaning…" : "Searching…"}
+              </span>
+            )}
             {err && <span style={{ color: "var(--accent-red)" }}>{err}</span>}
           </div>
 
           <p style={{ marginTop: 12, marginBottom: 0, fontSize: 12, color: "var(--text-muted)" }}>
-            Tip: Filters work even without a text query. Press Enter to search.
+            {searchMode === "semantic"
+              ? "Tip: Use natural language — describe what you need instead of exact keywords."
+              : "Tip: Filters work even without a text query. Press Enter to search."}
           </p>
         </div>
 
@@ -321,12 +401,31 @@ export default function SearchPage() {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
                 <div>
                   <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>{r.title}</h3>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <span className="badge mono">{r.doc_id}</span>
                     <span className="badge">{r.version}</span>
                     {r.doc_type && <span className="badge">{r.doc_type}</span>}
                     {r.domain && <span className="badge">{r.domain}</span>}
                     {r.ai_maturity_stage && <span className="badge">{r.ai_maturity_stage}</span>}
+                    {/* Semantic relevance badge */}
+                    {r.search_mode === "semantic" && r.score > 0 && (
+                      <span
+                        style={{
+                          padding: "4px 10px",
+                          background: r.score >= 60
+                            ? "linear-gradient(135deg, #7C3AED, #6366F1)"
+                            : r.score >= 40
+                            ? "#EEF2FF"
+                            : "#F3F4F6",
+                          color: r.score >= 60 ? "white" : r.score >= 40 ? "#4F46E5" : "#6B7280",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        🧠 {r.score}% match
+                      </span>
+                    )}
                   </div>
                   {r.tags && r.tags.length > 0 && (
                     <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-muted)" }}>
@@ -349,7 +448,14 @@ export default function SearchPage() {
 
               {/* Why this matched */}
               {Array.isArray(r.why_matched) && r.why_matched.length > 0 && (
-                <div style={{ marginBottom: 8, fontSize: 13, color: "var(--accent-blue)" }}>
+                <div
+                  style={{
+                    marginBottom: 8,
+                    fontSize: 13,
+                    color: r.search_mode === "semantic" ? "#7C3AED" : "var(--accent-blue)",
+                  }}
+                >
+                  {r.search_mode === "semantic" ? "🧠 " : ""}
                   Why matched: {r.why_matched.slice(0, 3).join(" • ")}
                 </div>
               )}
