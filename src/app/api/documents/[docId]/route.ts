@@ -1,8 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Create Supabase admin client
 const supabase = createClient(
@@ -10,12 +13,39 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Generate AI summary for document content
+async function generateSummary(title: string, content: string): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that creates concise document summaries. Generate a 2-3 sentence TL;DR summary that captures the key points. Be direct and informative. Do not start with 'This document...' - just state the key information."
+        },
+        {
+          role: "user",
+          content: `Title: ${title}\n\nContent:\n${content.slice(0, 3000)}`
+        }
+      ],
+      max_tokens: 150,
+      temperature: 0.5,
+    });
+
+    return completion.choices[0].message.content?.trim() || "";
+  } catch (error) {
+    console.error("Failed to generate summary:", error);
+    return "";
+  }
+}
+
 // GET a single document
 export async function GET(
   request: NextRequest,
-  { params }: { params: { docId: string } }
+  { params }: { params: Promise<{ docId: string }> }
 ) {
   try {
+    const { docId } = await params;
     const { userId } = await auth();
 
     if (!userId) {
@@ -37,7 +67,7 @@ export async function GET(
     const { data: document, error } = await supabase
       .from("documents")
       .select("*")
-      .eq("doc_id", params.docId)
+      .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id)
       .single();
 
@@ -58,9 +88,10 @@ export async function GET(
 // UPDATE a document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { docId: string } }
+  { params }: { params: Promise<{ docId: string }> }
 ) {
   try {
+    const { docId } = await params;
     const { userId } = await auth();
 
     if (!userId) {
@@ -94,11 +125,11 @@ export async function PUT(
       );
     }
 
-    // Get current document to increment version
+    // Get current document to increment version and check for content changes
     const { data: currentDoc } = await supabase
       .from("documents")
-      .select("current_version")
-      .eq("doc_id", params.docId)
+      .select("current_version, content")
+      .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id)
       .single();
 
@@ -115,19 +146,33 @@ export async function PUT(
       newVersion = `v${major}.${minor + 1}`;
     }
 
+    // Build update data
+    const updateData: Record<string, any> = {
+      title,
+      content,
+      doc_type: docType || null,
+      file_url: fileUrl || null,
+      file_name: fileName || null,
+      file_type: fileType || null,
+      current_version: newVersion,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Regenerate AI summary if content changed
+    const contentChanged = content !== currentDoc.content;
+    if (contentChanged) {
+      console.log("🤖 Content changed, regenerating AI summary...");
+      const summary = await generateSummary(title, content);
+      if (summary) {
+        updateData.summary = summary;
+        console.log("✅ New summary generated");
+      }
+    }
+
     const { data: document, error } = await supabase
       .from("documents")
-      .update({
-        title,
-        content,
-        doc_type: docType || null,
-        file_url: fileUrl || null,
-        file_name: fileName || null,
-        file_type: fileType || null,
-        current_version: newVersion,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("doc_id", params.docId)
+      .update(updateData)
+      .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id)
       .select()
       .single();
@@ -157,9 +202,10 @@ export async function PUT(
 // DELETE a document
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { docId: string } }
+  { params }: { params: Promise<{ docId: string }> }
 ) {
   try {
+    const { docId } = await params;
     const { userId } = await auth();
 
     if (!userId) {
@@ -187,7 +233,7 @@ export async function DELETE(
     const { data: doc } = await supabase
       .from("documents")
       .select("file_url")
-      .eq("doc_id", params.docId)
+      .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id)
       .single();
 
@@ -207,20 +253,20 @@ export async function DELETE(
     await supabase
       .from("feedback")
       .delete()
-      .eq("doc_id", params.docId)
+      .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id);
 
     // Delete associated embeddings (if any)
     await supabase
       .from("document_embeddings")
       .delete()
-      .eq("doc_id", params.docId);
+      .eq("doc_id", docId);
 
     // Delete the document
     const { error } = await supabase
       .from("documents")
       .delete()
-      .eq("doc_id", params.docId)
+      .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id);
 
     if (error) {

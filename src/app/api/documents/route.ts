@@ -1,14 +1,43 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Create Supabase admin client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// Generate AI summary for document content
+async function generateSummary(title: string, content: string): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that creates concise document summaries. Generate a 2-3 sentence TL;DR summary that captures the key points. Be direct and informative. Do not start with 'This document...' - just state the key information."
+        },
+        {
+          role: "user",
+          content: `Title: ${title}\n\nContent:\n${content.slice(0, 3000)}`
+        }
+      ],
+      max_tokens: 150,
+      temperature: 0.5,
+    });
+
+    return completion.choices[0].message.content?.trim() || "";
+  } catch (error) {
+    console.error("Failed to generate summary:", error);
+    return "";
+  }
+}
 
 // CREATE a new document
 export async function POST(request: NextRequest) {
@@ -61,12 +90,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate AI summary
+    console.log("🤖 Generating AI summary for new document...");
+    const summary = await generateSummary(title, content);
+    console.log("✅ Summary generated:", summary.slice(0, 100) + "...");
+
     const { data: document, error } = await supabase
       .from("documents")
       .insert({
         doc_id: docId,
         title,
         content,
+        summary,
         doc_type: docType || null,
         file_url: fileUrl || null,
         file_name: fileName || null,

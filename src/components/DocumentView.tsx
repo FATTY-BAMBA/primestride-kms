@@ -7,6 +7,7 @@ interface Document {
   doc_id: string;
   title: string;
   content: string;
+  summary?: string;
   current_version: string;
   doc_type?: string;
   file_url?: string;
@@ -37,6 +38,8 @@ export default function DocumentView({
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [summary, setSummary] = useState(document.summary || "");
+  const [generatingSummary, setGeneratingSummary] = useState(false);
 
   useEffect(() => {
     fetch(`/api/embeddings/similar?docId=${document.doc_id}&limit=3`)
@@ -44,6 +47,27 @@ export default function DocumentView({
       .then((data) => setSimilarDocs(data.similar || []))
       .catch((err) => console.error("Failed to fetch similar docs:", err));
   }, [document.doc_id]);
+
+  const handleGenerateSummary = async () => {
+    setGeneratingSummary(true);
+    try {
+      const res = await fetch("/api/documents/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: document.doc_id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.summary) {
+        setSummary(data.summary);
+      } else {
+        console.error("Failed to generate summary:", data.error);
+      }
+    } catch (error) {
+      console.error("Failed to generate summary:", error);
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
 
   const handleFeedback = async (isHelpful: boolean) => {
     setSubmitting(true);
@@ -224,10 +248,94 @@ export default function DocumentView({
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 22 }}>👎</span>
               <span style={{ fontSize: 15, color: "#6B7280", fontWeight: 500 }}>
-                {notHelpfulCount} didn't
+                {notHelpfulCount} didn&apos;t
               </span>
             </div>
           </div>
+        </div>
+
+        {/* ✨ AI Summary Card */}
+        <div
+          style={{
+            padding: "24px 32px",
+            marginBottom: 24,
+            background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+            borderRadius: 12,
+            border: "1px solid #C7D2FE",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: summary || generatingSummary ? 14 : 0,
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>💡</span>
+              <span
+                style={{
+                  fontSize: 15,
+                  fontWeight: 700,
+                  color: "#4338CA",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                AI Summary
+              </span>
+            </div>
+            <button
+              onClick={handleGenerateSummary}
+              disabled={generatingSummary}
+              style={{
+                padding: "6px 14px",
+                background: generatingSummary ? "#A5B4FC" : "#4F46E5",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: generatingSummary ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {generatingSummary
+                ? "⏳ Generating..."
+                : summary
+                ? "🔄 Regenerate"
+                : "✨ Generate Summary"}
+            </button>
+          </div>
+
+          {summary ? (
+            <p
+              style={{
+                fontSize: 15,
+                lineHeight: 1.7,
+                color: "#312E81",
+                margin: 0,
+              }}
+            >
+              {summary}
+            </p>
+          ) : (
+            !generatingSummary && (
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#6366F1",
+                  margin: "10px 0 0 0",
+                  fontStyle: "italic",
+                }}
+              >
+                No summary yet — click &quot;Generate Summary&quot; to create one with AI.
+              </p>
+            )
+          )}
         </div>
 
         {/* Original File Card (if uploaded) */}
