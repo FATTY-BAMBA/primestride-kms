@@ -13,6 +13,7 @@ interface Document {
   file_url?: string;
   file_name?: string;
   file_type?: string;
+  tags?: string[];
 }
 
 export default function EditDocumentForm({ document }: { document: Document }) {
@@ -21,6 +22,10 @@ export default function EditDocumentForm({ document }: { document: Document }) {
   const [title, setTitle] = useState(document.title);
   const [content, setContent] = useState(document.content);
   const [docType, setDocType] = useState(document.doc_type || "");
+  const [tags, setTags] = useState<string[]>(document.tags || []);
+  const [tagInput, setTagInput] = useState("");
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggestingTags, setSuggestingTags] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -45,10 +50,47 @@ export default function EditDocumentForm({ document }: { document: Document }) {
     outline: "none",
   };
 
+  const handleSuggestTags = async () => {
+    if (!title && !content) {
+      setError("Add a title or content first so AI can suggest tags.");
+      return;
+    }
+    setSuggestingTags(true);
+    setSuggestedTags([]);
+    try {
+      const res = await fetch("/api/tags/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, docType }),
+      });
+      const data = await res.json();
+      if (res.ok && data.tags) {
+        const newSuggestions = data.tags.filter((t: string) => !tags.includes(t));
+        setSuggestedTags(newSuggestions);
+      }
+    } catch (err) {
+      console.error("Failed to suggest tags:", err);
+    } finally {
+      setSuggestingTags(false);
+    }
+  };
+
+  const addTag = (tag: string) => {
+    const cleaned = tag.toLowerCase().trim().replace(/[^a-z0-9-]/g, "");
+    if (cleaned && !tags.includes(cleaned)) {
+      setTags([...tags, cleaned]);
+      setSuggestedTags(suggestedTags.filter((t) => t !== cleaned));
+    }
+    setTagInput("");
+  };
+
+  const removeTag = (tag: string) => {
+    setTags(tags.filter((t) => t !== tag));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Custom validation: content must have text
     if (!content.trim()) {
       setError("Please provide content by uploading a file or editing directly.");
       return;
@@ -94,6 +136,7 @@ export default function EditDocumentForm({ document }: { document: Document }) {
           title,
           content,
           docType,
+          tags: tags.length > 0 ? tags : null,
           fileUrl,
           fileName: storedFileName,
           fileType,
@@ -130,11 +173,9 @@ export default function EditDocumentForm({ document }: { document: Document }) {
     try {
       const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
-      // Store file for later upload
       const previewUrl = URL.createObjectURL(file);
       setFileData({ file, previewUrl });
 
-      // Handle plain text files directly
       if (fileExtension === "txt" || fileExtension === "md") {
         const text = await file.text();
         setContent(text);
@@ -143,7 +184,6 @@ export default function EditDocumentForm({ document }: { document: Document }) {
         return;
       }
 
-      // For PDF and DOCX, send to API for text extraction
       const formData = new FormData();
       formData.append("file", file);
 
@@ -294,6 +334,163 @@ export default function EditDocumentForm({ document }: { document: Document }) {
                   opacity: saving ? 0.6 : 1,
                 }}
               />
+            </div>
+
+            {/* ========== AI Tags Section ========== */}
+            <div style={{ marginBottom: 24 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: "#374151",
+                  }}
+                >
+                  Tags
+                </label>
+                <button
+                  type="button"
+                  onClick={handleSuggestTags}
+                  disabled={suggestingTags || saving}
+                  style={{
+                    padding: "6px 14px",
+                    background: suggestingTags
+                      ? "#A5B4FC"
+                      : "linear-gradient(135deg, #7C3AED, #6366F1)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: suggestingTags ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {suggestingTags ? "⏳ Suggesting..." : "🏷️ AI Suggest Tags"}
+                </button>
+              </div>
+
+              {/* Current tags */}
+              {tags.length > 0 && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 12px",
+                        background: "#EEF2FF",
+                        color: "#4338CA",
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#6366F1",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          padding: 0,
+                          lineHeight: 1,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* AI Suggested tags */}
+              {suggestedTags.length > 0 && (
+                <div
+                  style={{
+                    padding: 12,
+                    background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+                    borderRadius: 8,
+                    border: "1px solid #C7D2FE",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#4338CA", fontWeight: 600, marginBottom: 8 }}>
+                    🏷️ AI Suggested Tags — click to add:
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {suggestedTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addTag(tag)}
+                        style={{
+                          padding: "6px 12px",
+                          background: "white",
+                          color: "#4F46E5",
+                          border: "1px solid #C7D2FE",
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        + #{tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Manual tag input */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  placeholder="Add a custom tag..."
+                  disabled={saving}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (tagInput.trim()) addTag(tagInput);
+                    }
+                  }}
+                  style={{
+                    ...inputStyle,
+                    flex: 1,
+                    opacity: saving ? 0.6 : 1,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => { if (tagInput.trim()) addTag(tagInput); }}
+                  className="btn"
+                  style={{ padding: "12px 16px", whiteSpace: "nowrap" }}
+                >
+                  + Add
+                </button>
+              </div>
+              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 6 }}>
+                Press Enter to add a tag, or use AI Suggest after adding content
+              </p>
             </div>
 
             <div style={{ marginBottom: 24 }}>
