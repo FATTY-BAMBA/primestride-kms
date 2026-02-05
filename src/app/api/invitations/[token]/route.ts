@@ -16,20 +16,8 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    const { userId } = await auth();
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
-    }
-
-    // Get user email from Clerk
-    const user = await currentUser();
-    const userEmail = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
-
-    // Get invitation by token
+    
+    // Get invitation by token first (no auth required to view basic info)
     const { data: invitation, error } = await supabase
       .from("invitations")
       .select(`
@@ -49,6 +37,7 @@ export async function GET(
       .single();
 
     if (error || !invitation) {
+      console.error("Invitation lookup error:", error);
       return NextResponse.json(
         { error: "Invitation not found" },
         { status: 404 }
@@ -70,25 +59,51 @@ export async function GET(
       );
     }
 
-    // Check if email matches
-    if (invitation.email.toLowerCase() !== userEmail) {
-      return NextResponse.json(
-        { error: "This invitation was sent to a different email address" },
-        { status: 403 }
-      );
-    }
-
-    // Return invitation details
+    // Get organization name
     const org = Array.isArray(invitation.organizations) 
       ? invitation.organizations[0] 
       : invitation.organizations;
+
+    // Check if user is authenticated
+    const { userId } = await auth();
     
+    if (!userId) {
+      // Not logged in - return basic invitation info so page can show "Sign In" prompt
+      return NextResponse.json({
+        organization_name: org?.name || "Unknown Organization",
+        role: invitation.role,
+        expires_at: invitation.expires_at,
+        status: invitation.status,
+        requires_auth: true,
+        invited_email: invitation.email, // Show which email was invited
+      });
+    }
+
+    // User is logged in - check if email matches
+    const user = await currentUser();
+    const userEmail = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
+
+    if (invitation.email.toLowerCase() !== userEmail) {
+      return NextResponse.json({
+        organization_name: org?.name || "Unknown Organization",
+        role: invitation.role,
+        expires_at: invitation.expires_at,
+        status: invitation.status,
+        email_mismatch: true,
+        invited_email: invitation.email,
+        current_email: userEmail,
+        error: `This invitation was sent to ${invitation.email}. You are signed in as ${userEmail}.`
+      }, { status: 403 });
+    }
+
+    // Everything is valid - return full details
     return NextResponse.json({
       organization_name: org?.name || "Unknown Organization",
       email: invitation.email,
       role: invitation.role,
       expires_at: invitation.expires_at,
       status: invitation.status,
+      can_accept: true,
     });
   } catch (error) {
     console.error("Error fetching invitation:", error);

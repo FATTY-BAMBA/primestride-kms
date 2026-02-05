@@ -6,11 +6,16 @@ import Link from "next/link";
 
 interface InvitationDetails {
   organization_name: string;
-  email: string;
+  email?: string;
+  invited_email?: string;
+  current_email?: string;
   role: string;
-  invited_by_email?: string;
   expires_at: string;
   status: string;
+  requires_auth?: boolean;
+  email_mismatch?: boolean;
+  can_accept?: boolean;
+  error?: string;
 }
 
 export default function AcceptInvitePage() {
@@ -23,7 +28,6 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
   const [success, setSuccess] = useState(false);
-  const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
     fetchInvitation();
@@ -34,20 +38,16 @@ export default function AcceptInvitePage() {
       const res = await fetch(`/api/invitations/${token}`);
       const data = await res.json();
 
-      if (res.status === 401) {
-        // User not logged in - save token and redirect to login
-        setNeedsLogin(true);
-        setLoading(false);
-        return;
-      }
-
-      if (!res.ok) {
+      if (!res.ok && res.status !== 403) {
         setError(data.error || "Invalid invitation");
         setLoading(false);
         return;
       }
 
       setInvitation(data);
+      if (data.error && res.status === 403) {
+        setError(data.error);
+      }
       setLoading(false);
     } catch (err) {
       setError("Failed to load invitation");
@@ -119,55 +119,7 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Needs login
-  if (needsLogin) {
-    return (
-      <div style={{ 
-        minHeight: "100vh", 
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "center",
-        background: "#F9FAFB",
-        padding: 20
-      }}>
-        <div style={{
-          maxWidth: 450,
-          width: "100%",
-          background: "white",
-          borderRadius: 16,
-          padding: 40,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-          textAlign: "center"
-        }}>
-          <div style={{ fontSize: 64, marginBottom: 24 }}>🔐</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, color: "#111827" }}>
-            Sign In Required
-          </h1>
-          <p style={{ color: "#6B7280", marginBottom: 32, lineHeight: 1.6 }}>
-            You need to sign in or create an account to accept this invitation.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Link
-              href={`/login?redirect=/invite/${token}`}
-              className="btn btn-primary"
-              style={{ padding: "14px 24px", fontSize: 16, textAlign: "center" }}
-            >
-              Sign In
-            </Link>
-            <Link
-              href={`/signup?redirect=/invite/${token}`}
-              className="btn"
-              style={{ padding: "14px 24px", fontSize: 16, textAlign: "center" }}
-            >
-              Create Account
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
+  // Error state (no invitation data at all)
   if (error && !invitation) {
     return (
       <div style={{ 
@@ -201,6 +153,153 @@ export default function AcceptInvitePage() {
           >
             Go Home
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Needs login state
+  if (invitation?.requires_auth) {
+    return (
+      <div style={{ 
+        minHeight: "100vh", 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        background: "#F9FAFB",
+        padding: 20
+      }}>
+        <div style={{
+          maxWidth: 500,
+          width: "100%",
+          background: "white",
+          borderRadius: 16,
+          padding: 40,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+        }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>📨</div>
+            <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
+              You're Invited!
+            </h1>
+            <p style={{ color: "#6B7280", fontSize: 16 }}>
+              Join <strong>{invitation.organization_name}</strong> as a <strong>{invitation.role}</strong>
+            </p>
+          </div>
+
+          <div style={{
+            background: "#F9FAFB",
+            borderRadius: 12,
+            padding: 20,
+            marginBottom: 24,
+            textAlign: "center"
+          }}>
+            <p style={{ margin: 0, color: "#6B7280", fontSize: 14 }}>
+              This invitation was sent to:
+            </p>
+            <p style={{ margin: "8px 0 0 0", fontWeight: 600, color: "#111827", fontSize: 16 }}>
+              {invitation.invited_email}
+            </p>
+          </div>
+
+          <div style={{
+            background: "#FEF3C7",
+            border: "1px solid #FDE68A",
+            borderRadius: 8,
+            padding: 16,
+            marginBottom: 24
+          }}>
+            <p style={{ margin: 0, color: "#92400E", fontSize: 14 }}>
+              🔐 Sign in or create an account with <strong>{invitation.invited_email}</strong> to accept this invitation.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Link
+              href={`/login?redirect_url=/invite/${token}`}
+              className="btn btn-primary"
+              style={{ padding: "16px 24px", fontSize: 16, textAlign: "center", fontWeight: 600 }}
+            >
+              Sign In to Accept
+            </Link>
+            <Link
+              href={`/signup?redirect_url=/invite/${token}`}
+              className="btn"
+              style={{ padding: "14px 24px", fontSize: 15, textAlign: "center" }}
+            >
+              Create Account
+            </Link>
+          </div>
+
+          <p style={{ 
+            textAlign: "center", 
+            marginTop: 24, 
+            fontSize: 13, 
+            color: "#9CA3AF" 
+          }}>
+            Expires {new Date(invitation.expires_at).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Email mismatch state
+  if (invitation?.email_mismatch) {
+    return (
+      <div style={{ 
+        minHeight: "100vh", 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        background: "#F9FAFB",
+        padding: 20
+      }}>
+        <div style={{
+          maxWidth: 500,
+          width: "100%",
+          background: "white",
+          borderRadius: 16,
+          padding: 40,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+          textAlign: "center"
+        }}>
+          <div style={{ fontSize: 64, marginBottom: 24 }}>⚠️</div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, color: "#111827" }}>
+            Email Mismatch
+          </h1>
+          <p style={{ color: "#6B7280", marginBottom: 24, lineHeight: 1.6 }}>
+            This invitation was sent to <strong>{invitation.invited_email}</strong>, but you're signed in as <strong>{invitation.current_email}</strong>.
+          </p>
+          
+          <div style={{
+            background: "#FEF3C7",
+            border: "1px solid #FDE68A",
+            borderRadius: 8,
+            padding: 16,
+            marginBottom: 24
+          }}>
+            <p style={{ margin: 0, color: "#92400E", fontSize: 14 }}>
+              Please sign out and sign in with <strong>{invitation.invited_email}</strong> to accept this invitation.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Link
+              href="/login"
+              className="btn btn-primary"
+              style={{ padding: "14px 24px", fontSize: 16 }}
+            >
+              Sign In with Different Account
+            </Link>
+            <Link
+              href="/"
+              className="btn"
+              style={{ padding: "14px 24px", fontSize: 15 }}
+            >
+              Go Home
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -241,7 +340,7 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Main invitation view
+  // Main invitation view (can accept)
   return (
     <div style={{ 
       minHeight: "100vh", 
@@ -307,7 +406,7 @@ export default function AcceptInvitePage() {
 
             <div>
               <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Invited Email
+                Your Email
               </div>
               <div style={{ fontSize: 14, color: "#111827" }}>
                 {invitation?.email}
