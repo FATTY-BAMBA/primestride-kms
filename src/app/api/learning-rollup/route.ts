@@ -1,8 +1,14 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 type EventRow = {
   doc_id: string;
@@ -17,21 +23,34 @@ interface DocRecord {
   title: string;
   current_version: string;
   status: string;
-  google_doc_url: string | null;
+  file_url: string | null;
 }
 
 export async function GET(req: Request) {
   try {
-    console.log("ROUTE:", new URL(req.url).pathname);
+    const { userId } = await auth();
 
-    // 1) Load documents (current versions)
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get user's organization
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json({ summary: null, documents: [] });
+    }
+
+    // 1) Load documents scoped to organization
     const { data: docs, error: docsErr } = await supabase
       .from("documents")
-      .select("doc_id,title,current_version,status,google_doc_url");
-
-    console.log("DOCS ERR:", docsErr?.message ?? null);
-    console.log("DOCS LENGTH:", docs?.length ?? 0);
-    console.log("DOC IDS:", (docs ?? []).map((d: any) => d.doc_id));
+      .select("doc_id,title,current_version,status,file_url")
+      .eq("organization_id", membership.organization_id);
 
     if (docsErr) {
       return NextResponse.json({ error: docsErr.message }, { status: 500 });
@@ -44,14 +63,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ summary: null, documents: [] });
     }
 
-    // 2) Pull events for these docs (all versions), filter to current_version in code
+    // 2) Pull events for these docs
     const { data: events, error: evErr } = await supabase
       .from("events")
       .select("doc_id,version,event_type,value,notes")
       .in("doc_id", docIds);
-
-    console.log("EVENTS ERR:", evErr?.message ?? null);
-    console.log("EVENTS LENGTH:", events?.length ?? 0);
 
     if (evErr) {
       return NextResponse.json({ error: evErr.message }, { status: 500 });
@@ -59,7 +75,7 @@ export async function GET(req: Request) {
 
     const rows = (events ?? []) as EventRow[];
 
-    // 3) Build rollups per doc for *current version only*
+    // 3) Build rollups per doc for current version only
     const rollups = docRecords.map((doc) => {
       const ver = doc.current_version;
 
@@ -105,14 +121,14 @@ export async function GET(req: Request) {
         title: doc.title,
         version: ver,
         status: doc.status,
-        google_doc_url: doc.google_doc_url,
+        file_url: doc.file_url,
         counts,
         ambiguityScore,
         topNotes,
       };
     });
 
-    // 4) Sort docs by ambiguity score descending
+    // 4) Sort by ambiguity score descending
     rollups.sort((a, b) => b.ambiguityScore - a.ambiguityScore);
 
     // 5) Global summary
