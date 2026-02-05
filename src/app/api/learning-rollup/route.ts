@@ -10,20 +10,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-type EventRow = {
-  doc_id: string;
-  version: string;
-  event_type: "view" | "open" | "reopen" | "feedback";
-  value: "helped" | "not_confident" | "didnt_help" | null;
-  notes: string | null;
-};
-
 interface DocRecord {
   doc_id: string;
   title: string;
   current_version: string;
   status: string;
   file_url: string | null;
+}
+
+interface FeedbackRow {
+  id: string;
+  doc_id: string;
+  user_id: string;
+  is_helpful: boolean;
+  comment: string | null;
+  created_at: string;
 }
 
 export async function GET(req: Request) {
@@ -63,94 +64,75 @@ export async function GET(req: Request) {
       return NextResponse.json({ summary: null, documents: [] });
     }
 
-    // 2) Pull events for these docs
-    const { data: events, error: evErr } = await supabase
-      .from("events")
-      .select("doc_id,version,event_type,value,notes")
+    // 2) Pull feedback for these docs
+    const { data: feedbackData, error: fbErr } = await supabase
+      .from("feedback")
+      .select("id,doc_id,user_id,is_helpful,comment,created_at")
+      .eq("organization_id", membership.organization_id)
       .in("doc_id", docIds);
 
-    if (evErr) {
-      return NextResponse.json({ error: evErr.message }, { status: 500 });
+    if (fbErr) {
+      return NextResponse.json({ error: fbErr.message }, { status: 500 });
     }
 
-    const rows = (events ?? []) as EventRow[];
+    const feedback = (feedbackData ?? []) as FeedbackRow[];
 
-    // 3) Build rollups per doc for current version only
+    // 3) Build rollups per doc
     const rollups = docRecords.map((doc) => {
-      const ver = doc.current_version;
+      const docFeedback = feedback.filter((f) => f.doc_id === doc.doc_id);
 
-      const docEvents = rows.filter(
-        (r) => r.doc_id === doc.doc_id && r.version === ver
-      );
+      const helpful = docFeedback.filter((f) => f.is_helpful === true).length;
+      const notHelpful = docFeedback.filter((f) => f.is_helpful === false).length;
+      const totalFeedback = docFeedback.length;
 
-      const counts = {
-        view: 0,
-        open: 0,
-        reopen: 0,
-        feedback: {
-          helped: 0,
-          not_confident: 0,
-          didnt_help: 0,
-        },
-      };
+      // Collect comments from negative feedback
+      const negativeComments = docFeedback
+        .filter((f) => !f.is_helpful && f.comment && f.comment.trim().length > 0)
+        .map((f) => f.comment!.trim())
+        .slice(0, 5);
 
-      const confusionNotes: string[] = [];
+      // Ambiguity score: higher = needs more improvement
+      const ambiguityScore = notHelpful * 2;
 
-      for (const r of docEvents) {
-        if (r.event_type === "view") counts.view += 1;
-        if (r.event_type === "open") counts.open += 1;
-        if (r.event_type === "reopen") counts.reopen += 1;
-
-        if (r.event_type === "feedback") {
-          if (r.value === "helped") counts.feedback.helped += 1;
-          if (r.value === "not_confident") counts.feedback.not_confident += 1;
-          if (r.value === "didnt_help") counts.feedback.didnt_help += 1;
-
-          if ((r.value === "not_confident" || r.value === "didnt_help") && r.notes) {
-            const trimmed = r.notes.trim();
-            if (trimmed.length > 0) confusionNotes.push(trimmed);
-          }
-        }
-      }
-
-      const ambiguityScore = counts.feedback.not_confident + 2 * counts.feedback.didnt_help;
-      const topNotes = confusionNotes.slice(0, 5);
+      // Helpfulness rate
+      const helpfulnessRate = totalFeedback > 0
+        ? Math.round((helpful / totalFeedback) * 100)
+        : null;
 
       return {
         doc_id: doc.doc_id,
         title: doc.title,
-        version: ver,
+        version: doc.current_version,
         status: doc.status,
         file_url: doc.file_url,
-        counts,
+        counts: {
+          totalFeedback,
+          helpful,
+          notHelpful,
+        },
+        helpfulnessRate,
         ambiguityScore,
-        topNotes,
+        topNotes: negativeComments,
       };
     });
 
-    // 4) Sort by ambiguity score descending
+    // 4) Sort by ambiguity score descending (worst docs first)
     rollups.sort((a, b) => b.ambiguityScore - a.ambiguityScore);
 
     // 5) Global summary
     const summary = rollups.reduce(
       (acc, d) => {
         acc.totalDocs += 1;
-        acc.views += d.counts.view;
-        acc.opens += d.counts.open;
-        acc.reopens += d.counts.reopen;
-        acc.helped += d.counts.feedback.helped;
-        acc.not_confident += d.counts.feedback.not_confident;
-        acc.didnt_help += d.counts.feedback.didnt_help;
+        acc.totalFeedback += d.counts.totalFeedback;
+        acc.helpful += d.counts.helpful;
+        acc.notHelpful += d.counts.notHelpful;
         return acc;
       },
       {
         totalDocs: 0,
-        views: 0,
-        opens: 0,
-        reopens: 0,
-        helped: 0,
-        not_confident: 0,
-        didnt_help: 0,
+        totalFeedback: 0,
+        helpful: 0,
+        notHelpful: 0,
       }
     );
 
