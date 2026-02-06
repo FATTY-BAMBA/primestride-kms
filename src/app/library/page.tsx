@@ -152,7 +152,10 @@ function LibraryContent() {
               ⚙️ Admin
             </Link>
             <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              👥 Team
+              👤 Members
+            </Link>
+            <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+              🏷️ Groups
             </Link>
             <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               🧠 Graph
@@ -186,7 +189,7 @@ function LibraryContent() {
               <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "#7C3AED" }}>
                 {teams.length}
               </div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Teams</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Groups</div>
             </div>
           )}
         </div>
@@ -251,7 +254,7 @@ function LibraryContent() {
               color: "var(--text-muted)",
               marginLeft: 8,
             }}>
-              — {teams.find(t => t.id === teamFilter)?.name} Team
+              — {teams.find(t => t.id === teamFilter)?.name}
             </span>
           )}
           {teamFilter === "org-wide" && (
