@@ -154,9 +154,6 @@ function LibraryContent() {
             <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               👥 Team
             </Link>
-            <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🏷️ Teams
-            </Link>
             <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               🧠 Graph
             </Link>

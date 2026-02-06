@@ -98,7 +98,8 @@ export default function TeamDetailPage() {
 
   const fetchOrgMembers = async () => {
     try {
-      const res = await fetch("/api/team/members");
+      // Use the new org-members API
+      const res = await fetch("/api/org-members");
       const data = await res.json();
       if (res.ok) {
         setOrgMembers(data.members || []);
@@ -119,12 +120,13 @@ export default function TeamDetailPage() {
         body: JSON.stringify({ userIds: selectedMembers }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
         setShowAddMemberModal(false);
         setSelectedMembers([]);
-        fetchTeamDetails();
+        fetchTeamDetails(); // Refresh
       } else {
-        const data = await res.json();
         alert(data.error || "Failed to add members");
       }
     } catch (err) {
@@ -304,7 +306,7 @@ export default function TeamDetailPage() {
                 className="btn btn-primary"
                 style={{ padding: "8px 14px", fontSize: 13 }}
               >
-                ➕ Add Member
+                + Add Member
               </button>
             )}
           </div>
@@ -517,7 +519,7 @@ export default function TeamDetailPage() {
                   onClick={handleAddMembers}
                   disabled={adding || selectedMembers.length === 0}
                   className="btn btn-primary"
-                  style={{ padding: "12px 24px", opacity: adding ? 0.7 : 1 }}
+                  style={{ padding: "12px 24px", opacity: adding || selectedMembers.length === 0 ? 0.7 : 1 }}
                 >
                   {adding ? "Adding..." : `Add ${selectedMembers.length} Member(s)`}
                 </button>
