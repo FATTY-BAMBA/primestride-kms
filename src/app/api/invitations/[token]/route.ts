@@ -20,19 +20,7 @@ export async function GET(
     // Get invitation by token first (no auth required to view basic info)
     const { data: invitation, error } = await supabase
       .from("invitations")
-      .select(`
-        id,
-        email,
-        role,
-        status,
-        expires_at,
-        created_at,
-        organization_id,
-        organizations (
-          id,
-          name
-        )
-      `)
+      .select("id, email, role, status, expires_at, created_at, organization_id")
       .eq("token", token)
       .single();
 
@@ -43,6 +31,15 @@ export async function GET(
         { status: 404 }
       );
     }
+
+    // Get organization name separately
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("id", invitation.organization_id)
+      .single();
+
+    const organizationName = org?.name || "Unknown Organization";
 
     // Check if invitation is still valid
     if (invitation.status !== "pending") {
@@ -59,23 +56,18 @@ export async function GET(
       );
     }
 
-    // Get organization name
-    const org = Array.isArray(invitation.organizations) 
-      ? invitation.organizations[0] 
-      : invitation.organizations;
-
     // Check if user is authenticated
     const { userId } = await auth();
     
     if (!userId) {
       // Not logged in - return basic invitation info so page can show "Sign In" prompt
       return NextResponse.json({
-        organization_name: org?.name || "Unknown Organization",
+        organization_name: organizationName,
         role: invitation.role,
         expires_at: invitation.expires_at,
         status: invitation.status,
         requires_auth: true,
-        invited_email: invitation.email, // Show which email was invited
+        invited_email: invitation.email,
       });
     }
 
@@ -85,7 +77,7 @@ export async function GET(
 
     if (invitation.email.toLowerCase() !== userEmail) {
       return NextResponse.json({
-        organization_name: org?.name || "Unknown Organization",
+        organization_name: organizationName,
         role: invitation.role,
         expires_at: invitation.expires_at,
         status: invitation.status,
@@ -98,7 +90,7 @@ export async function GET(
 
     // Everything is valid - return full details
     return NextResponse.json({
-      organization_name: org?.name || "Unknown Organization",
+      organization_name: organizationName,
       email: invitation.email,
       role: invitation.role,
       expires_at: invitation.expires_at,
