@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     // Get user's organization membership
     const { data: membership } = await supabase
       .from("organization_members")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("user_id", userId)
       .eq("is_active", true)
       .single();
@@ -36,11 +36,63 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get all embeddings for this organization
+    const isAdmin = ["owner", "admin"].includes(membership.role);
+
+    // Get user's team memberships (for access control)
+    let userTeamIds: string[] = [];
+    if (!isAdmin) {
+      const { data: teamMemberships } = await supabase
+        .from("team_members")
+        .select("team_id")
+        .eq("user_id", userId);
+
+      userTeamIds = teamMemberships?.map((tm) => tm.team_id) || [];
+    }
+
+    // Build document query based on access
+    let documentsQuery = supabase
+      .from("documents")
+      .select("doc_id, title, team_id")
+      .eq("organization_id", membership.organization_id);
+
+    // For non-admins, filter to accessible documents only
+    // Accessible = org-wide (team_id IS NULL) OR in user's teams
+    if (!isAdmin) {
+      if (userTeamIds.length > 0) {
+        // Can see org-wide docs OR docs in their teams
+        documentsQuery = documentsQuery.or(
+          `team_id.is.null,team_id.in.(${userTeamIds.join(",")})`
+        );
+      } else {
+        // Can only see org-wide docs
+        documentsQuery = documentsQuery.is("team_id", null);
+      }
+    }
+
+    const { data: documents } = await documentsQuery;
+
+    if (!documents || documents.length === 0) {
+      return NextResponse.json({
+        nodes: [],
+        edges: [],
+        clusters: {},
+        clusterNames: {},
+        totalDocuments: 0,
+        totalConnections: 0,
+        accessLevel: isAdmin ? "admin" : "member",
+      });
+    }
+
+    // Get accessible doc IDs for filtering embeddings
+    const accessibleDocIds = documents.map((d) => d.doc_id);
+    const docMap = new Map(documents.map((d) => [d.doc_id, d.title]));
+
+    // Get embeddings only for accessible documents
     const { data: embeddings } = await supabase
       .from("document_embeddings")
       .select("doc_id, embedding")
-      .eq("organization_id", membership.organization_id);
+      .eq("organization_id", membership.organization_id)
+      .in("doc_id", accessibleDocIds);
 
     if (!embeddings || embeddings.length === 0) {
       return NextResponse.json({
@@ -48,16 +100,11 @@ export async function GET(request: NextRequest) {
         edges: [],
         clusters: {},
         clusterNames: {},
+        totalDocuments: 0,
+        totalConnections: 0,
+        accessLevel: isAdmin ? "admin" : "member",
       });
     }
-
-    // Get document details
-    const { data: documents } = await supabase
-      .from("documents")
-      .select("doc_id, title")
-      .eq("organization_id", membership.organization_id);
-
-    const docMap = new Map(documents?.map((d) => [d.doc_id, d.title]));
 
     // Parse embeddings
     const parsedEmbeddings = embeddings.map((e) => ({
@@ -88,6 +135,8 @@ export async function GET(request: NextRequest) {
       similarities.sort((a, b) => b.score - a.score);
 
       // Add edges for top 3 similarities (threshold: 0.5)
+      // IMPORTANT: Both endpoints are already filtered to accessible docs,
+      // so no need for additional edge filtering
       similarities.slice(0, 3).forEach((sim) => {
         if (sim.score > 0.5) {
           edges.push({
@@ -133,6 +182,7 @@ export async function GET(request: NextRequest) {
       clusterNames: clusterNameMap,
       totalDocuments: nodes.length,
       totalConnections: edges.length,
+      accessLevel: isAdmin ? "admin" : "member",
     });
   } catch (error) {
     console.error("Error getting similarities:", error);

@@ -12,6 +12,8 @@ import ReactFlow, {
   MarkerType,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import UserMenu from "@/components/UserMenu";
 
 const CLUSTER_COLORS = [
   "#7C3AED",
@@ -35,10 +37,25 @@ export default function AIGraphPage() {
   const [showClusterModal, setShowClusterModal] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null);
   const [selectedClusterDocs, setSelectedClusterDocs] = useState<Node[]>([]);
+  const [accessLevel, setAccessLevel] = useState<"admin" | "member">("member");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadGraph();
+    checkAdminStatus();
   }, []);
+
+  const checkAdminStatus = async () => {
+    try {
+      const res = await fetch("/api/profile");
+      const data = await res.json();
+      if (res.ok && data.role) {
+        setIsAdmin(["owner", "admin"].includes(data.role));
+      }
+    } catch (err) {
+      console.error("Failed to check admin status:", err);
+    }
+  };
 
   const loadGraph = async () => {
     try {
@@ -47,6 +64,8 @@ export default function AIGraphPage() {
       const data = await res.json();
 
       if (res.ok) {
+        setAccessLevel(data.accessLevel || "member");
+
         const counts: {[key: number]: number} = {};
         Object.values(data.clusters).forEach((clusterIdx: any) => {
           counts[clusterIdx] = (counts[clusterIdx] || 0) + 1;
@@ -160,341 +179,392 @@ export default function AIGraphPage() {
 
   if (loading) {
     return (
-      <div className="container" style={{ padding: "40px 20px", textAlign: "center" }}>
-        <div>Loading AI Knowledge Graph...</div>
-      </div>
+      <ProtectedRoute>
+        <div className="container" style={{ padding: "40px 20px", textAlign: "center" }}>
+          <div>Loading AI Knowledge Graph...</div>
+        </div>
+      </ProtectedRoute>
     );
   }
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <div
-        style={{
-          padding: "20px 32px",
-          borderBottom: "1px solid #E5E7EB",
-          background: "white",
-        }}
-      >
+    <ProtectedRoute>
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
         <div
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            flexWrap: "wrap",
-            gap: 16,
+            padding: "20px 32px",
+            borderBottom: "1px solid #E5E7EB",
+            background: "white",
           }}
-        >
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-              <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>
-                🧠 AI Knowledge Graph
-              </h1>
-              <button
-                onClick={() => setShowInfo(true)}
-                style={{
-                  padding: "4px 12px",
-                  background: "#F3F4F6",
-                  border: "1px solid #E5E7EB",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                ℹ️ What is this?
-              </button>
-            </div>
-            
-            <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 12px 0" }}>
-              {stats.docs} documents • {stats.connections} connections • Click nodes to view documents
-            </p>
-
-            {Object.keys(clusterCounts).length > 0 && (
-              <div style={{ 
-                display: "flex", 
-                gap: 12,
-                flexWrap: "wrap",
-                alignItems: "center",
-                fontSize: 13
-              }}>
-                <span style={{ fontWeight: 600, color: "#6B7280" }}>AI Topic Clusters:</span>
-                {Object.entries(clusterCounts).map(([idx, count]) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleClusterClick(parseInt(idx))}
-                    style={{ 
-                      display: "flex", 
-                      alignItems: "center", 
-                      gap: 6,
-                      padding: "6px 12px",
-                      background: "#F9FAFB",
-                      borderRadius: 6,
-                      border: "1px solid #E5E7EB",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#E5E7EB";
-                      e.currentTarget.style.borderColor = CLUSTER_COLORS[parseInt(idx)];
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "#F9FAFB";
-                      e.currentTarget.style.borderColor = "#E5E7EB";
-                    }}
-                  >
-                    <div style={{ 
-                      width: 12, 
-                      height: 12, 
-                      borderRadius: "50%",
-                      background: CLUSTER_COLORS[parseInt(idx)]
-                    }} />
-                    <span style={{ color: "#374151", fontWeight: 500, fontSize: 13 }}>
-                      {clusterNames[parseInt(idx)]} ({count})
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: 12 }}>
-            <Link href="/library" className="btn">
-              ← Back
-            </Link>
-            <button
-              onClick={generateEmbeddings}
-              disabled={generating}
-              className="btn btn-primary"
-              style={{ opacity: generating ? 0.7 : 1 }}
-            >
-              {generating ? "Generating..." : "🔄 Generate Embeddings"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            padding: 16,
-            background: "#FEE2E2",
-            border: "1px solid #FCA5A5",
-            color: "#991B1B",
-            margin: 20,
-            borderRadius: 8,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {nodes.length === 0 ? (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-            padding: 40,
-          }}
-        >
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🧠</div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-            No Embeddings Yet
-          </h2>
-          <p style={{ color: "#6B7280", marginBottom: 24, textAlign: "center", maxWidth: 400 }}>
-            Generate AI embeddings to visualize document relationships with intelligent topic clustering
-          </p>
-          <button
-            onClick={generateEmbeddings}
-            disabled={generating}
-            className="btn btn-primary"
-          >
-            {generating ? "Generating..." : "Generate Embeddings"}
-          </button>
-        </div>
-      ) : (
-        <div style={{ flex: 1 }}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={onNodeClick}
-            fitView
-          >
-            <Background />
-            <Controls />
-          </ReactFlow>
-        </div>
-      )}
-
-      {showInfo && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setShowInfo(false)}
         >
           <div
-            className="card"
-            style={{ 
-              maxWidth: 600, 
-              width: "100%", 
-              padding: 32, 
-              margin: 20,
-              background: "white",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+              gap: 16,
             }}
-            onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 16, color: "#111827" }}>
-              🧠 About AI Knowledge Graph
-            </h2>
-            
-            <p style={{ marginBottom: 16, color: "#1F2937", lineHeight: 1.6, fontSize: 15 }}>
-              The AI Knowledge Graph visualizes relationships between your documents using artificial intelligence.
-            </p>
-
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: "#111827" }}>
-                How it works:
-              </h3>
-              <ul style={{ marginLeft: 20, lineHeight: 1.8, color: "#1F2937", fontSize: 14 }}>
-                <li><strong>Nodes (circles):</strong> Each node represents one document - click to view</li>
-                <li><strong>Colors:</strong> Documents are automatically grouped by topic using AI</li>
-                <li><strong>Cluster badges:</strong> Click a cluster badge to see all documents in that topic</li>
-                <li><strong>Cluster names:</strong> AI analyzes content and generates meaningful category names</li>
-                <li><strong>Lines:</strong> Show relationships between similar documents</li>
-                <li><strong>Line thickness:</strong> Thicker lines = stronger relationship</li>
-                <li><strong>Animated lines:</strong> Very similar documents (85%+ match)</li>
-              </ul>
-            </div>
-
-            <div style={{ 
-              padding: 16, 
-              background: "#F3F4F6", 
-              borderRadius: 8,
-              marginBottom: 16 
-            }}>
-              <strong style={{ fontSize: 14, color: "#111827" }}>💡 Use this to:</strong>
-              <ul style={{ marginLeft: 20, marginTop: 8, lineHeight: 1.6, fontSize: 14, color: "#1F2937" }}>
-                <li>Discover related content you did not know existed</li>
-                <li>Identify gaps in your documentation</li>
-                <li>Understand knowledge structure across teams</li>
-                <li>Find similar documents when researching topics</li>
-              </ul>
-            </div>
-
-            <button
-              onClick={() => setShowInfo(false)}
-              className="btn btn-primary"
-              style={{ width: "100%" }}
-            >
-              Got it!
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showClusterModal && selectedCluster !== null && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setShowClusterModal(false)}
-        >
-          <div
-            className="card"
-            style={{ 
-              maxWidth: 600, 
-              width: "100%", 
-              padding: 32, 
-              margin: 20,
-              background: "white",
-              maxHeight: "80vh",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-              <div style={{ 
-                width: 16, 
-                height: 16, 
-                borderRadius: "50%",
-                background: CLUSTER_COLORS[selectedCluster % CLUSTER_COLORS.length]
-              }} />
-              <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
-                {clusterNames[selectedCluster]}
-              </h2>
-            </div>
-            <p style={{ color: "#6B7280", fontSize: 14, marginBottom: 20 }}>
-              {selectedClusterDocs.length} document{selectedClusterDocs.length !== 1 ? "s" : ""} in this cluster
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {selectedClusterDocs.map((doc) => (
-                <a
-                  key={doc.id}
-                  href={`/library/${doc.id}`}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>
+                  🧠 AI Knowledge Graph
+                </h1>
+                <button
+                  onClick={() => setShowInfo(true)}
                   style={{
-                    padding: 16,
+                    padding: "4px 12px",
+                    background: "#F3F4F6",
                     border: "1px solid #E5E7EB",
-                    borderRadius: 8,
-                    textDecoration: "none",
-                    color: "inherit",
-                    transition: "all 0.2s",
-                    display: "block",
-                    background: "white",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = CLUSTER_COLORS[selectedCluster % CLUSTER_COLORS.length];
-                    e.currentTarget.style.background = "#F9FAFB";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.background = "white";
+                    borderRadius: 6,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    fontWeight: 500,
                   }}
                 >
-                  <div style={{ fontWeight: 600, marginBottom: 4, color: "#111827" }}>
-                    {doc.data.label}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6B7280", fontFamily: "monospace" }}>
-                    {doc.id}
-                  </div>
-                </a>
-              ))}
+                  ℹ️ What is this?
+                </button>
+                {/* Access level badge */}
+                <span
+                  style={{
+                    padding: "4px 10px",
+                    background: accessLevel === "admin" ? "#DCFCE7" : "#DBEAFE",
+                    color: accessLevel === "admin" ? "#166534" : "#1E40AF",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {accessLevel === "admin" ? "🔓 Full View" : "👤 My Access"}
+                </span>
+              </div>
+              
+              <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 12px 0" }}>
+                {stats.docs} documents • {stats.connections} connections • Click nodes to view documents
+                {accessLevel === "member" && (
+                  <span style={{ color: "#9CA3AF", marginLeft: 8 }}>
+                    (Showing docs you have access to)
+                  </span>
+                )}
+              </p>
+
+              {Object.keys(clusterCounts).length > 0 && (
+                <div style={{ 
+                  display: "flex", 
+                  gap: 12,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  fontSize: 13
+                }}>
+                  <span style={{ fontWeight: 600, color: "#6B7280" }}>AI Topic Clusters:</span>
+                  {Object.entries(clusterCounts).map(([idx, count]) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleClusterClick(parseInt(idx))}
+                      style={{ 
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: 6,
+                        padding: "6px 12px",
+                        background: "#F9FAFB",
+                        borderRadius: 6,
+                        border: "1px solid #E5E7EB",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#E5E7EB";
+                        e.currentTarget.style.borderColor = CLUSTER_COLORS[parseInt(idx)];
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#F9FAFB";
+                        e.currentTarget.style.borderColor = "#E5E7EB";
+                      }}
+                    >
+                      <div style={{ 
+                        width: 12, 
+                        height: 12, 
+                        borderRadius: "50%",
+                        background: CLUSTER_COLORS[parseInt(idx)]
+                      }} />
+                      <span style={{ color: "#374151", fontWeight: 500, fontSize: 13 }}>
+                        {clusterNames[parseInt(idx)]} ({count})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={() => setShowClusterModal(false)}
-              className="btn"
-              style={{ width: "100%", marginTop: 20 }}
-            >
-              Close
-            </button>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <Link href="/library" className="btn">
+                ← Back
+              </Link>
+              {/* Only show generate button for admins */}
+              {isAdmin && (
+                <button
+                  onClick={generateEmbeddings}
+                  disabled={generating}
+                  className="btn btn-primary"
+                  style={{ opacity: generating ? 0.7 : 1 }}
+                >
+                  {generating ? "Generating..." : "🔄 Refresh Graph"}
+                </button>
+              )}
+              <UserMenu />
+            </div>
           </div>
         </div>
-      )}
-    </div>
+
+        {error && (
+          <div
+            style={{
+              padding: 16,
+              background: "#FEE2E2",
+              border: "1px solid #FCA5A5",
+              color: "#991B1B",
+              margin: 20,
+              borderRadius: 8,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {nodes.length === 0 ? (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+              padding: 40,
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🧠</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+              {isAdmin ? "No Embeddings Yet" : "No Documents Available"}
+            </h2>
+            <p style={{ color: "#6B7280", marginBottom: 24, textAlign: "center", maxWidth: 400 }}>
+              {isAdmin 
+                ? "Generate AI embeddings to visualize document relationships with intelligent topic clustering"
+                : "No documents are available in the knowledge graph yet. Ask an admin to generate embeddings."
+              }
+            </p>
+            {isAdmin && (
+              <button
+                onClick={generateEmbeddings}
+                disabled={generating}
+                className="btn btn-primary"
+              >
+                {generating ? "Generating..." : "Generate Embeddings"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={{ flex: 1 }}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={onNodeClick}
+              fitView
+            >
+              <Background />
+              <Controls />
+            </ReactFlow>
+          </div>
+        )}
+
+        {/* Info Modal */}
+        {showInfo && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+            }}
+            onClick={() => setShowInfo(false)}
+          >
+            <div
+              className="card"
+              style={{ 
+                maxWidth: 600, 
+                width: "100%", 
+                padding: 32, 
+                margin: 20,
+                background: "white",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 16, color: "#111827" }}>
+                🧠 About AI Knowledge Graph
+              </h2>
+              
+              <p style={{ marginBottom: 16, color: "#1F2937", lineHeight: 1.6, fontSize: 15 }}>
+                The AI Knowledge Graph visualizes relationships between your documents using artificial intelligence.
+              </p>
+
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: "#111827" }}>
+                  How it works:
+                </h3>
+                <ul style={{ marginLeft: 20, lineHeight: 1.8, color: "#1F2937", fontSize: 14 }}>
+                  <li><strong>Nodes (circles):</strong> Each node represents one document - click to view</li>
+                  <li><strong>Colors:</strong> Documents are automatically grouped by topic using AI</li>
+                  <li><strong>Cluster badges:</strong> Click a cluster badge to see all documents in that topic</li>
+                  <li><strong>Cluster names:</strong> AI analyzes content and generates meaningful category names</li>
+                  <li><strong>Lines:</strong> Show relationships between similar documents</li>
+                  <li><strong>Line thickness:</strong> Thicker lines = stronger relationship</li>
+                  <li><strong>Animated lines:</strong> Very similar documents (85%+ match)</li>
+                </ul>
+              </div>
+
+              {/* Access control explanation */}
+              <div style={{ 
+                padding: 16, 
+                background: accessLevel === "admin" ? "#DCFCE7" : "#DBEAFE", 
+                borderRadius: 8,
+                marginBottom: 16 
+              }}>
+                <strong style={{ fontSize: 14, color: "#111827" }}>
+                  {accessLevel === "admin" ? "🔓 Admin View:" : "👤 Your View:"}
+                </strong>
+                <p style={{ marginTop: 8, fontSize: 14, color: "#1F2937", margin: 0 }}>
+                  {accessLevel === "admin" 
+                    ? "You can see all documents in the organization and refresh the graph."
+                    : "You can see organization-wide documents and documents from your groups. Contact an admin to refresh the graph."
+                  }
+                </p>
+              </div>
+
+              <div style={{ 
+                padding: 16, 
+                background: "#F3F4F6", 
+                borderRadius: 8,
+                marginBottom: 16 
+              }}>
+                <strong style={{ fontSize: 14, color: "#111827" }}>💡 Use this to:</strong>
+                <ul style={{ marginLeft: 20, marginTop: 8, lineHeight: 1.6, fontSize: 14, color: "#1F2937" }}>
+                  <li>Discover related content you did not know existed</li>
+                  <li>Identify gaps in your documentation</li>
+                  <li>Understand knowledge structure across teams</li>
+                  <li>Find similar documents when researching topics</li>
+                </ul>
+              </div>
+
+              <button
+                onClick={() => setShowInfo(false)}
+                className="btn btn-primary"
+                style={{ width: "100%" }}
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Cluster Modal */}
+        {showClusterModal && selectedCluster !== null && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+            }}
+            onClick={() => setShowClusterModal(false)}
+          >
+            <div
+              className="card"
+              style={{ 
+                maxWidth: 600, 
+                width: "100%", 
+                padding: 32, 
+                margin: 20,
+                background: "white",
+                maxHeight: "80vh",
+                overflow: "auto",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div style={{ 
+                  width: 16, 
+                  height: 16, 
+                  borderRadius: "50%",
+                  background: CLUSTER_COLORS[selectedCluster % CLUSTER_COLORS.length]
+                }} />
+                <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+                  {clusterNames[selectedCluster]}
+                </h2>
+              </div>
+              <p style={{ color: "#6B7280", fontSize: 14, marginBottom: 20 }}>
+                {selectedClusterDocs.length} document{selectedClusterDocs.length !== 1 ? "s" : ""} in this cluster
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {selectedClusterDocs.map((doc) => (
+                  <a
+                    key={doc.id}
+                    href={`/library/${doc.id}`}
+                    style={{
+                      padding: 16,
+                      border: "1px solid #E5E7EB",
+                      borderRadius: 8,
+                      textDecoration: "none",
+                      color: "inherit",
+                      transition: "all 0.2s",
+                      display: "block",
+                      background: "white",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = CLUSTER_COLORS[selectedCluster % CLUSTER_COLORS.length];
+                      e.currentTarget.style.background = "#F9FAFB";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                      e.currentTarget.style.background = "white";
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: 4, color: "#111827" }}>
+                      {doc.data.label}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280", fontFamily: "monospace" }}>
+                      {doc.id}
+                    </div>
+                  </a>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setShowClusterModal(false)}
+                className="btn"
+                style={{ width: "100%", marginTop: 20 }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </ProtectedRoute>
   );
 }
