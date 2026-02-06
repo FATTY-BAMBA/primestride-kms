@@ -2,8 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UserMenu from "@/components/UserMenu";
+import OrgSwitcher from "@/components/OrgSwitcher";
+
+type Team = {
+  id: string;
+  name: string;
+  color: string;
+};
 
 type DocRow = {
   doc_id: string;
@@ -14,6 +22,8 @@ type DocRow = {
   domain: string | null;
   tags: string[] | null;
   file_url?: string | null;
+  team_id?: string | null;
+  teams?: Team | null;
   feedback_counts: {
     helped: number;
     not_confident: number;
@@ -22,35 +32,48 @@ type DocRow = {
 };
 
 export default function LibraryPage() {
+  const searchParams = useSearchParams();
+  const teamFilter = searchParams.get("team") || "all";
+
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch documents
-        const res = await fetch("/api/learning-summary");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error ?? "Failed to load");
-        setDocs(data.documents ?? []);
-        
-        // Fetch user role to check if admin
-        const profileRes = await fetch("/api/profile");
-        const profileData = await profileRes.json();
-        if (profileRes.ok && profileData.role) {
-          setIsAdmin(["owner", "admin"].includes(profileData.role));
-        }
-      } catch (e: unknown) {
-        setErr(e instanceof Error ? e.message : "Error");
-      } finally {
-        setLoading(false);
+    fetchData();
+  }, [teamFilter]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch documents with team filter
+      const url = teamFilter && teamFilter !== "all" 
+        ? `/api/learning-summary?team=${teamFilter}`
+        : "/api/learning-summary";
+      
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to load");
+      setDocs(data.documents ?? []);
+      setTeams(data.teams ?? []);
+      
+      // Fetch user role
+      const profileRes = await fetch("/api/profile");
+      const profileData = await profileRes.json();
+      if (profileRes.ok && profileData.role) {
+        setUserRole(profileData.role);
+        setIsAdmin(["owner", "admin"].includes(profileData.role));
       }
-    })();
-  }, []);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const totalFeedback = docs.reduce(
     (sum, d) =>
@@ -72,6 +95,7 @@ export default function LibraryPage() {
               justifyContent: "space-between",
               gap: 16,
               marginBottom: 8,
+              flexWrap: "wrap",
             }}
           >
             {/* Logo & Title */}
@@ -94,7 +118,7 @@ export default function LibraryPage() {
             </div>
 
             {/* Navigation */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {isAdmin && (
                 <Link href="/library/new" className="btn btn-primary" style={{ padding: "8px 14px", fontSize: 13 }}>
                   ➕ New
@@ -130,9 +154,13 @@ export default function LibraryPage() {
               <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 👥 Team
               </Link>
+              <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+                🏷️ Teams
+              </Link>
               <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 🧠 Graph
               </Link>
+              <OrgSwitcher />
               <UserMenu />
             </div>
           </div>
@@ -141,6 +169,7 @@ export default function LibraryPage() {
           </p>
         </header>
 
+        {/* Stats Cards */}
         {!loading && !err && (
           <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
             <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
@@ -155,11 +184,90 @@ export default function LibraryPage() {
               </div>
               <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Total Feedback</div>
             </div>
+            {teams.length > 0 && (
+              <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
+                <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "#7C3AED" }}>
+                  {teams.length}
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Teams</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Team Filter */}
+        {!loading && !err && teams.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 4 }}>Filter:</span>
+              <Link
+                href="/library"
+                className="btn"
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  background: teamFilter === "all" ? "#7C3AED" : undefined,
+                  color: teamFilter === "all" ? "white" : undefined,
+                }}
+              >
+                All
+              </Link>
+              <Link
+                href="/library?team=org-wide"
+                className="btn"
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 13,
+                  background: teamFilter === "org-wide" ? "#7C3AED" : undefined,
+                  color: teamFilter === "org-wide" ? "white" : undefined,
+                }}
+              >
+                🌐 Org-Wide
+              </Link>
+              {teams.map((team) => (
+                <Link
+                  key={team.id}
+                  href={`/library?team=${team.id}`}
+                  className="btn"
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: 13,
+                    background: teamFilter === team.id ? team.color : undefined,
+                    color: teamFilter === team.id ? "white" : undefined,
+                    borderLeft: teamFilter !== team.id ? `3px solid ${team.color}` : undefined,
+                  }}
+                >
+                  {team.name}
+                </Link>
+              ))}
+            </div>
           </div>
         )}
 
         <section>
-          <h2 style={{ marginBottom: 20, fontSize: 18 }}>Knowledge Library</h2>
+          <h2 style={{ marginBottom: 20, fontSize: 18 }}>
+            Knowledge Library
+            {teamFilter !== "all" && teamFilter !== "org-wide" && teams.find(t => t.id === teamFilter) && (
+              <span style={{ 
+                fontSize: 14, 
+                fontWeight: 400, 
+                color: "var(--text-muted)",
+                marginLeft: 8,
+              }}>
+                — {teams.find(t => t.id === teamFilter)?.name} Team
+              </span>
+            )}
+            {teamFilter === "org-wide" && (
+              <span style={{ 
+                fontSize: 14, 
+                fontWeight: 400, 
+                color: "var(--text-muted)",
+                marginLeft: 8,
+              }}>
+                — Organization-Wide
+              </span>
+            )}
+          </h2>
 
           {loading && <div className="loading"><span>Loading documents...</span></div>}
 
@@ -182,6 +290,7 @@ export default function LibraryPage() {
                     alignItems: "center",
                     gap: 20,
                     flexWrap: "wrap",
+                    borderLeft: d.teams ? `4px solid ${d.teams.color}` : "4px solid #E5E7EB",
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 200 }}>
@@ -192,6 +301,22 @@ export default function LibraryPage() {
                       <span className="badge badge-success">{d.status}</span>
                       {d.doc_type && <span className="badge">{d.doc_type}</span>}
                       {d.file_url && <span className="badge" title="Has attached file">📎 File</span>}
+                      {d.teams ? (
+                        <span 
+                          className="badge" 
+                          style={{ 
+                            background: d.teams.color + "20", 
+                            color: d.teams.color,
+                            borderColor: d.teams.color,
+                          }}
+                        >
+                          {d.teams.name}
+                        </span>
+                      ) : (
+                        <span className="badge" style={{ background: "#F3F4F6", color: "#6B7280" }}>
+                          🌐 Org-Wide
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -229,10 +354,19 @@ export default function LibraryPage() {
 
           {!loading && !err && docs.length === 0 && (
             <div className="card" style={{ textAlign: "center", padding: 40 }}>
-              <p style={{ color: "var(--text-muted)" }}>No documents found.</p>
+              <p style={{ color: "var(--text-muted)" }}>
+                {teamFilter !== "all" 
+                  ? "No documents found in this filter." 
+                  : "No documents found."}
+              </p>
               {isAdmin && (
                 <Link href="/library/new" className="btn btn-primary" style={{ marginTop: 16 }}>
                   ➕ Create First Document
+                </Link>
+              )}
+              {teamFilter !== "all" && (
+                <Link href="/library" className="btn" style={{ marginTop: 16, marginLeft: 8 }}>
+                  View All Documents
                 </Link>
               )}
             </div>

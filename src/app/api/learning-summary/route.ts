@@ -3,11 +3,10 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 
-// Create Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -24,6 +23,7 @@ interface Document {
   file_url: string | null;
   file_name: string | null;
   organization_id: string;
+  team_id: string | null;
 }
 
 interface FeedbackRow {
@@ -31,48 +31,45 @@ interface FeedbackRow {
   is_helpful: boolean;
 }
 
-// Helper to get user's active organization (handles multiple memberships)
+interface Team {
+  id: string;
+  name: string;
+  color: string;
+}
+
+// Helper to get user's org membership
 async function getUserOrganization(userId: string) {
-  // Get all active memberships for this user
-  const { data: memberships, error } = await supabase
+  const { data: memberships } = await supabase
     .from("organization_members")
     .select("organization_id, role")
     .eq("user_id", userId)
     .eq("is_active", true);
 
-  if (error) {
-    console.error("Error fetching memberships:", error);
-    return null;
-  }
+  if (!memberships || memberships.length === 0) return null;
+  if (memberships.length === 1) return memberships[0];
 
-  if (!memberships || memberships.length === 0) {
-    return null;
-  }
-
-  // If only one membership, return it
-  if (memberships.length === 1) {
-    return memberships[0];
-  }
-
-  // Multiple memberships: find the one with documents
-  for (const membership of memberships) {
+  for (const m of memberships) {
     const { count } = await supabase
       .from("documents")
       .select("*", { count: "exact", head: true })
-      .eq("organization_id", membership.organization_id);
-
-    if (count && count > 0) {
-      return membership;
-    }
+      .eq("organization_id", m.organization_id);
+    if (count && count > 0) return m;
   }
 
-  // If no org has docs, return the first one
   return memberships[0];
 }
 
-export async function GET() {
+// Helper to get user's team memberships
+async function getUserTeams(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", userId);
+  return (data || []).map(t => t.team_id);
+}
+
+export async function GET(request: NextRequest) {
   try {
-    // Get user from Clerk
     const { userId } = await auth();
     
     if (!userId) {
@@ -82,27 +79,43 @@ export async function GET() {
       );
     }
 
-    // Get user's organization (handles multiple memberships)
     const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json(
-        { documents: [] },
+        { documents: [], teams: [] },
         { headers: { "Cache-Control": "no-store, max-age=0" } }
       );
     }
 
-    // Pull documents for user's organization
-    const { data: docs, error: docsErr } = await supabase
+    // Get team filter from query params
+    const { searchParams } = new URL(request.url);
+    const teamFilter = searchParams.get("team");
+
+    // Get user's teams for access control
+    const userTeamIds = await getUserTeams(userId);
+    const isOrgAdmin = ["owner", "admin"].includes(membership.role);
+
+    // Build documents query
+    let docsQuery = supabase
       .from("documents")
-      .select("doc_id,title,current_version,status,doc_type,domain,tags,file_url,file_name,organization_id")
+      .select("doc_id,title,current_version,status,doc_type,domain,tags,file_url,file_name,organization_id,team_id")
       .eq("organization_id", membership.organization_id);
+
+    // Apply team filter
+    if (teamFilter === "org-wide") {
+      docsQuery = docsQuery.is("team_id", null);
+    } else if (teamFilter && teamFilter !== "all") {
+      docsQuery = docsQuery.eq("team_id", teamFilter);
+    }
+
+    const { data: docs, error: docsErr } = await docsQuery;
 
     console.log("ROUTE: /api/learning-summary");
     console.log("USER:", userId);
     console.log("ORG:", membership.organization_id);
+    console.log("TEAM FILTER:", teamFilter);
     console.log("DOCS LENGTH:", docs?.length);
-    console.log("DOCS ERR:", docsErr);
 
     if (docsErr) {
       return NextResponse.json(
@@ -111,19 +124,48 @@ export async function GET() {
       );
     }
 
-    // Pull feedback for these documents
-    const docIds = (docs ?? []).map((d: Document) => d.doc_id);
+    // Filter by access (if not admin and not filtering by specific team already)
+    let filteredDocs = docs || [];
+    if (!isOrgAdmin && teamFilter !== "org-wide" && (!teamFilter || teamFilter === "all")) {
+      filteredDocs = filteredDocs.filter(doc => {
+        if (!doc.team_id) return true; // Org-wide docs
+        return userTeamIds.includes(doc.team_id); // User's team docs
+      });
+    }
+
+    // Get team info for each document
+    const teamIds = [...new Set(filteredDocs.filter(d => d.team_id).map(d => d.team_id))];
+    let teamsMap: Record<string, Team> = {};
     
+    if (teamIds.length > 0) {
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id, name, color")
+        .in("id", teamIds);
+      
+      if (teamsData) {
+        teamsMap = Object.fromEntries(teamsData.map(t => [t.id, t]));
+      }
+    }
+
+    // Get all teams in org for filter dropdown
+    const { data: allTeams } = await supabase
+      .from("teams")
+      .select("id, name, color")
+      .eq("organization_id", membership.organization_id)
+      .order("name");
+
+    // Get feedback counts
+    const docIds = filteredDocs.map((d: Document) => d.doc_id);
     let feedbackCounts: Record<string, { helpful: number; not_helpful: number }> = {};
     
     if (docIds.length > 0) {
-      const { data: feedback, error: fbErr } = await supabase
+      const { data: feedback } = await supabase
         .from("feedback")
         .select("doc_id,is_helpful")
         .in("doc_id", docIds);
 
-      if (!fbErr && feedback) {
-        // Aggregate feedback counts
+      if (feedback) {
         for (const f of feedback as FeedbackRow[]) {
           if (!feedbackCounts[f.doc_id]) {
             feedbackCounts[f.doc_id] = { helpful: 0, not_helpful: 0 };
@@ -137,8 +179,8 @@ export async function GET() {
       }
     }
 
-    // Merge counts with docs
-    const enriched = ((docs ?? []) as Document[]).map((d) => {
+    // Build response
+    const enriched = filteredDocs.map((d) => {
       const counts = feedbackCounts[d.doc_id] ?? { helpful: 0, not_helpful: 0 };
       return {
         doc_id: d.doc_id,
@@ -149,16 +191,23 @@ export async function GET() {
         domain: d.domain,
         tags: d.tags,
         file_url: d.file_url,
+        team_id: d.team_id,
+        teams: d.team_id ? teamsMap[d.team_id] || null : null,
         feedback_counts: {
           helped: counts.helpful,
-          not_confident: 0, // Legacy field
+          not_confident: 0,
           didnt_help: counts.not_helpful,
         },
       };
     });
 
     return NextResponse.json(
-      { documents: enriched },
+      { 
+        documents: enriched,
+        teams: allTeams || [],
+        user_role: membership.role,
+        user_teams: userTeamIds,
+      },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );
   } catch (e: unknown) {

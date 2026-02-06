@@ -7,31 +7,43 @@ export const dynamic = "force-dynamic";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Create Supabase admin client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // Helper to get user's active organization
-// If user has multiple memberships, use the most recently joined one
 async function getUserOrganization(userId: string) {
   const { data: memberships } = await supabase
     .from("organization_members")
-    .select("organization_id, role, joined_at")
+    .select("organization_id, role")
     .eq("user_id", userId)
-    .eq("is_active", true)
-    .order("joined_at", { ascending: false });
+    .eq("is_active", true);
 
-  if (!memberships || memberships.length === 0) {
-    return null;
+  if (!memberships || memberships.length === 0) return null;
+  if (memberships.length === 1) return memberships[0];
+
+  for (const m of memberships) {
+    const { count } = await supabase
+      .from("documents")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", m.organization_id);
+    if (count && count > 0) return m;
   }
 
-  // Return the most recently joined organization
   return memberships[0];
 }
 
-// Generate AI summary for document content
+// Helper to get user's team memberships
+async function getUserTeams(userId: string) {
+  const { data } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", userId);
+  return (data || []).map(t => t.team_id);
+}
+
+// Generate AI summary
 async function generateSummary(title: string, content: string): Promise<string> {
   try {
     const completion = await openai.chat.completions.create({
@@ -39,7 +51,7 @@ async function generateSummary(title: string, content: string): Promise<string> 
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that creates concise document summaries. Generate a 2-3 sentence TL;DR summary that captures the key points. Be direct and informative. Do not start with 'This document...' - just state the key information."
+          content: "You are a helpful assistant that creates concise document summaries. Generate a 2-3 sentence TL;DR summary that captures the key points. Be direct and informative."
         },
         {
           role: "user",
@@ -49,7 +61,6 @@ async function generateSummary(title: string, content: string): Promise<string> 
       max_tokens: 150,
       temperature: 0.5,
     });
-
     return completion.choices[0].message.content?.trim() || "";
   } catch (error) {
     console.error("Failed to generate summary:", error);
@@ -57,18 +68,15 @@ async function generateSummary(title: string, content: string): Promise<string> 
   }
 }
 
-// CREATE a new document
+// CREATE document
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization membership
     const membership = await getUserOrganization(userId);
-
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
@@ -79,13 +87,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { docId, title, content, docType, tags, fileUrl, fileName, fileType } = body;
+    const { docId, title, content, docType, tags, fileUrl, fileName, fileType, teamId } = body;
 
     if (!docId || !title || !content) {
       return NextResponse.json(
         { error: "Document ID, title, and content are required" },
         { status: 400 }
       );
+    }
+
+    // If teamId provided, verify it belongs to the org
+    if (teamId) {
+      const { data: team } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("id", teamId)
+        .eq("organization_id", membership.organization_id)
+        .single();
+
+      if (!team) {
+        return NextResponse.json({ error: "Invalid team" }, { status: 400 });
+      }
     }
 
     // Check if doc_id already exists
@@ -104,9 +126,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate AI summary
-    console.log("🤖 Generating AI summary for new document...");
+    console.log("🤖 Generating AI summary...");
     const summary = await generateSummary(title, content);
-    console.log("✅ Summary generated:", summary.slice(0, 100) + "...");
 
     const { data: document, error } = await supabase
       .from("documents")
@@ -121,6 +142,7 @@ export async function POST(request: NextRequest) {
         file_name: fileName || null,
         file_type: fileType || null,
         organization_id: membership.organization_id,
+        team_id: teamId || null,
         created_by: userId,
         current_version: "v1.0",
         status: "published",
@@ -150,27 +172,44 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET all documents (for library listing)
+// GET documents with team filtering
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization membership
     const membership = await getUserOrganization(userId);
-
     if (!membership) {
-      return NextResponse.json({ documents: [] });
+      return NextResponse.json({ documents: [], teams: [] });
     }
 
-    const { data: documents, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const teamFilter = searchParams.get("team"); // "all", "org-wide", or team UUID
+
+    // Get user's teams
+    const userTeamIds = await getUserTeams(userId);
+    const isOrgAdmin = ["owner", "admin"].includes(membership.role);
+
+    // Build query
+    let query = supabase
       .from("documents")
-      .select("*")
+      .select("*, teams(id, name, color)")
       .eq("organization_id", membership.organization_id)
       .order("updated_at", { ascending: false });
+
+    // Apply team filter
+    if (teamFilter === "org-wide") {
+      // Only org-wide documents (no team)
+      query = query.is("team_id", null);
+    } else if (teamFilter && teamFilter !== "all") {
+      // Specific team's documents
+      query = query.eq("team_id", teamFilter);
+    }
+    // For "all" or no filter, we'll filter in code based on permissions
+
+    const { data: documents, error } = await query;
 
     if (error) {
       console.error("Fetch error:", error);
@@ -180,7 +219,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ documents });
+    // Filter documents based on access
+    let filteredDocs = documents || [];
+    
+    if (!isOrgAdmin && teamFilter !== "org-wide" && (!teamFilter || teamFilter === "all")) {
+      // Regular members: only see org-wide docs + their teams' docs
+      filteredDocs = filteredDocs.filter(doc => {
+        if (!doc.team_id) return true; // Org-wide
+        return userTeamIds.includes(doc.team_id); // In user's team
+      });
+    }
+
+    // Get available teams for the filter dropdown
+    const { data: teams } = await supabase
+      .from("teams")
+      .select("id, name, color")
+      .eq("organization_id", membership.organization_id)
+      .order("name");
+
+    return NextResponse.json({ 
+      documents: filteredDocs,
+      teams: teams || [],
+      user_role: membership.role,
+      user_teams: userTeamIds,
+    });
   } catch (error) {
     console.error("GET documents error:", error);
     return NextResponse.json(
