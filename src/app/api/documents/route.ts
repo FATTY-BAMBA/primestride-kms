@@ -13,6 +13,24 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Helper to get user's active organization
+// If user has multiple memberships, use the most recently joined one
+async function getUserOrganization(userId: string) {
+  const { data: memberships } = await supabase
+    .from("organization_members")
+    .select("organization_id, role, joined_at")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("joined_at", { ascending: false });
+
+  if (!memberships || memberships.length === 0) {
+    return null;
+  }
+
+  // Return the most recently joined organization
+  return memberships[0];
+}
+
 // Generate AI summary for document content
 async function generateSummary(title: string, content: string): Promise<string> {
   try {
@@ -49,12 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
@@ -66,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { docId, title, content, docType, fileUrl, fileName, fileType } = body;
+    const { docId, title, content, docType, tags, fileUrl, fileName, fileType } = body;
 
     if (!docId || !title || !content) {
       return NextResponse.json(
@@ -103,6 +116,7 @@ export async function POST(request: NextRequest) {
         content,
         summary,
         doc_type: docType || null,
+        tags: tags || [],
         file_url: fileUrl || null,
         file_name: fileName || null,
         file_type: fileType || null,
@@ -146,12 +160,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ documents: [] });
