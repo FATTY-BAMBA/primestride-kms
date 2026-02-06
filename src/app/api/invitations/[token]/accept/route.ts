@@ -25,71 +25,16 @@ export async function POST(
       );
     }
 
-    // Call the database function to accept invitation
-    const { data, error } = await supabase.rpc("accept_invitation", {
-      p_token: token,
-      p_user_id: userId,
-    });
-
-    if (error) {
-      console.error("Accept invitation error:", error);
-      
-      // If the RPC function doesn't exist or doesn't accept p_user_id, do it manually
-      if (error.message.includes("function") || error.message.includes("does not exist")) {
-        return await acceptInvitationManually(token, userId);
-      }
-      
-      return NextResponse.json(
-        { error: error.message || "Failed to accept invitation" },
-        { status: 400 }
-      );
-    }
-
-    // The function returns a JSONB object
-    const result = data as {
-      success: boolean;
-      error?: string;
-      message?: string;
-      organization_id?: string;
-      organization_name?: string;
-      role?: string;
-    };
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || "Failed to accept invitation" },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: result.message || "Successfully joined organization",
-      organization_id: result.organization_id,
-      organization_name: result.organization_name,
-      role: result.role,
-    });
-  } catch (error) {
-    console.error("Error accepting invitation:", error);
-    return NextResponse.json(
-      { error: "Failed to accept invitation" },
-      { status: 500 }
-    );
-  }
-}
-
-// Fallback manual acceptance if RPC doesn't work
-async function acceptInvitationManually(token: string, userId: string) {
-  try {
-    // Get invitation
+    // Get invitation (without join)
     const { data: invitation, error: inviteError } = await supabase
       .from("invitations")
-      .select("*, organizations(name)")
+      .select("id, email, role, status, expires_at, organization_id")
       .eq("token", token)
       .eq("status", "pending")
       .single();
 
     if (inviteError || !invitation) {
+      console.error("Invitation lookup error:", inviteError);
       return NextResponse.json(
         { error: "Invalid or expired invitation" },
         { status: 400 }
@@ -103,6 +48,15 @@ async function acceptInvitationManually(token: string, userId: string) {
         { status: 400 }
       );
     }
+
+    // Get organization name separately
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id, name")
+      .eq("id", invitation.organization_id)
+      .single();
+
+    const organizationName = org?.name || "Organization";
 
     // Check if already a member
     const { data: existingMember } = await supabase
@@ -147,11 +101,11 @@ async function acceptInvitationManually(token: string, userId: string) {
       success: true,
       message: "Successfully joined organization",
       organization_id: invitation.organization_id,
-      organization_name: invitation.organizations?.name || "Organization",
+      organization_name: organizationName,
       role: invitation.role,
     });
   } catch (error) {
-    console.error("Manual acceptance error:", error);
+    console.error("Error accepting invitation:", error);
     return NextResponse.json(
       { error: "Failed to accept invitation" },
       { status: 500 }
