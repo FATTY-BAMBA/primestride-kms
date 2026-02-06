@@ -23,6 +23,24 @@ const CLUSTER_COLORS = [
   "#EF4444",
 ];
 
+function formatRelativeTime(dateString: string | null): string {
+  if (!dateString) return "Never";
+  
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+  
+  return date.toLocaleDateString();
+}
+
 export default function AIGraphPage() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -39,6 +57,8 @@ export default function AIGraphPage() {
   const [selectedClusterDocs, setSelectedClusterDocs] = useState<Node[]>([]);
   const [accessLevel, setAccessLevel] = useState<"admin" | "member">("member");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [refreshResult, setRefreshResult] = useState<any>(null);
 
   useEffect(() => {
     loadGraph();
@@ -65,6 +85,7 @@ export default function AIGraphPage() {
 
       if (res.ok) {
         setAccessLevel(data.accessLevel || "member");
+        setLastUpdated(data.lastUpdated || null);
 
         const counts: {[key: number]: number} = {};
         Object.values(data.clusters).forEach((clusterIdx: any) => {
@@ -150,13 +171,14 @@ export default function AIGraphPage() {
   }, [nodes, clusterMap]);
 
   const generateEmbeddings = async () => {
-    if (!confirm("Generate AI embeddings for all documents? This will use OpenAI API and may take a minute.")) {
+    if (!confirm("Refresh the AI Knowledge Graph? This will regenerate embeddings for documents that haven't been updated in 24 hours.")) {
       return;
     }
 
     try {
       setGenerating(true);
       setError("");
+      setRefreshResult(null);
 
       const res = await fetch("/api/embeddings/generate", {
         method: "POST",
@@ -165,8 +187,16 @@ export default function AIGraphPage() {
       const data = await res.json();
 
       if (res.ok) {
-        alert(`Generated embeddings for ${data.processed} documents with AI-powered cluster names!`);
+        setRefreshResult(data);
         loadGraph();
+      } else if (res.status === 429) {
+        // Rate limited
+        setError(data.error);
+        setRefreshResult({
+          rateLimited: true,
+          refreshesUsed: data.refreshesUsed,
+          refreshesAllowed: data.refreshesAllowed,
+        });
       } else {
         setError(data.error || "Failed to generate embeddings");
       }
@@ -207,7 +237,7 @@ export default function AIGraphPage() {
             }}
           >
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                 <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>
                   🧠 AI Knowledge Graph
                 </h1>
@@ -240,13 +270,18 @@ export default function AIGraphPage() {
                 </span>
               </div>
               
-              <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 12px 0" }}>
+              <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 8px 0" }}>
                 {stats.docs} documents • {stats.connections} connections • Click nodes to view documents
                 {accessLevel === "member" && (
                   <span style={{ color: "#9CA3AF", marginLeft: 8 }}>
                     (Showing docs you have access to)
                   </span>
                 )}
+              </p>
+
+              {/* Last updated timestamp */}
+              <p style={{ fontSize: 13, color: "#9CA3AF", margin: "0 0 12px 0" }}>
+                🕐 Last updated: {formatRelativeTime(lastUpdated)}
               </p>
 
               {Object.keys(clusterCounts).length > 0 && (
@@ -309,7 +344,7 @@ export default function AIGraphPage() {
                   className="btn btn-primary"
                   style={{ opacity: generating ? 0.7 : 1 }}
                 >
-                  {generating ? "Generating..." : "🔄 Refresh Graph"}
+                  {generating ? "Refreshing..." : "🔄 Refresh Graph"}
                 </button>
               )}
               <UserMenu />
@@ -317,6 +352,7 @@ export default function AIGraphPage() {
           </div>
         </div>
 
+        {/* Error message */}
         {error && (
           <div
             style={{
@@ -329,6 +365,50 @@ export default function AIGraphPage() {
             }}
           >
             {error}
+            {refreshResult?.rateLimited && (
+              <div style={{ marginTop: 8, fontSize: 13 }}>
+                You've used {refreshResult.refreshesUsed} of {refreshResult.refreshesAllowed} daily refreshes.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Success message */}
+        {refreshResult && !refreshResult.rateLimited && (
+          <div
+            style={{
+              padding: 16,
+              background: "#DCFCE7",
+              border: "1px solid #86EFAC",
+              color: "#166534",
+              margin: 20,
+              borderRadius: 8,
+            }}
+          >
+            <strong>✅ Graph refreshed!</strong>
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              • Processed: {refreshResult.processed} documents<br/>
+              • Skipped (cooldown): {refreshResult.skippedCooldown}<br/>
+              • Skipped (no content): {refreshResult.skippedNoContent}<br/>
+              {refreshResult.rateLimits && (
+                <>• Refreshes remaining today: {refreshResult.rateLimits.userRefreshesRemaining}</>
+              )}
+            </div>
+            <button
+              onClick={() => setRefreshResult(null)}
+              style={{
+                marginTop: 12,
+                padding: "6px 12px",
+                background: "transparent",
+                border: "1px solid #166534",
+                borderRadius: 6,
+                color: "#166534",
+                cursor: "pointer",
+                fontSize: 13,
+              }}
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -404,7 +484,9 @@ export default function AIGraphPage() {
                 padding: 32, 
                 margin: 20,
                 background: "white",
-                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)"
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
+                maxHeight: "90vh",
+                overflow: "auto",
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -443,10 +525,25 @@ export default function AIGraphPage() {
                 </strong>
                 <p style={{ marginTop: 8, fontSize: 14, color: "#1F2937", margin: 0 }}>
                   {accessLevel === "admin" 
-                    ? "You can see all documents in the organization and refresh the graph."
+                    ? "You can see all documents in the organization and refresh the graph (max 3 times per day)."
                     : "You can see organization-wide documents and documents from your groups. Contact an admin to refresh the graph."
                   }
                 </p>
+              </div>
+
+              {/* Update policy */}
+              <div style={{ 
+                padding: 16, 
+                background: "#FEF3C7", 
+                borderRadius: 8,
+                marginBottom: 16 
+              }}>
+                <strong style={{ fontSize: 14, color: "#92400E" }}>🕐 Update Policy:</strong>
+                <ul style={{ marginLeft: 20, marginTop: 8, lineHeight: 1.6, fontSize: 14, color: "#92400E" }}>
+                  <li>Graph refreshes are limited to 3 per user per day</li>
+                  <li>Documents have a 24-hour cooldown between re-processing</li>
+                  <li>This helps manage costs and keeps the graph stable</li>
+                </ul>
               </div>
 
               <div style={{ 

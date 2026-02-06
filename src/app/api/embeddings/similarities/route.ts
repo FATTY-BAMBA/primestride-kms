@@ -38,6 +38,13 @@ export async function GET(request: NextRequest) {
 
     const isAdmin = ["owner", "admin"].includes(membership.role);
 
+    // Get graph metadata (last updated info)
+    const { data: graphMeta } = await supabase
+      .from("graph_metadata")
+      .select("last_full_refresh, total_docs_in_graph")
+      .eq("organization_id", membership.organization_id)
+      .single();
+
     // Get user's team memberships (for access control)
     let userTeamIds: string[] = [];
     if (!isAdmin) {
@@ -80,6 +87,7 @@ export async function GET(request: NextRequest) {
         totalDocuments: 0,
         totalConnections: 0,
         accessLevel: isAdmin ? "admin" : "member",
+        lastUpdated: graphMeta?.last_full_refresh || null,
       });
     }
 
@@ -103,6 +111,7 @@ export async function GET(request: NextRequest) {
         totalDocuments: 0,
         totalConnections: 0,
         accessLevel: isAdmin ? "admin" : "member",
+        lastUpdated: graphMeta?.last_full_refresh || null,
       });
     }
 
@@ -183,6 +192,7 @@ export async function GET(request: NextRequest) {
       totalDocuments: nodes.length,
       totalConnections: edges.length,
       accessLevel: isAdmin ? "admin" : "member",
+      lastUpdated: graphMeta?.last_full_refresh || null,
     });
   } catch (error) {
     console.error("Error getting similarities:", error);

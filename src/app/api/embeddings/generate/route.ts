@@ -14,6 +14,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Rate limit settings
+const MAX_REFRESHES_PER_USER_PER_DAY = 3;
+const MAX_DOCS_PER_ORG_PER_DAY = 500;
+const EMBEDDING_COOLDOWN_HOURS = 24;
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -45,6 +50,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ============ RATE LIMITING ============
+
+    // Check user's refresh count in last 24 hours
+    const { data: userRefreshes } = await supabase
+      .from("graph_refresh_log")
+      .select("id")
+      .eq("organization_id", membership.organization_id)
+      .eq("user_id", userId)
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+    const userRefreshCount = userRefreshes?.length || 0;
+
+    if (userRefreshCount >= MAX_REFRESHES_PER_USER_PER_DAY) {
+      return NextResponse.json(
+        { 
+          error: `Rate limit exceeded. You can only refresh the graph ${MAX_REFRESHES_PER_USER_PER_DAY} times per day.`,
+          retryAfter: "24 hours",
+          refreshesUsed: userRefreshCount,
+          refreshesAllowed: MAX_REFRESHES_PER_USER_PER_DAY,
+        },
+        { status: 429 }
+      );
+    }
+
+    // Check org's total docs processed in last 24 hours
+    const { data: orgRefreshes } = await supabase
+      .from("graph_refresh_log")
+      .select("docs_processed")
+      .eq("organization_id", membership.organization_id)
+      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+    const orgDocsProcessed = orgRefreshes?.reduce((sum, r) => sum + (r.docs_processed || 0), 0) || 0;
+
+    if (orgDocsProcessed >= MAX_DOCS_PER_ORG_PER_DAY) {
+      return NextResponse.json(
+        { 
+          error: `Organization budget exceeded. Max ${MAX_DOCS_PER_ORG_PER_DAY} documents can be processed per day.`,
+          retryAfter: "24 hours",
+          docsProcessed: orgDocsProcessed,
+          docsAllowed: MAX_DOCS_PER_ORG_PER_DAY,
+        },
+        { status: 429 }
+      );
+    }
+
+    // ============ GET DOCUMENTS ============
+
     // Get all documents for this organization
     const { data: documents } = await supabase
       .from("documents")
@@ -58,15 +110,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check remaining budget
+    const remainingBudget = MAX_DOCS_PER_ORG_PER_DAY - orgDocsProcessed;
+    const docsToProcess = Math.min(documents.length, remainingBudget);
+
+    if (docsToProcess < documents.length) {
+      console.log(`⚠️ Budget limit: processing ${docsToProcess} of ${documents.length} docs`);
+    }
+
+    // ============ COOLDOWN CHECK ============
+    // Get existing embeddings to check cooldown
+    const { data: existingEmbeddings } = await supabase
+      .from("document_embeddings")
+      .select("doc_id, last_generated_at")
+      .eq("organization_id", membership.organization_id);
+
+    const embeddingMap = new Map(
+      existingEmbeddings?.map((e) => [e.doc_id, e.last_generated_at])
+    );
+
+    const cooldownThreshold = new Date(Date.now() - EMBEDDING_COOLDOWN_HOURS * 60 * 60 * 1000);
+
     let processed = 0;
+    let skippedCooldown = 0;
+    let skippedNoContent = 0;
     let errors = 0;
 
-    // Generate embeddings for each document
-    for (const doc of documents) {
+    // ============ GENERATE EMBEDDINGS ============
+    for (const doc of documents.slice(0, docsToProcess)) {
       try {
         // Skip if no content
         if (!doc.content || doc.content.trim().length === 0) {
           console.log(`Skipping ${doc.doc_id} - no content`);
+          skippedNoContent++;
+          continue;
+        }
+
+        // Check cooldown (skip if recently generated)
+        const lastGenerated = embeddingMap.get(doc.doc_id);
+        if (lastGenerated && new Date(lastGenerated) > cooldownThreshold) {
+          console.log(`Skipping ${doc.doc_id} - cooldown (generated ${lastGenerated})`);
+          skippedCooldown++;
           continue;
         }
 
@@ -83,6 +167,7 @@ export async function POST(request: NextRequest) {
             doc_id: doc.doc_id,
             organization_id: doc.organization_id,
             embedding: JSON.stringify(embedding),
+            last_generated_at: new Date().toISOString(),
           }, {
             onConflict: "doc_id,organization_id"
           });
@@ -95,7 +180,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate AI cluster names
+    // ============ GENERATE CLUSTER NAMES ============
     try {
       console.log("🤖 Generating AI cluster names...");
       
@@ -166,12 +251,42 @@ export async function POST(request: NextRequest) {
       // Don't fail the whole request if cluster naming fails
     }
 
+    // ============ LOG REFRESH & UPDATE METADATA ============
+    
+    // Log this refresh for rate limiting
+    await supabase
+      .from("graph_refresh_log")
+      .insert({
+        organization_id: membership.organization_id,
+        user_id: userId,
+        docs_processed: processed,
+      });
+
+    // Update graph metadata
+    await supabase
+      .from("graph_metadata")
+      .upsert({
+        organization_id: membership.organization_id,
+        last_full_refresh: new Date().toISOString(),
+        last_refresh_by: userId,
+        total_docs_in_graph: processed + skippedCooldown,
+      }, {
+        onConflict: "organization_id"
+      });
+
+    // ============ RESPONSE ============
     return NextResponse.json({
       success: true,
       processed,
+      skippedCooldown,
+      skippedNoContent,
       errors,
       total: documents.length,
       message: `Generated embeddings for ${processed} documents`,
+      rateLimits: {
+        userRefreshesRemaining: MAX_REFRESHES_PER_USER_PER_DAY - userRefreshCount - 1,
+        orgBudgetRemaining: remainingBudget - processed,
+      },
     });
   } catch (error) {
     console.error("Error generating embeddings:", error);
