@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSignIn, useAuth as useClerkAuth } from "@clerk/nextjs";
 
 function SignInForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signIn, isLoaded, setActive } = useSignIn();
   const { isSignedIn } = useClerkAuth();
 
@@ -15,12 +16,15 @@ function SignInForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Get redirect URL from query params (for invite flow)
+  const redirectUrl = searchParams.get("redirect_url") || searchParams.get("redirect") || "/library";
+
   // Redirect if already signed in
   useEffect(() => {
     if (isSignedIn) {
-      router.push("/library");
+      router.push(redirectUrl);
     }
-  }, [isSignedIn, router]);
+  }, [isSignedIn, router, redirectUrl]);
 
   const handleOAuthSignIn = async (provider: "oauth_google" | "oauth_github") => {
     if (!signIn) return;
@@ -29,7 +33,7 @@ function SignInForm() {
       await signIn.authenticateWithRedirect({
         strategy: provider,
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/library",
+        redirectUrlComplete: redirectUrl,
       });
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "OAuth sign in failed");
@@ -51,7 +55,7 @@ function SignInForm() {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push("/library");
+        router.push(redirectUrl);
       }
     } catch (err: any) {
       console.error("Sign in error:", err);
@@ -74,6 +78,11 @@ function SignInForm() {
       </div>
     );
   }
+
+  // Build signup URL with redirect preserved
+  const signupUrl = redirectUrl !== "/library" 
+    ? `/signup?redirect_url=${encodeURIComponent(redirectUrl)}`
+    : "/signup";
 
   return (
     <div style={{
@@ -160,6 +169,22 @@ function SignInForm() {
             width: "100%",
             maxWidth: 360,
           }}>
+          {/* Show invite context if redirecting from invite */}
+          {redirectUrl.includes("/invite/") && (
+            <div style={{
+              background: "#F0FDF4",
+              border: "1px solid #86EFAC",
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 24,
+              textAlign: "center",
+            }}>
+              <p style={{ margin: 0, color: "#166534", fontSize: 14 }}>
+                🎉 Sign in to accept your team invitation
+              </p>
+            </div>
+          )}
+
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <h1 style={{ 
               fontSize: 26, 
@@ -385,7 +410,7 @@ function SignInForm() {
           }}>
             Don't have an account?{" "}
             <Link
-              href="/signup"
+              href={signupUrl}
               style={{
                 color: "#7C3AED",
                 fontWeight: 600,

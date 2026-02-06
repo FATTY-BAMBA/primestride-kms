@@ -19,12 +19,15 @@ function SignupForm() {
   const [pendingVerification, setPendingVerification] = useState(false);
   const [code, setCode] = useState("");
 
+  // Get redirect URL from query params (for invite flow)
+  const redirectUrl = searchParams.get("redirect_url") || searchParams.get("redirect") || "/library";
+
   // Redirect if already signed in
   useEffect(() => {
     if (isSignedIn) {
-      router.push("/library");
+      router.push(redirectUrl);
     }
-  }, [isSignedIn, router]);
+  }, [isSignedIn, router, redirectUrl]);
 
   const handleOAuthSignUp = async (provider: "oauth_google" | "oauth_github") => {
     if (!signUp) return;
@@ -33,7 +36,7 @@ function SignupForm() {
       await signUp.authenticateWithRedirect({
         strategy: provider,
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/library",
+        redirectUrlComplete: redirectUrl,
       });
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "OAuth sign up failed");
@@ -81,7 +84,7 @@ function SignupForm() {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push("/library");
+        router.push(redirectUrl);
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Verification failed");
@@ -102,6 +105,11 @@ function SignupForm() {
       </div>
     );
   }
+
+  // Build login URL with redirect preserved
+  const loginUrl = redirectUrl !== "/library" 
+    ? `/login?redirect_url=${encodeURIComponent(redirectUrl)}`
+    : "/login";
 
   // Verification code screen
   if (pendingVerification) {
@@ -296,6 +304,22 @@ function SignupForm() {
             width: "100%",
             maxWidth: 360,
           }}>
+          {/* Show invite context if redirecting from invite */}
+          {redirectUrl.includes("/invite/") && (
+            <div style={{
+              background: "#F0FDF4",
+              border: "1px solid #86EFAC",
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 24,
+              textAlign: "center",
+            }}>
+              <p style={{ margin: 0, color: "#166534", fontSize: 14 }}>
+                🎉 Create an account to accept your team invitation
+              </p>
+            </div>
+          )}
+
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <h1 style={{ 
               fontSize: 26, 
@@ -506,7 +530,7 @@ function SignupForm() {
           }}>
             Already have an account?{" "}
             <Link
-              href="/sign-in"
+              href={loginUrl}
               style={{
                 color: "#7C3AED",
                 fontWeight: 600,
