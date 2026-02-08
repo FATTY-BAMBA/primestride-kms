@@ -216,14 +216,14 @@ export default function AcceptInvitePage() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Link
-              href={`/login?redirect_url=/invite/${token}`}
+              href={`/sign-in?redirect_url=/invite/${token}`}
               className="btn btn-primary"
               style={{ padding: "16px 24px", fontSize: 16, textAlign: "center", fontWeight: 600 }}
             >
               Sign In to Accept
             </Link>
             <Link
-              href={`/signup?redirect_url=/invite/${token}`}
+              href={`/sign-up?redirect_url=/invite/${token}`}
               className="btn"
               style={{ padding: "14px 24px", fontSize: 15, textAlign: "center" }}
             >
@@ -286,7 +286,7 @@ export default function AcceptInvitePage() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Link
-              href="/login"
+              href="/sign-in"
               className="btn btn-primary"
               style={{ padding: "14px 24px", fontSize: 16 }}
             >
