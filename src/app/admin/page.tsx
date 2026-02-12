@@ -40,10 +40,15 @@ export default async function AdminPage() {
   // Only owners and admins can access
   if (!["owner", "admin"].includes(membership.role || "")) {
     return (
-      <div className="container" style={{ padding: "40px 20px", textAlign: "center" }}>
-        <h1>Access Denied</h1>
-        <p style={{ color: "#6B7280", marginBottom: 20 }}>Only administrators can access this page.</p>
-        <Link href="/library" className="btn btn-primary">Go to Library</Link>
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "80px 20px", textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, color: "#111827" }}>Access Restricted</h1>
+        <p style={{ color: "#6B7280", marginBottom: 24 }}>
+          Only Admins and Owners can access Admin Settings. Contact your organization admin if you need access.
+        </p>
+        <Link href="/library" style={{ display: "inline-block", padding: "10px 24px", background: "#7C3AED", color: "white", borderRadius: 8, textDecoration: "none", fontWeight: 600 }}>
+          ← Back to Library
+        </Link>
       </div>
     );
   }
