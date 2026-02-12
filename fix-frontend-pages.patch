@@ -1,0 +1,92 @@
+diff --git a/src/app/admin/page.tsx b/src/app/admin/page.tsx
+index 90344ad..bb2f191 100644
+--- a/src/app/admin/page.tsx
++++ b/src/app/admin/page.tsx
+@@ -18,13 +18,14 @@ export default async function AdminPage() {
+     redirect("/login");
+   }
+ 
+-  // Get user's organization membership
+-  const { data: membership } = await supabase
++  // Get user's organization membership (handles multiple memberships)
++  const { data: memberships } = await supabase
+     .from("organization_members")
+     .select("organization_id, role")
+     .eq("user_id", userId)
+-    .eq("is_active", true)
+-    .single();
++    .eq("is_active", true);
++
++  const membership = memberships?.[0] || null;
+ 
+   if (!membership) {
+     return (
+diff --git a/src/app/library/[docId]/edit/page.tsx b/src/app/library/[docId]/edit/page.tsx
+index a882cac..82c7c5c 100644
+--- a/src/app/library/[docId]/edit/page.tsx
++++ b/src/app/library/[docId]/edit/page.tsx
+@@ -20,13 +20,14 @@ export default async function EditDocumentPage({
+     redirect("/login");
+   }
+ 
+-  // Get user's organization membership
+-  const { data: membership } = await supabase
++  // Get user's organization membership (handles multiple memberships)
++  const { data: memberships } = await supabase
+     .from("organization_members")
+     .select("organization_id, role")
+     .eq("user_id", userId)
+-    .eq("is_active", true)
+-    .single();
++    .eq("is_active", true);
++
++  const membership = memberships?.[0] || null;
+ 
+   if (!membership) {
+     return <div>No organization found</div>;
+diff --git a/src/app/library/[docId]/page.tsx b/src/app/library/[docId]/page.tsx
+index 8fb1b85..4ffc86b 100644
+--- a/src/app/library/[docId]/page.tsx
++++ b/src/app/library/[docId]/page.tsx
+@@ -20,13 +20,14 @@ export default async function DocumentPage({
+     redirect("/login");
+   }
+ 
+-  // Get user's organization membership
+-  const { data: membership } = await supabase
++  // Get user's organization membership (handles multiple memberships)
++  const { data: memberships } = await supabase
+     .from("organization_members")
+     .select("organization_id")
+     .eq("user_id", userId)
+-    .eq("is_active", true)
+-    .single();
++    .eq("is_active", true);
++
++  const membership = memberships?.[0] || null;
+ 
+   if (!membership) {
+     return <div>No organization found</div>;
+diff --git a/src/app/library/new/page.tsx b/src/app/library/new/page.tsx
+index 2d2f80a..f9e5a8e 100644
+--- a/src/app/library/new/page.tsx
++++ b/src/app/library/new/page.tsx
+@@ -16,13 +16,14 @@ export default async function NewDocumentPage() {
+     redirect("/login");
+   }
+ 
+-  // Get user's organization membership
+-  const { data: membership } = await supabase
++  // Get user's organization membership (handles multiple memberships)
++  const { data: memberships } = await supabase
+     .from("organization_members")
+     .select("organization_id, role")
+     .eq("user_id", userId)
+-    .eq("is_active", true)
+-    .single();
++    .eq("is_active", true);
++
++  const membership = memberships?.[0] || null;
+ 
+   if (!membership || !["owner", "admin"].includes(membership.role)) {
+     return (

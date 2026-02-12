@@ -16,13 +16,14 @@ export default async function NewDocumentPage() {
     redirect("/login");
   }
 
-  // Get user's organization membership
-  const { data: membership } = await supabase
+  // Get user's organization membership (handles multiple memberships)
+  const { data: memberships } = await supabase
     .from("organization_members")
     .select("organization_id, role")
     .eq("user_id", userId)
-    .eq("is_active", true)
-    .single();
+    .eq("is_active", true);
+
+  const membership = memberships?.[0] || null;
 
   if (!membership || !["owner", "admin"].includes(membership.role)) {
     return (
