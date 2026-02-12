@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
     // Get user's organization membership
     const membership = await getUserOrganization(userId);
 
-    if (membershipError || !membership?.organization_id) {
+    if (!membership?.organization_id) {
       return NextResponse.json({ 
         error: "Organization not found",
-        debug: debug ? { userId, membershipError } : undefined
+        debug: debug ? { userId } : undefined
       }, { status: 404 });
     }
 
