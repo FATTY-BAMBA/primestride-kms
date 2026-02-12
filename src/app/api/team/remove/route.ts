@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -28,15 +29,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current user's membership
-    const { data: myMembership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", clerkUserId)
-      .eq("is_active", true)
-      .in("role", ["owner", "admin"])
-      .single();
+    const myMembership = await getUserOrganization(clerkUserId);
 
-    if (!myMembership) {
+    if (!myMembership || !["owner", "admin"].includes(myMembership.role)) {
       return NextResponse.json(
         { error: "Not authorized to remove members" },
         { status: 403 }

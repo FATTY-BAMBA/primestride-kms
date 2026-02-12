@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership?.organization_id) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });

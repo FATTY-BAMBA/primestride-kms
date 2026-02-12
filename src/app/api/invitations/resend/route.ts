@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { invitationEmail } from "@/lib/email-templates";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -35,15 +36,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's organization membership
-    const { data: myMembership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .in("role", ["owner", "admin"])
-      .single();
+    const myMembership = await getUserOrganization(userId);
 
-    if (!myMembership) {
+    if (!myMembership || !["owner", "admin"].includes(myMembership.role)) {
       return NextResponse.json(
         { error: "Not authorized to resend invitations" },
         { status: 403 }

@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,12 +37,7 @@ export async function GET(req: Request) {
     }
 
     // Get user's organization
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ summary: null, documents: [] });

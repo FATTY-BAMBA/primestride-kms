@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +54,7 @@ export async function GET(
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
@@ -99,12 +95,7 @@ export async function PUT(
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
@@ -213,12 +204,7 @@ export async function DELETE(
     }
 
     // Get user's organization membership
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });

@@ -1,0 +1,565 @@
+diff --git a/src/app/api/auth/me/route.ts b/src/app/api/auth/me/route.ts
+index 6f082b5..3ffc1be 100644
+--- a/src/app/api/auth/me/route.ts
++++ b/src/app/api/auth/me/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -26,12 +27,7 @@ export async function GET(request: NextRequest) {
+       .single();
+ 
+     // Get organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     return NextResponse.json({
+       user: {
+diff --git a/src/app/api/chat/route.ts b/src/app/api/chat/route.ts
+index 506f41a..ea6a4d4 100644
+--- a/src/app/api/chat/route.ts
++++ b/src/app/api/chat/route.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -28,12 +29,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership?.organization_id) {
+       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+diff --git a/src/app/api/documents/[docId]/route.ts b/src/app/api/documents/[docId]/route.ts
+index 08ab88d..f1921be 100644
+--- a/src/app/api/documents/[docId]/route.ts
++++ b/src/app/api/documents/[docId]/route.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -53,12 +54,7 @@ export async function GET(
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+@@ -99,12 +95,7 @@ export async function PUT(
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+@@ -213,12 +204,7 @@ export async function DELETE(
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+diff --git a/src/app/api/documents/summarize/route.ts b/src/app/api/documents/summarize/route.ts
+index 4fd086e..a392b50 100644
+--- a/src/app/api/documents/summarize/route.ts
++++ b/src/app/api/documents/summarize/route.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -21,12 +22,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+diff --git a/src/app/api/documents/summarize/routes.ts b/src/app/api/documents/summarize/routes.ts
+index 4fd086e..a392b50 100644
+--- a/src/app/api/documents/summarize/routes.ts
++++ b/src/app/api/documents/summarize/routes.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -21,12 +22,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+diff --git a/src/app/api/documents/upload/route.ts b/src/app/api/documents/upload/route.ts
+index 1ee5b3a..1b2d033 100644
+--- a/src/app/api/documents/upload/route.ts
++++ b/src/app/api/documents/upload/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -19,12 +20,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+diff --git a/src/app/api/embeddings/generate/route.ts b/src/app/api/embeddings/generate/route.ts
+index 3813375..ba27337 100644
+--- a/src/app/api/embeddings/generate/route.ts
++++ b/src/app/api/embeddings/generate/route.ts
+@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import { generateEmbedding, kMeansClustering } from "@/lib/ai-embeddings";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -28,12 +29,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json(
+diff --git a/src/app/api/embeddings/similar/route.ts b/src/app/api/embeddings/similar/route.ts
+index 3b087f9..fce6a57 100644
+--- a/src/app/api/embeddings/similar/route.ts
++++ b/src/app/api/embeddings/similar/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -31,12 +32,7 @@ export async function GET(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership, error: membershipError } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (membershipError || !membership?.organization_id) {
+       return NextResponse.json({ 
+diff --git a/src/app/api/embeddings/similarities/route.ts b/src/app/api/embeddings/similarities/route.ts
+index 6732c54..dfef34d 100644
+--- a/src/app/api/embeddings/similarities/route.ts
++++ b/src/app/api/embeddings/similarities/route.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import { cosineSimilarity, kMeansClustering } from "@/lib/ai-embeddings";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -20,12 +21,7 @@ export async function GET(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({
+diff --git a/src/app/api/facets/route.ts b/src/app/api/facets/route.ts
+index dd5bc1a..734f3ef 100644
+--- a/src/app/api/facets/route.ts
++++ b/src/app/api/facets/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -26,12 +27,7 @@ export async function GET() {
+     }
+ 
+     // Get user's organization
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({
+diff --git a/src/app/api/feedback/route.ts b/src/app/api/feedback/route.ts
+index 8e83ef3..cebeeb7 100644
+--- a/src/app/api/feedback/route.ts
++++ b/src/app/api/feedback/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -28,12 +29,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership?.organization_id) {
+       return NextResponse.json({ error: "No organization found" }, { status: 400 });
+diff --git a/src/app/api/invitations/cancel/route.ts b/src/app/api/invitations/cancel/route.ts
+index 4b8f42d..a93b896 100644
+--- a/src/app/api/invitations/cancel/route.ts
++++ b/src/app/api/invitations/cancel/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -28,15 +29,9 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: myMembership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .in("role", ["owner", "admin"])
+-      .single();
++    const myMembership = await getUserOrganization(userId);
+ 
+-    if (!myMembership) {
++    if (!myMembership || !["owner", "admin"].includes(myMembership.role)) {
+       return NextResponse.json(
+         { error: "Not authorized to cancel invitations" },
+         { status: 403 }
+diff --git a/src/app/api/invitations/resend/route.ts b/src/app/api/invitations/resend/route.ts
+index ac575ca..f308463 100644
+--- a/src/app/api/invitations/resend/route.ts
++++ b/src/app/api/invitations/resend/route.ts
+@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import { Resend } from "resend";
+ import { invitationEmail } from "@/lib/email-templates";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -35,15 +36,9 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: myMembership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .in("role", ["owner", "admin"])
+-      .single();
++    const myMembership = await getUserOrganization(userId);
+ 
+-    if (!myMembership) {
++    if (!myMembership || !["owner", "admin"].includes(myMembership.role)) {
+       return NextResponse.json(
+         { error: "Not authorized to resend invitations" },
+         { status: 403 }
+diff --git a/src/app/api/invitations/send/route.ts b/src/app/api/invitations/send/route.ts
+index 0f09532..21fee62 100644
+--- a/src/app/api/invitations/send/route.ts
++++ b/src/app/api/invitations/send/route.ts
+@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import { Resend } from "resend";
+ import { invitationEmail } from "@/lib/email-templates";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -35,13 +36,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: myMembership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .in("role", ["owner", "admin"])
+-      .single();
++    const myMembership = await getUserOrganization(userId);
+ 
+     if (!myMembership?.organization_id) {
+       return NextResponse.json(
+diff --git a/src/app/api/learning-rollup/route.ts b/src/app/api/learning-rollup/route.ts
+index 66be557..a4e0667 100644
+--- a/src/app/api/learning-rollup/route.ts
++++ b/src/app/api/learning-rollup/route.ts
+@@ -4,6 +4,7 @@ export const revalidate = 0;
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ const supabase = createClient(
+   process.env.NEXT_PUBLIC_SUPABASE_URL!,
+@@ -36,12 +37,7 @@ export async function GET(req: Request) {
+     }
+ 
+     // Get user's organization
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ summary: null, documents: [] });
+diff --git a/src/app/api/search/route.ts b/src/app/api/search/route.ts
+index 851ac7e..d1a5df3 100644
+--- a/src/app/api/search/route.ts
++++ b/src/app/api/search/route.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextResponse } from "next/server";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -63,12 +64,7 @@ export async function GET(req: Request) {
+     }
+ 
+     // Get user's organization
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ results: [] });
+diff --git a/src/app/api/tags/suggest/route.ts b/src/app/api/tags/suggest/route.ts
+index 58f3766..b10de80 100644
+--- a/src/app/api/tags/suggest/route.ts
++++ b/src/app/api/tags/suggest/route.ts
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
+ import OpenAI from "openai";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -21,12 +22,7 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Verify user belongs to an organization
+-    const { data: membership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const membership = await getUserOrganization(userId);
+ 
+     if (!membership) {
+       return NextResponse.json({ error: "No organization found" }, { status: 404 });
+diff --git a/src/app/api/team/change-role/route.ts b/src/app/api/team/change-role/route.ts
+index ad4a1b2..da2d5df 100644
+--- a/src/app/api/team/change-role/route.ts
++++ b/src/app/api/team/change-role/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -35,15 +36,9 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get current user's membership
+-    const { data: myMembership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", clerkUserId)
+-      .eq("is_active", true)
+-      .in("role", ["owner", "admin"])
+-      .single();
++    const myMembership = await getUserOrganization(clerkUserId);
+ 
+-    if (!myMembership) {
++    if (!myMembership || !["owner", "admin"].includes(myMembership.role)) {
+       return NextResponse.json(
+         { error: "Not authorized to change roles" },
+         { status: 403 }
+diff --git a/src/app/api/team/members/route.ts b/src/app/api/team/members/route.ts
+index 79e7af1..47871df 100644
+--- a/src/app/api/team/members/route.ts
++++ b/src/app/api/team/members/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -19,12 +20,7 @@ export async function GET(request: NextRequest) {
+     }
+ 
+     // Get user's organization membership
+-    const { data: myMembership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", userId)
+-      .eq("is_active", true)
+-      .single();
++    const myMembership = await getUserOrganization(userId);
+ 
+     if (!myMembership?.organization_id) {
+       return NextResponse.json(
+diff --git a/src/app/api/team/remove/route.ts b/src/app/api/team/remove/route.ts
+index 869e093..1f66fb3 100644
+--- a/src/app/api/team/remove/route.ts
++++ b/src/app/api/team/remove/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextRequest, NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -28,15 +29,9 @@ export async function POST(request: NextRequest) {
+     }
+ 
+     // Get current user's membership
+-    const { data: myMembership } = await supabase
+-      .from("organization_members")
+-      .select("organization_id, role")
+-      .eq("user_id", clerkUserId)
+-      .eq("is_active", true)
+-      .in("role", ["owner", "admin"])
+-      .single();
++    const myMembership = await getUserOrganization(clerkUserId);
+ 
+-    if (!myMembership) {
++    if (!myMembership || !["owner", "admin"].includes(myMembership.role)) {
+       return NextResponse.json(
+         { error: "Not authorized to remove members" },
+         { status: 403 }

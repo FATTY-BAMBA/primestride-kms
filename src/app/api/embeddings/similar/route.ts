@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's organization membership
-    const { data: membership, error: membershipError } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .single();
+    const membership = await getUserOrganization(userId);
 
     if (membershipError || !membership?.organization_id) {
       return NextResponse.json({ 
