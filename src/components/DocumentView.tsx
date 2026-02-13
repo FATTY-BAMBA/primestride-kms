@@ -26,6 +26,7 @@ interface Props {
   helpfulCount: number;
   notHelpfulCount: number;
   organizationId: string;
+  userRole?: string;
 }
 
 export default function DocumentView({
@@ -33,7 +34,9 @@ export default function DocumentView({
   helpfulCount,
   notHelpfulCount,
   organizationId,
+  userRole,
 }: Props) {
+  const isAdmin = userRole === "owner" || userRole === "admin";
   const [similarDocs, setSimilarDocs] = useState<SimilarDoc[]>([]);
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -140,7 +143,8 @@ export default function DocumentView({
           </Link>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons - only for admins and owners */}
+        {isAdmin && (
         <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
           <Link
             href={`/library/${document.doc_id}/edit`}
@@ -163,7 +167,7 @@ export default function DocumentView({
             🗑️ Delete
           </button>
         </div>
-
+        )}
         {/* Document Header Card */}
         <div
           className="card"

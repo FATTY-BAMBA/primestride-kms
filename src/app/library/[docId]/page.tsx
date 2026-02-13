@@ -54,6 +54,7 @@ export default async function DocumentPage({
       helpfulCount={helpfulCount}
       notHelpfulCount={notHelpfulCount}
       organizationId={membership.organization_id}
+      userRole={membership.role}
     />
   );
 }

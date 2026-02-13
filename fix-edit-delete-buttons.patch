@@ -1,0 +1,54 @@
+diff --git a/src/app/library/[docId]/page.tsx b/src/app/library/[docId]/page.tsx
+index 825ca37..b86d62f 100644
+--- a/src/app/library/[docId]/page.tsx
++++ b/src/app/library/[docId]/page.tsx
+@@ -54,6 +54,7 @@ export default async function DocumentPage({
+       helpfulCount={helpfulCount}
+       notHelpfulCount={notHelpfulCount}
+       organizationId={membership.organization_id}
++      userRole={membership.role}
+     />
+   );
+ }
+\ No newline at end of file
+diff --git a/src/components/DocumentView.tsx b/src/components/DocumentView.tsx
+index 30597a8..0ea5792 100644
+--- a/src/components/DocumentView.tsx
++++ b/src/components/DocumentView.tsx
+@@ -26,6 +26,7 @@ interface Props {
+   helpfulCount: number;
+   notHelpfulCount: number;
+   organizationId: string;
++  userRole?: string;
+ }
+ 
+ export default function DocumentView({
+@@ -33,7 +34,9 @@ export default function DocumentView({
+   helpfulCount,
+   notHelpfulCount,
+   organizationId,
++  userRole,
+ }: Props) {
++  const isAdmin = userRole === "owner" || userRole === "admin";
+   const [similarDocs, setSimilarDocs] = useState<SimilarDoc[]>([]);
+   const [feedbackMessage, setFeedbackMessage] = useState("");
+   const [submitting, setSubmitting] = useState(false);
+@@ -140,7 +143,8 @@ export default function DocumentView({
+           </Link>
+         </div>
+ 
+-        {/* Action Buttons */}
++        {/* Action Buttons - only for admins and owners */}
++        {isAdmin && (
+         <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
+           <Link
+             href={`/library/${document.doc_id}/edit`}
+@@ -163,7 +167,7 @@ export default function DocumentView({
+             🗑️ Delete
+           </button>
+         </div>
+-
++        )}
+         {/* Document Header Card */}
+         <div
+           className="card"
