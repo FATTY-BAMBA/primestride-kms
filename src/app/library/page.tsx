@@ -148,15 +148,21 @@ function LibraryContent() {
             <Link href="/learning" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               📊 Learning
             </Link>
-            <Link href="/admin" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              ⚙️ Admin
-            </Link>
-            <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              👤 Members
-            </Link>
-            <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🏷️ Groups
-            </Link>
+            {isAdmin && (
+              <Link href="/admin" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+                ⚙️ Admin
+              </Link>
+            )}
+            {isAdmin && (
+              <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+                👤 Members
+              </Link>
+            )}
+            {isAdmin && (
+              <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+                🏷️ Groups
+              </Link>
+            )}
             <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               🧠 Graph
             </Link>
