@@ -44,7 +44,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [facets, setFacets] = useState<Facets | null>(null);
-  const [searchMode, setSearchMode] = useState<"keyword" | "semantic">("keyword");
+  const [searchMode, setSearchMode] = useState<"keyword" | "semantic" | "hybrid">("hybrid");
 
   // Load facets on mount
   useEffect(() => {
@@ -209,12 +209,35 @@ export default function SearchPage() {
               }}
             >
               <button
+                onClick={() => setSearchMode("hybrid")}
+                style={{
+                  padding: "10px 20px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: searchMode === "hybrid"
+                    ? "linear-gradient(135deg, #7C3AED, #3B82F6)"
+                    : "var(--bg-secondary)",
+                  color: searchMode === "hybrid"
+                    ? "white"
+                    : "var(--text-secondary)",
+                  transition: "all 0.2s",
+                }}
+              >
+                🔀 Hybrid
+              </button>
+              <button
                 onClick={() => setSearchMode("keyword")}
                 style={{
                   padding: "10px 20px",
                   fontSize: 14,
                   fontWeight: 600,
                   border: "none",
+                  borderLeft: "1px solid var(--border-color)",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
@@ -251,11 +274,13 @@ export default function SearchPage() {
                   transition: "all 0.2s",
                 }}
               >
-                🧠 AI Semantic
+                🧠 Semantic
               </button>
             </div>
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6, marginBottom: 0 }}>
-              {searchMode === "semantic"
+              {searchMode === "hybrid"
+                ? "Combines keyword matching + AI meaning for the best results (recommended)"
+                : searchMode === "semantic"
                 ? "AI search finds documents by meaning — \"keeping clients happy\" finds docs about \"customer retention\""
                 : "Keyword search finds exact text matches in document titles and content"}
             </p>
@@ -264,15 +289,15 @@ export default function SearchPage() {
           {/* Text search */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
-              {searchMode === "semantic" ? "Describe what you're looking for" : "Search text"}
+              {searchMode === "keyword" ? "Search text" : "Describe what you're looking for"}
             </label>
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder={
-                searchMode === "semantic"
-                  ? "e.g., how do we keep clients happy and engaged?"
-                  : "e.g., performance evidence"
+                searchMode === "keyword"
+                  ? "e.g., performance evidence"
+                  : "e.g., how do we keep clients happy and engaged?"
               }
               style={{ width: "100%" }}
               onKeyDown={(e) => {
@@ -363,21 +388,23 @@ export default function SearchPage() {
 
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <button onClick={handleSearch} className="btn btn-primary">
-              {searchMode === "semantic" ? "🧠 AI Search →" : "Search →"}
+              {searchMode === "hybrid" ? "🔀 Hybrid Search →" : searchMode === "semantic" ? "🧠 AI Search →" : "Search →"}
             </button>
             <button onClick={handleClear} className="btn">
               Clear
             </button>
             {loading && (
               <span style={{ color: "var(--text-muted)" }}>
-                {searchMode === "semantic" ? "🧠 AI searching by meaning…" : "Searching…"}
+                {searchMode === "hybrid" ? "🔀 Running hybrid search…" : searchMode === "semantic" ? "🧠 AI searching by meaning…" : "Searching…"}
               </span>
             )}
             {err && <span style={{ color: "var(--accent-red)" }}>{err}</span>}
           </div>
 
           <p style={{ marginTop: 12, marginBottom: 0, fontSize: 12, color: "var(--text-muted)" }}>
-            {searchMode === "semantic"
+            {searchMode === "hybrid"
+              ? "Tip: Hybrid combines exact keyword matching with AI meaning analysis for the best results."
+              : searchMode === "semantic"
               ? "Tip: Use natural language — describe what you need instead of exact keywords."
               : "Tip: Filters work even without a text query. Press Enter to search."}
           </p>
@@ -407,13 +434,15 @@ export default function SearchPage() {
                     {r.doc_type && <span className="badge">{r.doc_type}</span>}
                     {r.domain && <span className="badge">{r.domain}</span>}
                     {r.ai_maturity_stage && <span className="badge">{r.ai_maturity_stage}</span>}
-                    {/* Semantic relevance badge */}
-                    {r.search_mode === "semantic" && r.score > 0 && (
+                    {/* Semantic/Hybrid relevance badge */}
+                    {(r.search_mode === "semantic" || r.search_mode === "hybrid") && r.score > 0 && (
                       <span
                         style={{
                           padding: "4px 10px",
                           background: r.score >= 60
-                            ? "linear-gradient(135deg, #7C3AED, #6366F1)"
+                            ? r.search_mode === "hybrid"
+                              ? "linear-gradient(135deg, #7C3AED, #3B82F6)"
+                              : "linear-gradient(135deg, #7C3AED, #6366F1)"
                             : r.score >= 40
                             ? "#EEF2FF"
                             : "#F3F4F6",
@@ -423,7 +452,7 @@ export default function SearchPage() {
                           fontWeight: 700,
                         }}
                       >
-                        🧠 {r.score}% match
+                        {r.search_mode === "hybrid" ? "🔀" : "🧠"} {r.score}% match
                       </span>
                     )}
                   </div>
@@ -452,11 +481,11 @@ export default function SearchPage() {
                   style={{
                     marginBottom: 8,
                     fontSize: 13,
-                    color: r.search_mode === "semantic" ? "#7C3AED" : "var(--accent-blue)",
+                    color: r.search_mode === "hybrid" ? "#6D28D9" : r.search_mode === "semantic" ? "#7C3AED" : "var(--accent-blue)",
                   }}
                 >
-                  {r.search_mode === "semantic" ? "🧠 " : ""}
-                  Why matched: {r.why_matched.slice(0, 3).join(" • ")}
+                  {r.search_mode === "hybrid" ? "🔀 " : r.search_mode === "semantic" ? "🧠 " : ""}
+                  Why matched: {r.why_matched.slice(0, 4).join(" • ")}
                 </div>
               )}
 

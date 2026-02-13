@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     const domain = (searchParams.get("domain") || "").trim();
     const tag = (searchParams.get("tag") || "").trim();
     const status = (searchParams.get("status") || "").trim();
-    const mode = (searchParams.get("mode") || "keyword").trim(); // "keyword" or "semantic"
+    const mode = (searchParams.get("mode") || "hybrid").trim(); // "keyword", "semantic", or "hybrid"
 
     if (!q && !docType && !domain && !tag && !status) {
       return NextResponse.json({ results: [] });
@@ -120,6 +120,110 @@ export async function GET(req: Request) {
         search_mode: "filter",
       }));
       return NextResponse.json({ results });
+    }
+
+    // ============================================
+    // HYBRID SEARCH MODE (combines keyword + semantic)
+    // ============================================
+    if (mode === "hybrid") {
+      console.log("🔀 Hybrid search for:", q);
+
+      // Run keyword scoring for all docs
+      const keywordScored = new Map<string, { score: number; why: string[]; snippet: string }>();
+      for (const d of docRecords) {
+        const content = (d.content || "").toLowerCase();
+        const title = (d.title || "").toLowerCase();
+        const qLower = q.toLowerCase();
+
+        if (content.includes(qLower) || title.includes(qLower)) {
+          const scoring = scoreDocMatch({ title: d.title, content: d.content || "", query: q });
+          const snippet = makeSnippet(d.content || "", q);
+          keywordScored.set(d.doc_id, { score: scoring.score, why: scoring.why_matched, snippet });
+        }
+      }
+
+      // Normalize keyword scores to 0-100
+      const maxKeyword = Math.max(...Array.from(keywordScored.values()).map(v => v.score), 1);
+
+      // Run semantic scoring
+      const semanticScored = new Map<string, number>();
+      const queryEmbedding = await getQueryEmbedding(q);
+
+      if (queryEmbedding) {
+        const docIds = docRecords.map((d) => d.doc_id);
+        const { data: embeddings } = await supabase
+          .from("document_embeddings")
+          .select("doc_id, embedding")
+          .in("doc_id", docIds);
+
+        if (embeddings && embeddings.length > 0) {
+          for (const emb of embeddings) {
+            let docEmbedding: number[];
+            try {
+              docEmbedding = typeof emb.embedding === "string"
+                ? JSON.parse(emb.embedding)
+                : emb.embedding;
+            } catch {
+              continue;
+            }
+            const similarity = cosineSimilarity(queryEmbedding, docEmbedding);
+            if (similarity > 0.2) {
+              semanticScored.set(emb.doc_id, similarity * 100);
+            }
+          }
+        }
+      }
+
+      // Combine scores: 60% semantic + 40% keyword
+      const SEMANTIC_WEIGHT = 0.6;
+      const KEYWORD_WEIGHT = 0.4;
+
+      // Get all doc IDs that matched either way
+      const matchedDocIds = new Set([...keywordScored.keys(), ...semanticScored.keys()]);
+
+      const hybridResults = Array.from(matchedDocIds)
+        .map((docId) => {
+          const doc = docRecords.find((d) => d.doc_id === docId);
+          if (!doc) return null;
+
+          const keywordData = keywordScored.get(docId);
+          const normalizedKeyword = keywordData ? (keywordData.score / maxKeyword) * 100 : 0;
+          const semanticScore = semanticScored.get(docId) || 0;
+
+          const hybridScore = Math.round(
+            (semanticScore * SEMANTIC_WEIGHT) + (normalizedKeyword * KEYWORD_WEIGHT)
+          );
+
+          // Build why_matched explanation
+          const why: string[] = [];
+          if (semanticScore > 0) why.push(`${Math.round(semanticScore)}% semantic match`);
+          if (keywordData) why.push(...keywordData.why);
+
+          // Prefer keyword snippet (shows match context), fall back to summary
+          const snippet = keywordData?.snippet || doc.summary || doc.content?.substring(0, 200) || "";
+
+          return {
+            doc_id: doc.doc_id,
+            title: doc.title,
+            version: doc.current_version,
+            doc_type: doc.doc_type,
+            domain: doc.domain,
+            tags: doc.tags ?? [],
+            status: doc.status,
+            file_url: doc.file_url,
+            score: hybridScore,
+            snippet,
+            section_title: "",
+            section_path: "",
+            why_matched: why,
+            search_mode: "hybrid",
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null)
+        .sort((a, b) => b.score - a.score);
+
+      console.log(`✅ Hybrid search found ${hybridResults.length} results`);
+      return NextResponse.json({ results: hybridResults });
     }
 
     // ============================================
