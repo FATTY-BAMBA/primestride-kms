@@ -47,6 +47,74 @@ async function generateSummary(title: string, content: string): Promise<string> 
   }
 }
 
+// Generate AI tags automatically
+async function generateTags(title: string, content: string, docType: string | null, organizationId: string): Promise<string[]> {
+  try {
+    // Get existing tags from organization's documents for context
+    const { data: existingDocs } = await supabase
+      .from("documents")
+      .select("tags")
+      .eq("organization_id", organizationId)
+      .not("tags", "is", null);
+
+    const existingTags = new Set<string>();
+    existingDocs?.forEach((doc) => {
+      if (Array.isArray(doc.tags)) {
+        doc.tags.forEach((t: string) => existingTags.add(t));
+      }
+    });
+
+    const existingTagsList = Array.from(existingTags).slice(0, 30).join(", ");
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a document tagging assistant. Suggest 3-5 relevant, concise tags for the given document.
+
+Rules:
+- Tags should be lowercase, single words or short hyphenated phrases
+- Tags should describe the topic, purpose, or category
+- Be specific and useful for filtering/searching
+- Prefer reusing existing tags when they fit well
+- Return ONLY a JSON array of strings, nothing else
+
+${existingTagsList ? `Existing tags in use: ${existingTagsList}` : ""}`,
+        },
+        {
+          role: "user",
+          content: `Title: ${title || "Untitled"}\nType: ${docType || "general"}\n\nContent:\n${(content || "").slice(0, 2000)}`,
+        },
+      ],
+      max_tokens: 100,
+      temperature: 0.5,
+    });
+
+    const raw = completion.choices[0].message.content?.trim() || "[]";
+
+    // Parse the response
+    let tags: string[] = [];
+    try {
+      const cleaned = raw.replace(/```json\s*|```\s*/g, "").trim();
+      tags = JSON.parse(cleaned);
+      if (!Array.isArray(tags)) tags = [];
+      tags = tags
+        .map((t) => String(t).toLowerCase().trim().replace(/[^a-z0-9-]/g, ""))
+        .filter((t) => t.length > 0 && t.length <= 30)
+        .slice(0, 5);
+    } catch {
+      console.error("Failed to parse auto-tags:", raw);
+      tags = [];
+    }
+
+    return tags;
+  } catch (error) {
+    console.error("Failed to generate tags:", error);
+    return [];
+  }
+}
+
 // CREATE document
 export async function POST(request: NextRequest) {
   try {
@@ -108,6 +176,14 @@ export async function POST(request: NextRequest) {
     console.log("🤖 Generating AI summary...");
     const summary = await generateSummary(title, content);
 
+    // Auto-generate tags if user didn't provide any
+    let finalTags = tags || [];
+    if (!tags || tags.length === 0) {
+      console.log("🏷️ Auto-generating tags...");
+      finalTags = await generateTags(title, content, docType, membership.organization_id);
+      console.log("✅ Auto-generated tags:", finalTags);
+    }
+
     const { data: document, error } = await supabase
       .from("documents")
       .insert({
@@ -116,7 +192,7 @@ export async function POST(request: NextRequest) {
         content,
         summary,
         doc_type: docType || null,
-        tags: tags || [],
+        tags: finalTags,
         file_url: fileUrl || null,
         file_name: fileName || null,
         file_type: fileType || null,
