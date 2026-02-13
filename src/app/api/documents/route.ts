@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -11,28 +12,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-// Helper to get user's active organization
-async function getUserOrganization(userId: string) {
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .eq("is_active", true);
-
-  if (!memberships || memberships.length === 0) return null;
-  if (memberships.length === 1) return memberships[0];
-
-  for (const m of memberships) {
-    const { count } = await supabase
-      .from("documents")
-      .select("*", { count: "exact", head: true })
-      .eq("organization_id", m.organization_id);
-    if (count && count > 0) return m;
-  }
-
-  return memberships[0];
-}
 
 // Helper to get user's team memberships
 async function getUserTeams(userId: string) {
