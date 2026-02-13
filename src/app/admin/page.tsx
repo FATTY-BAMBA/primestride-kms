@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,7 @@ export default async function AdminPage() {
   }
 
   // Get user's organization membership (handles multiple memberships)
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", userId)
-    .eq("is_active", true);
-
-  const membership = memberships?.[0] || null;
+  const membership = await getUserOrganization(userId);
 
   if (!membership) {
     return (

@@ -1,0 +1,245 @@
+diff --git a/src/app/admin/page.tsx b/src/app/admin/page.tsx
+index b1e44ef..7cb5001 100644
+--- a/src/app/admin/page.tsx
++++ b/src/app/admin/page.tsx
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { redirect } from "next/navigation";
+ import Link from "next/link";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -19,13 +20,7 @@ export default async function AdminPage() {
+   }
+ 
+   // Get user's organization membership (handles multiple memberships)
+-  const { data: memberships } = await supabase
+-    .from("organization_members")
+-    .select("organization_id, role")
+-    .eq("user_id", userId)
+-    .eq("is_active", true);
+-
+-  const membership = memberships?.[0] || null;
++  const membership = await getUserOrganization(userId);
+ 
+   if (!membership) {
+     return (
+diff --git a/src/app/api/profile/route.ts b/src/app/api/profile/route.ts
+index 8263cde..ae2970a 100644
+--- a/src/app/api/profile/route.ts
++++ b/src/app/api/profile/route.ts
+@@ -1,6 +1,7 @@
+ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { NextResponse } from "next/server";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -10,45 +11,6 @@ const supabase = createClient(
+   process.env.SUPABASE_SERVICE_ROLE_KEY!
+ );
+ 
+-// Helper to get user's active organization (handles multiple memberships)
+-async function getUserOrganization(userId: string) {
+-  // Get all active memberships for this user
+-  const { data: memberships, error } = await supabase
+-    .from("organization_members")
+-    .select("organization_id, role")
+-    .eq("user_id", userId)
+-    .eq("is_active", true);
+-
+-  if (error) {
+-    console.error("Error fetching memberships:", error);
+-    return null;
+-  }
+-
+-  if (!memberships || memberships.length === 0) {
+-    return null;
+-  }
+-
+-  // If only one membership, return it
+-  if (memberships.length === 1) {
+-    return memberships[0];
+-  }
+-
+-  // Multiple memberships: find the one with documents
+-  for (const membership of memberships) {
+-    const { count } = await supabase
+-      .from("documents")
+-      .select("*", { count: "exact", head: true })
+-      .eq("organization_id", membership.organization_id);
+-
+-    if (count && count > 0) {
+-      return membership;
+-    }
+-  }
+-
+-  // If no org has docs, return the first one
+-  return memberships[0];
+-}
+-
+ export async function GET() {
+   try {
+     const { userId } = await auth();
+diff --git a/src/app/library/[docId]/edit/page.tsx b/src/app/library/[docId]/edit/page.tsx
+index 82c7c5c..f09d46a 100644
+--- a/src/app/library/[docId]/edit/page.tsx
++++ b/src/app/library/[docId]/edit/page.tsx
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { notFound, redirect } from "next/navigation";
+ import EditDocumentForm from "@/components/EditDocumentForm";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ // Create Supabase admin client
+ const supabase = createClient(
+@@ -21,13 +22,7 @@ export default async function EditDocumentPage({
+   }
+ 
+   // Get user's organization membership (handles multiple memberships)
+-  const { data: memberships } = await supabase
+-    .from("organization_members")
+-    .select("organization_id, role")
+-    .eq("user_id", userId)
+-    .eq("is_active", true);
+-
+-  const membership = memberships?.[0] || null;
++  const membership = await getUserOrganization(userId);
+ 
+   if (!membership) {
+     return <div>No organization found</div>;
+diff --git a/src/app/library/[docId]/page.tsx b/src/app/library/[docId]/page.tsx
+index 4ffc86b..825ca37 100644
+--- a/src/app/library/[docId]/page.tsx
++++ b/src/app/library/[docId]/page.tsx
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { notFound, redirect } from "next/navigation";
+ import DocumentView from "@/components/DocumentView";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ // Create Supabase admin client
+ const supabase = createClient(
+@@ -21,13 +22,7 @@ export default async function DocumentPage({
+   }
+ 
+   // Get user's organization membership (handles multiple memberships)
+-  const { data: memberships } = await supabase
+-    .from("organization_members")
+-    .select("organization_id")
+-    .eq("user_id", userId)
+-    .eq("is_active", true);
+-
+-  const membership = memberships?.[0] || null;
++  const membership = await getUserOrganization(userId);
+ 
+   if (!membership) {
+     return <div>No organization found</div>;
+diff --git a/src/app/library/new/page.tsx b/src/app/library/new/page.tsx
+index f9e5a8e..665dd48 100644
+--- a/src/app/library/new/page.tsx
++++ b/src/app/library/new/page.tsx
+@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
+ import { createClient } from "@supabase/supabase-js";
+ import { redirect } from "next/navigation";
+ import CreateDocumentForm from "@/components/CreateDocumentForm";
++import { getUserOrganization } from "@/lib/get-user-organization";
+ 
+ // Create Supabase admin client
+ const supabase = createClient(
+@@ -17,13 +18,7 @@ export default async function NewDocumentPage() {
+   }
+ 
+   // Get user's organization membership (handles multiple memberships)
+-  const { data: memberships } = await supabase
+-    .from("organization_members")
+-    .select("organization_id, role")
+-    .eq("user_id", userId)
+-    .eq("is_active", true);
+-
+-  const membership = memberships?.[0] || null;
++  const membership = await getUserOrganization(userId);
+ 
+   if (!membership || !["owner", "admin"].includes(membership.role)) {
+     return (
+diff --git a/src/lib/get-user-organization.ts b/src/lib/get-user-organization.ts
+index c46be52..bd0606a 100644
+--- a/src/lib/get-user-organization.ts
++++ b/src/lib/get-user-organization.ts
+@@ -13,8 +13,15 @@ export interface UserOrganization {
+ 
+ /**
+  * Get user's active organization membership.
+- * If user has multiple memberships, returns the one with documents (or first one).
+- * This handles the case where a user belongs to multiple organizations.
++ * 
++ * Resolution order:
++ * 1. Check active_organization_id stored in profiles table (set by org switcher)
++ * 2. If user has only one membership, return it
++ * 3. If multiple memberships and no preference, return the one with documents
++ * 4. Fallback to first membership
++ * 
++ * This ensures users always land in the correct org with the correct role,
++ * even when they belong to multiple organizations.
+  */
+ export async function getUserOrganization(userId: string): Promise<UserOrganization | null> {
+   // Get all active memberships for this user
+@@ -33,12 +40,31 @@ export async function getUserOrganization(userId: string): Promise<UserOrganizat
+     return null;
+   }
+ 
+-  // If only one membership, return it
++  // If only one membership, always return it
+   if (memberships.length === 1) {
+     return memberships[0];
+   }
+ 
+-  // Multiple memberships: find the one with documents
++  // ── Multiple memberships: check user's saved preference ──
++
++  // 1. Check active_organization_id in profiles table
++  const { data: profile } = await supabase
++    .from("profiles")
++    .select("active_organization_id")
++    .eq("id", userId)
++    .single();
++
++  if (profile?.active_organization_id) {
++    const preferred = memberships.find(
++      (m) => m.organization_id === profile.active_organization_id
++    );
++    if (preferred) {
++      return preferred;
++    }
++    // Preference points to an org they're no longer in — fall through
++  }
++
++  // 2. Fallback: find the org with documents
+   for (const membership of memberships) {
+     const { count } = await supabase
+       .from("documents")
+@@ -50,13 +76,13 @@ export async function getUserOrganization(userId: string): Promise<UserOrganizat
+     }
+   }
+ 
+-  // If no org has docs, return the first one
++  // 3. Last resort: return the first one
+   return memberships[0];
+ }
+ 
+ /**
+  * Get ALL organizations a user belongs to.
+- * Useful for organization switcher UI.
++ * Used by the organization switcher UI.
+  */
+ export async function getUserOrganizations(userId: string) {
+   const { data: memberships, error } = await supabase
+@@ -80,4 +106,4 @@ export async function getUserOrganizations(userId: string) {
+   }
+ 
+   return memberships || [];
+-}
+\ No newline at end of file
++}

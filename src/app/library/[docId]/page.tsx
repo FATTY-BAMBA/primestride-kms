@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { notFound, redirect } from "next/navigation";
 import DocumentView from "@/components/DocumentView";
+import { getUserOrganization } from "@/lib/get-user-organization";
 
 // Create Supabase admin client
 const supabase = createClient(
@@ -21,13 +22,7 @@ export default async function DocumentPage({
   }
 
   // Get user's organization membership (handles multiple memberships)
-  const { data: memberships } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", userId)
-    .eq("is_active", true);
-
-  const membership = memberships?.[0] || null;
+  const membership = await getUserOrganization(userId);
 
   if (!membership) {
     return <div>No organization found</div>;
