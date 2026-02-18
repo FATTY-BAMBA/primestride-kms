@@ -124,7 +124,7 @@ export default function LandingPage() {
         .lp-nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
         .lp-logo-mark { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--brand), var(--brand-light)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; box-shadow: 0 2px 8px rgba(79,109,245,0.3); }
         .lp-nav-links { display: flex; align-items: center; gap: 4px; }
-        .lp-nav-links a { padding: 7px 16px; font-size: 15px; font-weight: 500; color: var(--ink-4); border-radius: 8px; transition: all 0.15s; }
+        .lp-nav-links a { padding: 7px 16px; font-size: 19px; font-weight: 500; color: var(--ink-4); border-radius: 8px; transition: all 0.15s; }
         .lp-nav-links a:hover { color: var(--ink); background: var(--surface-2); }
         .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 
@@ -196,7 +196,7 @@ export default function LandingPage() {
 
         .lp-display { font-family: 'Noto Sans TC', sans-serif; font-size: clamp(36px, 5.5vw, 64px); font-weight: 900; line-height: 1.15; letter-spacing: -1px; animation: lp-fadeUp 0.5s 0.08s ease both; max-width: 720px; margin: 0 auto 24px; }
         .lp-display .accent { font-family: 'Playfair Display', serif; font-style: italic; color: var(--brand); }
-        .lp-body { font-size: 17.5px; line-height: 1.8; color: var(--ink-3); max-width: 580px; margin: 0 auto 40px; animation: lp-fadeUp 0.5s 0.16s ease both; }
+        .lp-body { font-size: 19.5px; line-height: 1.8; color: var(--ink-3); max-width: 580px; margin: 0 auto 40px; animation: lp-fadeUp 0.5s 0.16s ease both; }
         .lp-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; animation: lp-fadeUp 0.5s 0.24s ease both; }
 
         .lp-metrics { display: flex; gap: 48px; justify-content: center; margin-top: 48px; padding-top: 40px; border-top: 1px solid var(--border-light); animation: lp-fadeUp 0.5s 0.32s ease both; }
@@ -310,11 +310,11 @@ export default function LandingPage() {
         .lp-container { max-width: var(--max-w); margin: 0 auto; }
         .lp-section-header { max-width: 560px; margin-bottom: 52px; }
         .lp-section-header.center { margin-left: auto; margin-right: auto; text-align: center; }
-        .lp-label { font-size: 13.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--brand); margin-bottom: 14px; }
+        .lp-label { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--brand); margin-bottom: 14px; }
         .lp-section-dark .lp-label { color: var(--brand-light); }
-        .lp-heading { font-size: clamp(28px, 4vw, 44px); font-weight: 700; line-height: 1.3; letter-spacing: -0.3px; margin-bottom: 16px; }
+        .lp-heading { font-size: clamp(32px, 5vw, 48px); font-weight: 700; line-height: 1.3; letter-spacing: -0.3px; margin-bottom: 16px; }
         .lp-section-dark .lp-heading { color: #fff; }
-        .lp-desc { font-size: 17px; line-height: 1.8; color: var(--ink-3); }
+        .lp-desc { font-size: 19x; line-height: 1.8; color: var(--ink-3); }
         .lp-section-dark .lp-desc { color: rgba(255,255,255,0.5); }
 
         /* ─── Problem Cards ─── */
