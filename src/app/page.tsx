@@ -18,20 +18,17 @@ export default function LandingPage() {
     }
   }, [user, isLoading, router]);
 
-  // Show nothing while checking auth or redirecting
-  if (isLoading || user) {
-    return null;
-  }
-
   // Nav scroll effect
   useEffect(() => {
+    if (isLoading || user) return; // Skip if not rendering
     const handleScroll = () => setNavScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isLoading, user]);
 
   // Scroll-triggered fade-in
   useEffect(() => {
+    if (isLoading || user) return; // Skip if not rendering
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -46,7 +43,12 @@ export default function LandingPage() {
 
     document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, []);
+  }, [isLoading, user]);
+
+  // Show nothing while checking auth or redirecting
+  if (isLoading || user) {
+    return null;
+  }
 
   const urlMap: Record<string, string> = {
     library: 'primestrideatlas.com/library',
