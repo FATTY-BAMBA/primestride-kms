@@ -310,7 +310,7 @@ export default function LandingPage() {
         .lp-container { max-width: var(--max-w); margin: 0 auto; }
         .lp-section-header { max-width: 560px; margin-bottom: 52px; }
         .lp-section-header.center { margin-left: auto; margin-right: auto; text-align: center; }
-        .lp-label { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--brand); margin-bottom: 14px; }
+        .lp-label { font-size: 21px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--brand); margin-bottom: 14px; }
         .lp-section-dark .lp-label { color: var(--brand-light); }
         .lp-heading { font-size: clamp(32px, 5vw, 48px); font-weight: 700; line-height: 1.3; letter-spacing: -0.3px; margin-bottom: 16px; }
         .lp-section-dark .lp-heading { color: #fff; }
