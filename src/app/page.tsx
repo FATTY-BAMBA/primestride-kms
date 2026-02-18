@@ -10,6 +10,7 @@ export default function LandingPage() {
   const isSignedIn = !isLoading && !!user;
   const [navScrolled, setNavScrolled] = useState(false);
   const [activeScreen, setActiveScreen] = useState('library');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Redirect logged-in users to library (matches original behavior)
   useEffect(() => {
@@ -123,9 +124,49 @@ export default function LandingPage() {
         .lp-nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
         .lp-logo-mark { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--brand), var(--brand-light)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; box-shadow: 0 2px 8px rgba(79,109,245,0.3); }
         .lp-nav-links { display: flex; align-items: center; gap: 4px; }
-        .lp-nav-links a { padding: 7px 14px; font-size: 14px; font-weight: 500; color: var(--ink-4); border-radius: 8px; transition: all 0.15s; }
+        .lp-nav-links a { padding: 7px 16px; font-size: 15px; font-weight: 500; color: var(--ink-4); border-radius: 8px; transition: all 0.15s; }
         .lp-nav-links a:hover { color: var(--ink); background: var(--surface-2); }
         .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
+
+        /* Mobile toggle */
+        .lp-mobile-toggle {
+          display: none; background: none; border: none; cursor: pointer;
+          width: 40px; height: 40px; align-items: center; justify-content: center;
+          padding: 0; position: relative;
+        }
+        .lp-mobile-toggle span {
+          display: block; width: 20px; height: 2px;
+          background: var(--ink); border-radius: 2px;
+          transition: all 0.3s ease; position: relative;
+        }
+        .lp-mobile-toggle span::before,
+        .lp-mobile-toggle span::after {
+          content: ''; position: absolute; left: 0; width: 100%; height: 2px;
+          background: var(--ink); border-radius: 2px; transition: all 0.3s ease;
+        }
+        .lp-mobile-toggle span::before { top: -7px; }
+        .lp-mobile-toggle span::after { top: 7px; }
+        .lp-mobile-toggle span.open { background: transparent; }
+        .lp-mobile-toggle span.open::before { top: 0; transform: rotate(45deg); }
+        .lp-mobile-toggle span.open::after { top: 0; transform: rotate(-45deg); }
+
+        /* Mobile dropdown menu */
+        .lp-mobile-menu {
+          display: none; flex-direction: column; padding: 8px 16px 16px;
+          background: rgba(255,255,255,0.98); backdrop-filter: blur(20px);
+          border-top: 1px solid var(--border-light);
+        }
+        .lp-mobile-menu.open { display: flex; }
+        .lp-mobile-menu a {
+          padding: 14px 16px; font-size: 15px; font-weight: 500;
+          color: var(--ink-3); border-radius: 10px; transition: all 0.15s;
+        }
+        .lp-mobile-menu a:hover { color: var(--ink); background: var(--surface-2); }
+        .lp-mobile-menu-actions {
+          display: flex; gap: 10px; margin-top: 12px;
+          padding-top: 16px; border-top: 1px solid var(--border-light);
+        }
+        .lp-mobile-menu-actions .lp-btn { padding: 12px 20px; font-size: 14px; }
 
         /* ─── Buttons ─── */
         .lp-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: all 0.25s ease; white-space: nowrap; font-family: 'Noto Sans TC', sans-serif; }
@@ -155,7 +196,7 @@ export default function LandingPage() {
 
         .lp-display { font-family: 'Noto Sans TC', sans-serif; font-size: clamp(36px, 5.5vw, 64px); font-weight: 900; line-height: 1.15; letter-spacing: -1px; animation: lp-fadeUp 0.5s 0.08s ease both; max-width: 720px; margin: 0 auto 24px; }
         .lp-display .accent { font-family: 'Playfair Display', serif; font-style: italic; color: var(--brand); }
-        .lp-body { font-size: 16.5px; line-height: 1.75; color: var(--ink-3); max-width: 580px; margin: 0 auto 40px; animation: lp-fadeUp 0.5s 0.16s ease both; }
+        .lp-body { font-size: 17.5px; line-height: 1.8; color: var(--ink-3); max-width: 580px; margin: 0 auto 40px; animation: lp-fadeUp 0.5s 0.16s ease both; }
         .lp-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; animation: lp-fadeUp 0.5s 0.24s ease both; }
 
         .lp-metrics { display: flex; gap: 48px; justify-content: center; margin-top: 48px; padding-top: 40px; border-top: 1px solid var(--border-light); animation: lp-fadeUp 0.5s 0.32s ease both; }
@@ -269,11 +310,11 @@ export default function LandingPage() {
         .lp-container { max-width: var(--max-w); margin: 0 auto; }
         .lp-section-header { max-width: 560px; margin-bottom: 52px; }
         .lp-section-header.center { margin-left: auto; margin-right: auto; text-align: center; }
-        .lp-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--brand); margin-bottom: 14px; }
+        .lp-label { font-size: 13.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: var(--brand); margin-bottom: 14px; }
         .lp-section-dark .lp-label { color: var(--brand-light); }
-        .lp-heading { font-size: clamp(26px, 3.5vw, 40px); font-weight: 700; line-height: 1.25; letter-spacing: -0.3px; margin-bottom: 14px; }
+        .lp-heading { font-size: clamp(28px, 4vw, 44px); font-weight: 700; line-height: 1.3; letter-spacing: -0.3px; margin-bottom: 16px; }
         .lp-section-dark .lp-heading { color: #fff; }
-        .lp-desc { font-size: 16.5px; line-height: 1.75; color: var(--ink-3); }
+        .lp-desc { font-size: 17px; line-height: 1.8; color: var(--ink-3); }
         .lp-section-dark .lp-desc { color: rgba(255,255,255,0.5); }
 
         /* ─── Problem Cards ─── */
@@ -281,8 +322,8 @@ export default function LandingPage() {
         .lp-problem-card { padding: 30px 26px; border-radius: 18px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); transition: all 0.25s; }
         .lp-problem-card:hover { background: rgba(255,255,255,0.05); transform: translateY(-2px); }
         .lp-problem-icon { width: 42px; height: 42px; border-radius: 10px; background: rgba(229,72,77,0.1); display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 18px; }
-        .lp-problem-card h3 { font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-        .lp-problem-card p { font-size: 14px; color: rgba(255,255,255,0.4); line-height: 1.75; }
+        .lp-problem-card h3 { font-size: 19px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+        .lp-problem-card p { font-size: 15px; color: rgba(255,255,255,0.45); line-height: 1.8; }
         .lp-problem-stat { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 700; color: #f87171; margin-top: 14px; }
 
         /* ─── Feature Cards ─── */
@@ -292,8 +333,8 @@ export default function LandingPage() {
         .lp-feature-card:hover { border-color: rgba(79,109,245,0.2); box-shadow: 0 8px 28px var(--brand-glow); transform: translateY(-2px); }
         .lp-feature-card:hover::before { opacity: 1; }
         .lp-feature-icon { width: 42px; height: 42px; border-radius: 10px; background: var(--brand-glow); display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 16px; }
-        .lp-feature-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-        .lp-feature-card p { font-size: 14px; color: var(--ink-3); line-height: 1.7; }
+        .lp-feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .lp-feature-card p { font-size: 15px; color: var(--ink-3); line-height: 1.75; }
         .lp-feature-hl { grid-column: span 3; background: linear-gradient(135deg, var(--brand), var(--brand-light)); border: none; color: #fff; display: flex; gap: 28px; align-items: center; }
         .lp-feature-hl .lp-feature-icon { background: rgba(255,255,255,0.15); }
         .lp-feature-hl h3 { color: #fff; font-size: 18px; }
@@ -303,7 +344,7 @@ export default function LandingPage() {
 
         /* ─── Comparison ─── */
         .lp-table { width: 100%; border-collapse: separate; border-spacing: 0; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); }
-        .lp-table th, .lp-table td { padding: 15px 22px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--border); }
+        .lp-table th, .lp-table td { padding: 16px 24px; text-align: left; font-size: 15px; border-bottom: 1px solid var(--border); }
         .lp-table thead th { background: var(--ink); color: #fff; font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.5px; }
         .lp-table thead th:last-child { background: var(--brand); }
         .lp-table tbody tr:last-child td { border-bottom: none; }
@@ -317,8 +358,8 @@ export default function LandingPage() {
         .lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; counter-reset: step; }
         .lp-step { position: relative; padding: 34px 26px; background: var(--surface); border-radius: 18px; border: 1px solid var(--border); counter-increment: step; }
         .lp-step::before { content: counter(step); font-family: 'Playfair Display', serif; font-size: 64px; font-weight: 700; color: var(--brand-glow-strong); position: absolute; top: -10px; right: 20px; line-height: 1; }
-        .lp-step h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-        .lp-step p { font-size: 14px; color: var(--ink-3); line-height: 1.75; }
+        .lp-step h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .lp-step p { font-size: 15px; color: var(--ink-3); line-height: 1.8; }
 
         /* ─── Pricing ─── */
         .lp-pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: start; }
@@ -330,7 +371,7 @@ export default function LandingPage() {
         .lp-price span { font-size: 16px; font-weight: 400; color: var(--ink-4); }
         .lp-price-note { font-size: 12.5px; color: var(--ink-4); margin-bottom: 24px; }
         .lp-feat-list { list-style: none; text-align: left; margin-bottom: 28px; }
-        .lp-feat-list li { padding: 7px 0; font-size: 13.5px; color: var(--ink-3); display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border-light); }
+        .lp-feat-list li { padding: 8px 0; font-size: 14.5px; color: var(--ink-3); display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border-light); }
         .lp-feat-list li:last-child { border-bottom: none; }
         .lp-feat-list li::before { content: '✓'; color: var(--success); font-weight: 700; font-size: 12px; }
 
@@ -358,6 +399,8 @@ export default function LandingPage() {
         @media (max-width: 768px) {
           .lp-section { padding: 72px 20px; }
           .lp-nav-links { display: none; }
+          .lp-nav-actions { display: none; }
+          .lp-mobile-toggle { display: flex; }
           .lp-hero { padding: calc(var(--nav-h) + 40px) 20px 40px; }
           .lp-metrics { flex-wrap: wrap; gap: 24px; }
           .lp-metric-sep { display: none; }
@@ -391,6 +434,24 @@ export default function LandingPage() {
           <div className="lp-nav-actions">
             <a href="/login" className="lp-btn lp-btn-ghost lp-btn-sm">登入</a>
             <a href="/signup" className="lp-btn lp-btn-primary lp-btn-sm">免費開始 →</a>
+          </div>
+          <button
+            className="lp-mobile-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="選單"
+          >
+            <span className={mobileMenuOpen ? 'open' : ''} />
+          </button>
+        </div>
+        {/* Mobile dropdown menu */}
+        <div className={`lp-mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)}>功能</a>
+          <a href="#product" onClick={() => setMobileMenuOpen(false)}>產品展示</a>
+          <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>方案價格</a>
+          <a href="#compare" onClick={() => setMobileMenuOpen(false)}>比較</a>
+          <div className="lp-mobile-menu-actions">
+            <a href="/login" className="lp-btn lp-btn-outline" style={{ flex: 1, justifyContent: 'center' }}>登入</a>
+            <a href="/signup" className="lp-btn lp-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>免費開始 →</a>
           </div>
         </div>
       </nav>
