@@ -1,14 +1,27 @@
 'use client';
 
-import { useUser } from '@clerk/nextjs';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useRef } from 'react';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function LandingPage() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
+  const isSignedIn = !isLoading && !!user;
   const [navScrolled, setNavScrolled] = useState(false);
   const [activeScreen, setActiveScreen] = useState('library');
+
+  // Redirect logged-in users to library (matches original behavior)
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/library');
+    }
+  }, [user, isLoading, router]);
+
+  // Show nothing while checking auth or redirecting
+  if (isLoading || user) {
+    return null;
+  }
 
   // Nav scroll effect
   useEffect(() => {
@@ -43,8 +56,8 @@ export default function LandingPage() {
     team: 'primestrideatlas.com/team',
   };
 
-  const primaryCTA = isSignedIn ? '/library' : '/signup';
-  const primaryLabel = isSignedIn ? '前往工作區 →' : '免費開始使用 →';
+  const primaryCTA = '/signup';
+  const primaryLabel = '免費開始使用 →';
 
   return (
     <>
@@ -374,14 +387,8 @@ export default function LandingPage() {
             <a href="#compare">比較</a>
           </div>
           <div className="lp-nav-actions">
-            {isSignedIn ? (
-              <a href="/library" className="lp-btn lp-btn-primary lp-btn-sm">前往工作區 →</a>
-            ) : (
-              <>
-                <a href="/login" className="lp-btn lp-btn-ghost lp-btn-sm">登入</a>
-                <a href="/signup" className="lp-btn lp-btn-primary lp-btn-sm">免費開始 →</a>
-              </>
-            )}
+            <a href="/login" className="lp-btn lp-btn-ghost lp-btn-sm">登入</a>
+            <a href="/signup" className="lp-btn lp-btn-primary lp-btn-sm">免費開始 →</a>
           </div>
         </div>
       </nav>
