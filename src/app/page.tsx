@@ -180,7 +180,7 @@ export default function LandingPage() {
         .lp-btn-warm:hover { background: var(--warm-dark); transform: translateY(-2px); }
         .lp-btn-white { background: #fff; color: var(--ink); border: 1.5px solid var(--border); }
         .lp-btn-white:hover { border-color: var(--brand); color: var(--brand); }
-        .lp-btn-sm { padding: 9px 20px; font-size: 13.5px; }
+        .lp-btn-sm { padding: 9px 16px; font-size: 15px; }
 
         /* ─── Hero ─── */
         .lp-hero { padding: calc(var(--nav-h) + 72px) 24px 60px; position: relative; overflow: hidden; text-align: center; }
