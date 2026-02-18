@@ -658,7 +658,7 @@ export default function LandingPage() {
             <div className="lp-pricing-card fade-in">
               <div className="lp-tier">企業方案</div><div className="lp-price">客製</div><div className="lp-price-note">適合大型組織</div>
               <ul className="lp-feat-list"><li>團隊方案所有功能</li><li>無限成員數</li><li>SSO / SAML 單一登入</li><li>稽核日誌</li><li>優先支援</li><li>客製化整合</li></ul>
-              <a href="mailto:contact@primestrideatlas.com" className="lp-btn lp-btn-outline" style={{ width: '100%', justifyContent: 'center' }}>聯繫我們</a>
+              <a href="/contact" className="lp-btn lp-btn-outline" style={{ width: '100%', justifyContent: 'center' }}>聯繫我們</a>
             </div>
           </div>
         </div>
@@ -670,9 +670,9 @@ export default function LandingPage() {
         <p className="lp-desc">免費開始。不需信用卡。五分鐘內完成設定。</p>
         <div className="lp-cta-actions">
           <a href={primaryCTA} className="lp-btn lp-btn-warm">{primaryLabel}</a>
-          <a href="mailto:contact@primestrideatlas.com" className="lp-btn lp-btn-white">與我們聊聊</a>
+          <a href="/contact" className="lp-btn lp-btn-white">與我們聊聊</a>
         </div>
-        <div className="lp-cta-note">contact@primestrideatlas.com · 不需信用卡 · 隨時可取消</div>
+        <div className="lp-cta-note">primestrideai@gmail.com · 不需信用卡 · 隨時可取消</div>
       </section>
 
       {/* ═══ FOOTER ═══ */}
