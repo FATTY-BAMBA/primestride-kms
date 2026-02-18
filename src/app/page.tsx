@@ -411,8 +411,6 @@ export default function LandingPage() {
             <div className="lp-metric"><div className="lp-metric-val">94%</div><div className="lp-metric-lbl">回答準確率</div></div>
             <div className="lp-metric-sep" />
             <div className="lp-metric"><div className="lp-metric-val">&lt;3s</div><div className="lp-metric-lbl">平均回應時間</div></div>
-            <div className="lp-metric-sep" />
-            <div className="lp-metric"><div className="lp-metric-val">4人</div><div className="lp-metric-lbl">團隊協作中</div></div>
           </div>
         </div>
       </section>
