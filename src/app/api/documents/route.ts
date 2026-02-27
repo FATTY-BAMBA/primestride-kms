@@ -50,7 +50,6 @@ async function generateSummary(title: string, content: string): Promise<string> 
 // Generate AI tags automatically
 async function generateTags(title: string, content: string, docType: string | null, organizationId: string): Promise<string[]> {
   try {
-    // Get existing tags from organization's documents for context
     const { data: existingDocs } = await supabase
       .from("documents")
       .select("tags")
@@ -93,14 +92,13 @@ ${existingTagsList ? `Existing tags in use: ${existingTagsList}` : ""}`,
 
     const raw = completion.choices[0].message.content?.trim() || "[]";
 
-    // Parse the response
     let tags: string[] = [];
     try {
       const cleaned = raw.replace(/```json\s*|```\s*/g, "").trim();
       tags = JSON.parse(cleaned);
       if (!Array.isArray(tags)) tags = [];
       tags = tags
-        .map((t) => String(t).toLowerCase().trim().replace(/[^a-z0-9-]/g, ""))
+        .map((t) => String(t).toLowerCase().trim().replace(/[^a-z0-9\u4e00-\u9fff\u3400-\u4dbf-]/g, ""))
         .filter((t) => t.length > 0 && t.length <= 30)
         .slice(0, 5);
     } catch {
@@ -112,6 +110,97 @@ ${existingTagsList ? `Existing tags in use: ${existingTagsList}` : ""}`,
   } catch (error) {
     console.error("Failed to generate tags:", error);
     return [];
+  }
+}
+
+// Auto-generate document metadata from filename and content
+async function autoGenerateMetadata(
+  originalFileName: string,
+  content: string | null,
+  organizationId: string
+): Promise<{ docId: string; title: string; docType: string; tags: string[]; summary: string }> {
+  
+  // Clean title from filename
+  const nameWithoutExt = originalFileName.replace(/\.[^/.]+$/, "");
+  const cleanTitle = nameWithoutExt
+    .replace(/[-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Auto-generate doc ID: PS-DOC-XXX with incrementing number
+  const { count } = await supabase
+    .from("documents")
+    .select("*", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+
+  const nextNum = (count || 0) + 1;
+  const docId = `PS-DOC-${String(nextNum).padStart(3, "0")}`;
+
+  // If no content, return basic metadata
+  if (!content || content.trim().length < 10) {
+    return {
+      docId,
+      title: cleanTitle || "Untitled Document",
+      docType: "document",
+      tags: [],
+      summary: "",
+    };
+  }
+
+  // Use AI to generate doc type, better title, and summary in one call
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You analyze uploaded documents and generate metadata. Return ONLY a JSON object with these fields:
+- "title": A clear, professional title for the document (improve the filename-based title if possible, keep the original language)
+- "docType": One of: guide, playbook, strategy, report, sop, policy, meeting-notes, template, reference, training, proposal, specification, other
+- "summary": A 2-3 sentence TL;DR summary
+
+Return ONLY valid JSON, no markdown, no backticks.`
+        },
+        {
+          role: "user",
+          content: `Filename: ${originalFileName}\nFilename-based title: ${cleanTitle}\n\nContent (first 3000 chars):\n${content.slice(0, 3000)}`
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.5,
+    });
+
+    const raw = completion.choices[0].message.content?.trim() || "{}";
+    const cleaned = raw.replace(/```json\s*|```\s*/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    // Generate tags separately (reuses existing org tags)
+    const tags = await generateTags(
+      parsed.title || cleanTitle,
+      content,
+      parsed.docType || "document",
+      organizationId
+    );
+
+    return {
+      docId,
+      title: parsed.title || cleanTitle || "Untitled Document",
+      docType: parsed.docType || "document",
+      tags,
+      summary: parsed.summary || "",
+    };
+  } catch (error) {
+    console.error("Auto-generate metadata failed:", error);
+    // Fallback: generate tags and summary separately
+    const tags = await generateTags(cleanTitle, content, "document", organizationId);
+    const summary = await generateSummary(cleanTitle, content);
+    return {
+      docId,
+      title: cleanTitle || "Untitled Document",
+      docType: "document",
+      tags,
+      summary,
+    };
   }
 }
 
@@ -134,9 +223,102 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { docId, title, content, docType, tags, fileUrl, fileName, fileType, teamId } = body;
+    const {
+      // Legacy fields (still supported for backward compatibility)
+      docId: manualDocId,
+      title: manualTitle,
+      content,
+      docType: manualDocType,
+      tags: manualTags,
+      fileUrl,
+      fileName,
+      fileType,
+      teamId,
+      // New auto-generate mode
+      autoGenerate,
+      originalFileName,
+    } = body;
 
-    if (!docId || !title || !content) {
+    // ── Auto-generate mode (Eden-style) ──
+    if (autoGenerate) {
+      const fname = originalFileName || fileName || "Untitled";
+      console.log(`📂 Auto-processing: ${fname}`);
+
+      const metadata = await autoGenerateMetadata(
+        fname,
+        content,
+        membership.organization_id
+      );
+
+      // Check for duplicate doc_id and increment if needed
+      let finalDocId = metadata.docId;
+      let attempt = 0;
+      while (attempt < 10) {
+        const { data: existing } = await supabase
+          .from("documents")
+          .select("doc_id")
+          .eq("doc_id", finalDocId)
+          .eq("organization_id", membership.organization_id)
+          .single();
+        if (!existing) break;
+        attempt++;
+        const num = parseInt(finalDocId.split("-").pop() || "0") + attempt;
+        finalDocId = `PS-DOC-${String(num).padStart(3, "0")}`;
+      }
+
+      // If teamId provided, verify it belongs to the org
+      if (teamId) {
+        const { data: team } = await supabase
+          .from("teams")
+          .select("id")
+          .eq("id", teamId)
+          .eq("organization_id", membership.organization_id)
+          .single();
+        if (!team) {
+          return NextResponse.json({ error: "Invalid team" }, { status: 400 });
+        }
+      }
+
+      console.log(`🤖 Generated: ID=${finalDocId}, Title="${metadata.title}", Type=${metadata.docType}, Tags=${metadata.tags.join(",")}`);
+
+      const { data: document, error } = await supabase
+        .from("documents")
+        .insert({
+          doc_id: finalDocId,
+          title: metadata.title,
+          content: content || `[File uploaded: ${fname}]`,
+          summary: metadata.summary,
+          doc_type: metadata.docType,
+          tags: metadata.tags,
+          file_url: fileUrl || null,
+          file_name: fileName || null,
+          file_type: fileType || null,
+          organization_id: membership.organization_id,
+          team_id: teamId || null,
+          created_by: userId,
+          current_version: "v1.0",
+          status: "published",
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Auto-create error:", error);
+        return NextResponse.json(
+          { error: "Failed to create document: " + error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        message: "Document created successfully",
+        docId: document.doc_id,
+        document,
+      });
+    }
+
+    // ── Legacy manual mode ──
+    if (!manualDocId || !manualTitle || !content) {
       return NextResponse.json(
         { error: "Document ID, title, and content are required" },
         { status: 400 }
@@ -161,7 +343,7 @@ export async function POST(request: NextRequest) {
     const { data: existingDoc } = await supabase
       .from("documents")
       .select("doc_id")
-      .eq("doc_id", docId)
+      .eq("doc_id", manualDocId)
       .eq("organization_id", membership.organization_id)
       .single();
 
@@ -174,24 +356,24 @@ export async function POST(request: NextRequest) {
 
     // Generate AI summary
     console.log("🤖 Generating AI summary...");
-    const summary = await generateSummary(title, content);
+    const summary = await generateSummary(manualTitle, content);
 
     // Auto-generate tags if user didn't provide any
-    let finalTags = tags || [];
-    if (!tags || tags.length === 0) {
+    let finalTags = manualTags || [];
+    if (!manualTags || manualTags.length === 0) {
       console.log("🏷️ Auto-generating tags...");
-      finalTags = await generateTags(title, content, docType, membership.organization_id);
+      finalTags = await generateTags(manualTitle, content, manualDocType, membership.organization_id);
       console.log("✅ Auto-generated tags:", finalTags);
     }
 
     const { data: document, error } = await supabase
       .from("documents")
       .insert({
-        doc_id: docId,
-        title,
+        doc_id: manualDocId,
+        title: manualTitle,
         content,
         summary,
-        doc_type: docType || null,
+        doc_type: manualDocType || null,
         tags: finalTags,
         file_url: fileUrl || null,
         file_name: fileName || null,
@@ -241,28 +423,22 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const teamFilter = searchParams.get("team"); // "all", "org-wide", or team UUID
+    const teamFilter = searchParams.get("team");
 
-    // Get user's teams
     const userTeamIds = await getUserTeams(userId);
     const isOrgAdmin = ["owner", "admin"].includes(membership.role);
 
-    // Build query
     let query = supabase
       .from("documents")
       .select("*, teams(id, name, color)")
       .eq("organization_id", membership.organization_id)
       .order("updated_at", { ascending: false });
 
-    // Apply team filter
     if (teamFilter === "org-wide") {
-      // Only org-wide documents (no team)
       query = query.is("team_id", null);
     } else if (teamFilter && teamFilter !== "all") {
-      // Specific team's documents
       query = query.eq("team_id", teamFilter);
     }
-    // For "all" or no filter, we'll filter in code based on permissions
 
     const { data: documents, error } = await query;
 
@@ -274,18 +450,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filter documents based on access
     let filteredDocs = documents || [];
     
     if (!isOrgAdmin && teamFilter !== "org-wide" && (!teamFilter || teamFilter === "all")) {
-      // Regular members: only see org-wide docs + their teams' docs
       filteredDocs = filteredDocs.filter(doc => {
-        if (!doc.team_id) return true; // Org-wide
-        return userTeamIds.includes(doc.team_id); // In user's team
+        if (!doc.team_id) return true;
+        return userTeamIds.includes(doc.team_id);
       });
     }
 
-    // Get available teams for the filter dropdown
     const { data: teams } = await supabase
       .from("teams")
       .select("id, name, color")
