@@ -29,6 +29,7 @@ export default function EditDocumentForm({ document }: { document: Document }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [changeDescription, setChangeDescription] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
   const [fileName, setFileName] = useState(document.file_name || "");
   const [existingFileUrl, setExistingFileUrl] = useState(document.file_url || "");
@@ -38,7 +39,6 @@ export default function EditDocumentForm({ document }: { document: Document }) {
   } | null>(null);
   const [removeExistingFile, setRemoveExistingFile] = useState(false);
 
-  // Shared input styles
   const inputStyle = {
     width: "100%",
     padding: "12px 16px",
@@ -101,12 +101,28 @@ export default function EditDocumentForm({ document }: { document: Document }) {
     setMessage("");
 
     try {
+      // ── Step 1: Create version snapshot before saving ──
+      setMessage("📸 Saving version snapshot...");
+      try {
+        await fetch("/api/versions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            docId: document.doc_id,
+            changeDescription: changeDescription || "Edited document",
+          }),
+        });
+      } catch {
+        console.error("Failed to create version snapshot (continuing with save)");
+      }
+
+      // ── Step 2: Handle file upload ──
       let fileUrl = removeExistingFile ? null : existingFileUrl;
       let storedFileName = removeExistingFile ? null : fileName;
       let fileType = removeExistingFile ? null : document.file_type;
 
-      // Upload new file if present
       if (fileData?.file) {
+        setMessage("📤 Uploading file...");
         const formData = new FormData();
         formData.append("file", fileData.file);
         formData.append("docId", document.doc_id);
@@ -129,6 +145,8 @@ export default function EditDocumentForm({ document }: { document: Document }) {
         }
       }
 
+      // ── Step 3: Save document changes ──
+      setMessage("💾 Saving changes...");
       const res = await fetch(`/api/documents/${document.doc_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -172,7 +190,6 @@ export default function EditDocumentForm({ document }: { document: Document }) {
 
     try {
       const fileExtension = file.name.split(".").pop()?.toLowerCase();
-
       const previewUrl = URL.createObjectURL(file);
       setFileData({ file, previewUrl });
 
@@ -227,231 +244,77 @@ export default function EditDocumentForm({ document }: { document: Document }) {
     <div style={{ minHeight: "100vh", background: "#F9FAFB", paddingBottom: 60 }}>
       <div className="container" style={{ maxWidth: 900, padding: "40px 20px" }}>
         <div style={{ marginBottom: 32 }}>
-          <Link
-            href={`/library/${document.doc_id}`}
-            style={{
-              color: "#6B7280",
-              textDecoration: "none",
-              fontSize: 14,
-              fontWeight: 500,
-            }}
-          >
+          <Link href={`/library/${document.doc_id}`} style={{ color: "#6B7280", textDecoration: "none", fontSize: 14, fontWeight: 500 }}>
             ← Back to Document
           </Link>
         </div>
 
-        <div
-          className="card"
-          style={{
-            padding: 40,
-            background: "white",
-            borderRadius: 12,
-          }}
-        >
-          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>
-            Edit Document
-          </h1>
+        <div className="card" style={{ padding: 40, background: "white", borderRadius: 12 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Edit Document</h1>
           <p style={{ color: "#6B7280", marginBottom: 32 }}>
             {document.doc_id} • Version {document.current_version}
           </p>
 
           {message && (
-            <div
-              style={{
-                padding: 16,
-                marginBottom: 24,
-                borderRadius: 8,
-                background: message.includes("⚠️") ? "#FEF3C7" : "#D1FAE5",
-                color: message.includes("⚠️") ? "#92400E" : "#065F46",
-                fontSize: 15,
-              }}
-            >
+            <div style={{
+              padding: 16, marginBottom: 24, borderRadius: 8,
+              background: message.includes("⚠️") ? "#FEF3C7" : message.includes("❌") ? "#FEE2E2" : "#D1FAE5",
+              color: message.includes("⚠️") ? "#92400E" : message.includes("❌") ? "#991B1B" : "#065F46",
+              fontSize: 15,
+            }}>
               {message}
             </div>
           )}
 
           {error && (
-            <div
-              style={{
-                padding: 16,
-                marginBottom: 24,
-                borderRadius: 8,
-                background: "#FEE2E2",
-                color: "#991B1B",
-                fontSize: 15,
-              }}
-            >
+            <div style={{ padding: 16, marginBottom: 24, borderRadius: 8, background: "#FEE2E2", color: "#991B1B", fontSize: 15 }}>
               {error}
             </div>
           )}
 
           <form onSubmit={handleSave}>
+            {/* Title */}
             <div style={{ marginBottom: 24 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  color: "#374151",
-                }}
-              >
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
                 Document Title *
               </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                disabled={saving}
-                style={{
-                  ...inputStyle,
-                  opacity: saving ? 0.6 : 1,
-                }}
-              />
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required disabled={saving} style={{ ...inputStyle, opacity: saving ? 0.6 : 1 }} />
             </div>
 
+            {/* Document Type */}
             <div style={{ marginBottom: 24 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  color: "#374151",
-                }}
-              >
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
                 Document Type
               </label>
-              <input
-                type="text"
-                value={docType}
-                onChange={(e) => setDocType(e.target.value)}
-                placeholder="e.g., guide, playbook, strategy"
-                disabled={saving}
-                style={{
-                  ...inputStyle,
-                  opacity: saving ? 0.6 : 1,
-                }}
-              />
+              <input type="text" value={docType} onChange={(e) => setDocType(e.target.value)} placeholder="e.g., guide, playbook, strategy" disabled={saving} style={{ ...inputStyle, opacity: saving ? 0.6 : 1 }} />
             </div>
 
-            {/* ========== AI Tags Section ========== */}
+            {/* Tags Section */}
             <div style={{ marginBottom: 24 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: 8,
-                }}
-              >
-                <label
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#374151",
-                  }}
-                >
-                  Tags
-                </label>
-                <button
-                  type="button"
-                  onClick={handleSuggestTags}
-                  disabled={suggestingTags || saving}
-                  style={{
-                    padding: "6px 14px",
-                    background: suggestingTags
-                      ? "#A5B4FC"
-                      : "linear-gradient(135deg, #7C3AED, #6366F1)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: suggestingTags ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <label style={{ fontSize: 14, fontWeight: 600, color: "#374151" }}>Tags</label>
+                <button type="button" onClick={handleSuggestTags} disabled={suggestingTags || saving} style={{ padding: "6px 14px", background: suggestingTags ? "#A5B4FC" : "linear-gradient(135deg, #7C3AED, #6366F1)", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: suggestingTags ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                   {suggestingTags ? "⏳ Suggesting..." : "🏷️ AI Suggest Tags"}
                 </button>
               </div>
 
-              {/* Current tags */}
               {tags.length > 0 && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                   {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "6px 12px",
-                        background: "#EEF2FF",
-                        color: "#4338CA",
-                        borderRadius: 6,
-                        fontSize: 13,
-                        fontWeight: 600,
-                      }}
-                    >
+                    <span key={tag} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "#EEF2FF", color: "#4338CA", borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
                       #{tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#6366F1",
-                          cursor: "pointer",
-                          fontSize: 14,
-                          padding: 0,
-                          lineHeight: 1,
-                        }}
-                      >
-                        ✕
-                      </button>
+                      <button type="button" onClick={() => removeTag(tag)} style={{ background: "none", border: "none", color: "#6366F1", cursor: "pointer", fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>
                     </span>
                   ))}
                 </div>
               )}
 
-              {/* AI Suggested tags */}
               {suggestedTags.length > 0 && (
-                <div
-                  style={{
-                    padding: 12,
-                    background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
-                    borderRadius: 8,
-                    border: "1px solid #C7D2FE",
-                    marginBottom: 10,
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: "#4338CA", fontWeight: 600, marginBottom: 8 }}>
-                    🏷️ AI Suggested Tags — click to add:
-                  </div>
+                <div style={{ padding: 12, background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)", borderRadius: 8, border: "1px solid #C7D2FE", marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, color: "#4338CA", fontWeight: 600, marginBottom: 8 }}>🏷️ AI Suggested Tags — click to add:</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {suggestedTags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => addTag(tag)}
-                        style={{
-                          padding: "6px 12px",
-                          background: "white",
-                          color: "#4F46E5",
-                          border: "1px solid #C7D2FE",
-                          borderRadius: 6,
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
+                      <button key={tag} type="button" onClick={() => addTag(tag)} style={{ padding: "6px 12px", background: "white", color: "#4F46E5", border: "1px solid #C7D2FE", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                         + #{tag}
                       </button>
                     ))}
@@ -459,238 +322,86 @@ export default function EditDocumentForm({ document }: { document: Document }) {
                 </div>
               )}
 
-              {/* Manual tag input */}
               <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  placeholder="Add a custom tag..."
-                  disabled={saving}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      if (tagInput.trim()) addTag(tagInput);
-                    }
-                  }}
-                  style={{
-                    ...inputStyle,
-                    flex: 1,
-                    opacity: saving ? 0.6 : 1,
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => { if (tagInput.trim()) addTag(tagInput); }}
-                  className="btn"
-                  style={{ padding: "12px 16px", whiteSpace: "nowrap" }}
-                >
+                <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Add a custom tag..." disabled={saving} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (tagInput.trim()) addTag(tagInput); } }} style={{ ...inputStyle, flex: 1, opacity: saving ? 0.6 : 1 }} />
+                <button type="button" onClick={() => { if (tagInput.trim()) addTag(tagInput); }} className="btn" style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                   + Add
                 </button>
               </div>
-              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 6 }}>
-                Press Enter to add a tag, or use AI Suggest after adding content
-              </p>
+              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 6 }}>Press Enter to add a tag</p>
             </div>
 
+            {/* File Upload */}
             <div style={{ marginBottom: 24 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  color: "#374151",
-                }}
-              >
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
                 Attached File
               </label>
-
               {!hasFile ? (
-                <div
-                  style={{
-                    padding: 24,
-                    border: "2px dashed #D1D5DB",
-                    borderRadius: 8,
-                    background: "#F9FAFB",
-                    textAlign: "center",
-                  }}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.docx,.doc,.txt,.md"
-                    onChange={handleFileUpload}
-                    disabled={uploadingFile || saving}
-                    style={{ display: "none" }}
-                    id="file-upload"
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    style={{
-                      cursor: uploadingFile || saving ? "not-allowed" : "pointer",
-                      display: "block",
-                    }}
-                  >
-                    <div style={{ marginBottom: 8 }}>
-                      <span style={{ fontSize: 40 }}>📄</span>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: "#374151",
-                        marginBottom: 4,
-                      }}
-                    >
-                      {uploadingFile ? "Processing..." : "Click to upload a file"}
-                    </div>
-                    <div style={{ fontSize: 13, color: "#6B7280" }}>
-                      PDF, DOCX, TXT, MD • Text will be extracted, original file stored
-                    </div>
+                <div style={{ padding: 24, border: "2px dashed #D1D5DB", borderRadius: 8, background: "#F9FAFB", textAlign: "center" }}>
+                  <input ref={fileInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.md" onChange={handleFileUpload} disabled={uploadingFile || saving} style={{ display: "none" }} id="file-upload" />
+                  <label htmlFor="file-upload" style={{ cursor: uploadingFile || saving ? "not-allowed" : "pointer", display: "block" }}>
+                    <div style={{ marginBottom: 8 }}><span style={{ fontSize: 40 }}>📄</span></div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: "#374151", marginBottom: 4 }}>{uploadingFile ? "Processing..." : "Click to upload a file"}</div>
+                    <div style={{ fontSize: 13, color: "#6B7280" }}>PDF, DOCX, TXT, MD</div>
                   </label>
                 </div>
               ) : (
-                <div
-                  style={{
-                    padding: 16,
-                    border: "1px solid #D1D5DB",
-                    borderRadius: 8,
-                    background: "#F9FAFB",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    flexWrap: "wrap",
-                  }}
-                >
+                <div style={{ padding: 16, border: "1px solid #D1D5DB", borderRadius: 8, background: "#F9FAFB", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 32 }}>
-                      {fileName.endsWith(".pdf")
-                        ? "📕"
-                        : fileName.endsWith(".docx") || fileName.endsWith(".doc")
-                        ? "📘"
-                        : "📄"}
-                    </span>
+                    <span style={{ fontSize: 32 }}>{fileName.endsWith(".pdf") ? "📕" : fileName.endsWith(".docx") || fileName.endsWith(".doc") ? "📘" : "📄"}</span>
                     <div>
                       <div style={{ fontWeight: 600, color: "#111827" }}>{fileName}</div>
-                      <div style={{ fontSize: 13, color: "#6B7280" }}>
-                        {fileData ? "New file (will be uploaded)" : "Currently attached"}
-                      </div>
+                      <div style={{ fontSize: 13, color: "#6B7280" }}>{fileData ? "New file (will be uploaded)" : "Currently attached"}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {(fileData?.previewUrl || existingFileUrl) && (
-                      <a
-                        href={fileData?.previewUrl || existingFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn"
-                        style={{ padding: "6px 12px", fontSize: 13 }}
-                      >
-                        👁️ Preview
-                      </a>
+                      <a href={fileData?.previewUrl || existingFileUrl} target="_blank" rel="noopener noreferrer" className="btn" style={{ padding: "6px 12px", fontSize: 13 }}>👁️ Preview</a>
                     )}
                     {existingFileUrl && !fileData && (
-                      <a
-                        href={existingFileUrl}
-                        download={fileName}
-                        className="btn"
-                        style={{ padding: "6px 12px", fontSize: 13 }}
-                      >
-                        📥 Download
-                      </a>
+                      <a href={existingFileUrl} download={fileName} className="btn" style={{ padding: "6px 12px", fontSize: 13 }}>📥 Download</a>
                     )}
-                    <label
-                      htmlFor="file-upload"
-                      className="btn"
-                      style={{
-                        padding: "6px 12px",
-                        fontSize: 13,
-                        cursor: "pointer",
-                      }}
-                    >
-                      🔄 Replace
-                    </label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.docx,.doc,.txt,.md"
-                      onChange={handleFileUpload}
-                      disabled={uploadingFile || saving}
-                      style={{ display: "none" }}
-                      id="file-upload"
-                    />
-                    <button
-                      type="button"
-                      onClick={removeFile}
-                      className="btn"
-                      style={{
-                        padding: "6px 12px",
-                        fontSize: 13,
-                        background: "#FEE2E2",
-                        color: "#991B1B",
-                        border: "1px solid #FCA5A5",
-                      }}
-                    >
-                      ✕ Remove
-                    </button>
+                    <label htmlFor="file-upload" className="btn" style={{ padding: "6px 12px", fontSize: 13, cursor: "pointer" }}>🔄 Replace</label>
+                    <input ref={fileInputRef} type="file" accept=".pdf,.docx,.doc,.txt,.md" onChange={handleFileUpload} disabled={uploadingFile || saving} style={{ display: "none" }} id="file-upload" />
+                    <button type="button" onClick={removeFile} className="btn" style={{ padding: "6px 12px", fontSize: 13, background: "#FEE2E2", color: "#991B1B", border: "1px solid #FCA5A5" }}>✕ Remove</button>
                   </div>
                 </div>
               )}
             </div>
 
-            <div style={{ marginBottom: 32 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  color: "#374151",
-                }}
-              >
+            {/* Content */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
                 Content *
               </label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
+              <textarea value={content} onChange={(e) => setContent(e.target.value)} disabled={saving} rows={16} style={{ ...inputStyle, padding: "16px", fontSize: 15, fontFamily: "monospace", lineHeight: 1.6, resize: "vertical", opacity: saving ? 0.6 : 1 }} />
+              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 8 }}>{content.length} characters</p>
+            </div>
+
+            {/* Change Description */}
+            <div style={{ marginBottom: 32 }}>
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
+                What changed? (optional)
+              </label>
+              <input
+                type="text"
+                value={changeDescription}
+                onChange={(e) => setChangeDescription(e.target.value)}
+                placeholder="e.g., Updated pricing section, Fixed typos, Added new FAQ..."
                 disabled={saving}
-                rows={16}
-                style={{
-                  ...inputStyle,
-                  padding: "16px",
-                  fontSize: 15,
-                  fontFamily: "monospace",
-                  lineHeight: 1.6,
-                  resize: "vertical",
-                  opacity: saving ? 0.6 : 1,
-                }}
+                style={{ ...inputStyle, opacity: saving ? 0.6 : 1 }}
               />
-              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 8 }}>
-                {content.length} characters
+              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 6 }}>
+                This note will be saved with the version snapshot for reference.
               </p>
             </div>
 
+            {/* Save / Cancel */}
             <div style={{ display: "flex", gap: 12 }}>
-              <button
-                type="submit"
-                disabled={saving || uploadingFile}
-                className="btn btn-primary"
-                style={{
-                  padding: "12px 24px",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  opacity: saving || uploadingFile ? 0.7 : 1,
-                }}
-              >
+              <button type="submit" disabled={saving || uploadingFile} className="btn btn-primary" style={{ padding: "12px 24px", fontSize: 16, fontWeight: 600, opacity: saving || uploadingFile ? 0.7 : 1 }}>
                 {saving ? "Saving..." : "Save Changes"}
               </button>
-              <Link
-                href={`/library/${document.doc_id}`}
-                className="btn"
-                style={{ padding: "12px 24px", fontSize: 16 }}
-              >
+              <Link href={`/library/${document.doc_id}`} className="btn" style={{ padding: "12px 24px", fontSize: 16 }}>
                 Cancel
               </Link>
             </div>
