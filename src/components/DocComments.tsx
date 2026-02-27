@@ -43,6 +43,13 @@ export default function DocComments({ docId, currentUserId, isAdmin }: Props) {
 
   useEffect(() => { fetchComments(); }, [fetchComments]);
 
+  // Listen for inline comment posts
+  useEffect(() => {
+    const handler = () => fetchComments();
+    window.addEventListener("comments-updated", handler);
+    return () => window.removeEventListener("comments-updated", handler);
+  }, [fetchComments]);
+
   const handlePost = async (content: string, parentId?: string | null) => {
     if (!content.trim()) return;
     setSubmitting(true);
