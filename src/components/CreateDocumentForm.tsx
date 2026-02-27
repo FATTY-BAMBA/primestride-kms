@@ -173,38 +173,45 @@ export default function UploadPage() {
           throw new Error(uploadData.error || "Upload failed");
         }
       } else {
-        // Large file: upload directly to Supabase Storage from client
-        updateFile({ progress: "Uploading large file..." });
+        // Large file: get signed upload URL from API, then upload directly
+        updateFile({ progress: "Preparing large file upload..." });
 
-        const timestamp = Date.now();
-        const safeName = uf.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const filePath = `direct-uploads/${timestamp}-${safeName}`;
-
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
-
-        const { error: storageError } = await supabase.storage
-          .from("documents")
-          .upload(filePath, uf.file, {
+        // Step 2a: Get signed URL from our API (uses service role key)
+        const signedRes = await fetch("/api/documents/upload-large", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: uf.name,
             contentType: uf.file.type || "application/octet-stream",
-            upsert: true,
-          });
+          }),
+        });
+        const signedData = await signedRes.json();
 
-        if (storageError) {
-          throw new Error("Storage upload failed: " + storageError.message);
+        if (!signedRes.ok) {
+          throw new Error(signedData.error || "Failed to prepare upload");
         }
 
-        const { data: urlData } = supabase.storage
-          .from("documents")
-          .getPublicUrl(filePath);
+        // Step 2b: Upload file directly using the signed URL
+        updateFile({ progress: "Uploading large file..." });
+
+        if (signedData.signedUrl) {
+          const uploadRes = await fetch(signedData.signedUrl, {
+            method: "PUT",
+            headers: {
+              "Content-Type": uf.file.type || "application/octet-stream",
+            },
+            body: uf.file,
+          });
+
+          if (!uploadRes.ok) {
+            throw new Error("Direct upload failed");
+          }
+        }
 
         uploadData = {
-          fileUrl: urlData.publicUrl,
-          fileName: uf.name,
-          fileType: ext,
+          fileUrl: signedData.fileUrl,
+          fileName: signedData.fileName,
+          fileType: signedData.fileType,
         };
       }
 
