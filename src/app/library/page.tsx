@@ -570,6 +570,19 @@ function LibraryContent() {
               Delete folder
             </button>
           )}
+          {isAdmin && (
+            <Link
+              href={`/library/new?folder=${currentFolder.id}`}
+              style={{
+                marginLeft: 8, padding: "4px 12px", borderRadius: 6,
+                border: "1px solid #C4B5FD", background: "#EDE9FE",
+                color: "#5B21B6", fontSize: 12, textDecoration: "none",
+                fontWeight: 600,
+              }}
+            >
+              ➕ Upload to this folder
+            </Link>
+          )}
         </div>
       )}
 

@@ -68,16 +68,41 @@ export default function UploadPage() {
   const [files, setFiles] = useState<UploadingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [teamId, setTeamId] = useState<string>("");
+  const [folderId, setFolderId] = useState<string>("");
+  const [folderName, setFolderName] = useState<string>("");
   const [teams, setTeams] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [folders, setFolders] = useState<{ id: string; name: string; icon: string }[]>([]);
   const [teamsLoaded, setTeamsLoaded] = useState(false);
 
-  // Load teams on first interaction
+  // Read folder param from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const folderParam = params.get("folder");
+    if (folderParam) {
+      setFolderId(folderParam);
+      // Fetch folder name
+      fetch(`/api/folders`)
+        .then(r => r.json())
+        .then(data => {
+          const f = (data.folders || []).find((f: any) => f.id === folderParam);
+          if (f) setFolderName(`${f.icon} ${f.name}`);
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Load teams and folders on first interaction
   const loadTeams = useCallback(async () => {
     if (teamsLoaded) return;
     try {
-      const res = await fetch("/api/teams");
-      const data = await res.json();
-      if (res.ok) setTeams(data.teams || []);
+      const [teamRes, folderRes] = await Promise.all([
+        fetch("/api/teams"),
+        fetch("/api/folders"),
+      ]);
+      const teamData = await teamRes.json();
+      const folderData = await folderRes.json();
+      if (teamRes.ok) setTeams(teamData.teams || []);
+      if (folderRes.ok) setFolders(folderData.folders || []);
     } catch {}
     setTeamsLoaded(true);
   }, [teamsLoaded]);
@@ -229,6 +254,7 @@ export default function UploadPage() {
           fileType: uploadData.fileType,
           originalFileName: uf.name,
           teamId: teamId || null,
+          folderId: folderId || null,
           autoGenerate: true, // Signal to API to auto-generate everything
         }),
       });
@@ -307,28 +333,51 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* Optional: Team selector */}
-        {teams.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
+        {/* Optional: Team & Folder selectors */}
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
+          {teams.length > 0 && (
+            <div>
+              <label style={{ fontSize: 13, color: "#6B7280", display: "block", marginBottom: 6 }}>
+                Assign to group (optional)
+              </label>
+              <select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                style={{
+                  padding: "10px 14px", borderRadius: 8,
+                  border: "1px solid #D1D5DB", background: "white",
+                  fontSize: 14, color: "#374151", minWidth: 200,
+                }}
+              >
+                <option value="">🌐 Organization-wide</option>
+                {teams.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
             <label style={{ fontSize: 13, color: "#6B7280", display: "block", marginBottom: 6 }}>
-              Assign to group (optional)
+              {folderName ? `Uploading to: ${folderName}` : "Folder (optional)"}
             </label>
             <select
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
+              value={folderId}
+              onChange={(e) => setFolderId(e.target.value)}
+              onFocus={loadTeams}
               style={{
                 padding: "10px 14px", borderRadius: 8,
                 border: "1px solid #D1D5DB", background: "white",
                 fontSize: 14, color: "#374151", minWidth: 200,
               }}
             >
-              <option value="">🌐 Organization-wide</option>
-              {teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              <option value="">📂 No folder (root)</option>
+              {folders.map(f => (
+                <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
               ))}
             </select>
           </div>
-        )}
+        </div>
 
         {/* Drop Zone */}
         <div

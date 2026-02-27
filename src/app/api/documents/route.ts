@@ -236,6 +236,7 @@ export async function POST(request: NextRequest) {
       fileName,
       fileType,
       teamId,
+      folderId,
       // New auto-generate mode
       autoGenerate,
       originalFileName,
@@ -284,6 +285,7 @@ export async function POST(request: NextRequest) {
           file_type: fileType || null,
           organization_id: membership.organization_id,
           team_id: teamId || null,
+          folder_id: folderId || null,
           created_by: userId,
           current_version: "v1.0",
           status: "published",
