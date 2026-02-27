@@ -53,7 +53,6 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization membership
     const membership = await getUserOrganization(userId);
 
     if (!membership) {
@@ -81,7 +80,90 @@ export async function GET(
   }
 }
 
-// UPDATE a document
+// PATCH — partial update (move to folder, update individual fields)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ docId: string }> }
+) {
+  try {
+    const { docId } = await params;
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const membership = await getUserOrganization(userId);
+    if (!membership) {
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
+    }
+
+    if (!["owner", "admin"].includes(membership.role || "")) {
+      return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const updates: Record<string, unknown> = {};
+
+    // Handle folder move
+    if ("folderId" in body) {
+      if (body.folderId) {
+        const { data: folder } = await supabase
+          .from("folders")
+          .select("id")
+          .eq("id", body.folderId)
+          .eq("organization_id", membership.organization_id)
+          .single();
+
+        if (!folder) {
+          return NextResponse.json({ error: "Invalid folder" }, { status: 400 });
+        }
+      }
+      updates.folder_id = body.folderId || null;
+    }
+
+    if ("title" in body) updates.title = body.title;
+    if ("content" in body) updates.content = body.content;
+    if ("docType" in body) updates.doc_type = body.docType;
+    if ("tags" in body) updates.tags = body.tags;
+    if ("teamId" in body) updates.team_id = body.teamId || null;
+    if ("status" in body) updates.status = body.status;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
+
+    const { data: document, error } = await supabase
+      .from("documents")
+      .update(updates)
+      .eq("doc_id", docId)
+      .eq("organization_id", membership.organization_id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("PATCH error:", error);
+      return NextResponse.json(
+        { error: "Failed to update document: " + error.message },
+        { status: 500 }
+      );
+    }
+
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ message: "Document updated", document });
+  } catch (error) {
+    console.error("PATCH document error:", error);
+    return NextResponse.json(
+      { error: "Failed to update document" },
+      { status: 500 }
+    );
+  }
+}
+
+// UPDATE a document (full update)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ docId: string }> }
@@ -94,14 +176,12 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization membership
     const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
-    // Only admins and owners can update
     if (!["owner", "admin"].includes(membership.role || "")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
@@ -116,7 +196,6 @@ export async function PUT(
       );
     }
 
-    // Get current document to increment version and check for content changes
     const { data: currentDoc } = await supabase
       .from("documents")
       .select("current_version, content")
@@ -128,7 +207,6 @@ export async function PUT(
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
-    // Parse current version and increment
     const versionMatch = currentDoc.current_version?.match(/v?(\d+)\.?(\d+)?/);
     let newVersion = "v1.1";
     if (versionMatch) {
@@ -137,7 +215,6 @@ export async function PUT(
       newVersion = `v${major}.${minor + 1}`;
     }
 
-    // Build update data
     const updateData: Record<string, any> = {
       title,
       content,
@@ -149,7 +226,6 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
-    // Regenerate AI summary if content changed
     const contentChanged = content !== currentDoc.content;
     if (contentChanged) {
       console.log("🤖 Content changed, regenerating AI summary...");
@@ -203,19 +279,16 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization membership
     const membership = await getUserOrganization(userId);
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
-    // Only admins and owners can delete
     if (!["owner", "admin"].includes(membership.role || "")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
-    // Get the document to check for attached files
     const { data: doc } = await supabase
       .from("documents")
       .select("file_url")
@@ -223,7 +296,6 @@ export async function DELETE(
       .eq("organization_id", membership.organization_id)
       .single();
 
-    // Delete file from storage if exists
     if (doc?.file_url) {
       try {
         const urlParts = doc.file_url.split("/documents/");
@@ -235,20 +307,17 @@ export async function DELETE(
       }
     }
 
-    // Delete associated feedback first (if any)
     await supabase
       .from("feedback")
       .delete()
       .eq("doc_id", docId)
       .eq("organization_id", membership.organization_id);
 
-    // Delete associated embeddings (if any)
     await supabase
       .from("document_embeddings")
       .delete()
       .eq("doc_id", docId);
 
-    // Delete the document
     const { error } = await supabase
       .from("documents")
       .delete()
