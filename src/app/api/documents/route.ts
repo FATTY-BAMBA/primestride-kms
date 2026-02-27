@@ -77,6 +77,9 @@ Rules:
 - Tags should describe the topic, purpose, or category
 - Be specific and useful for filtering/searching
 - Prefer reusing existing tags when they fit well
+- If the document is in Chinese (Traditional or Simplified), generate tags in Chinese
+- If the document is in English, generate tags in English
+- If mixed language, use both English and Chinese tags as appropriate
 - Return ONLY a JSON array of strings, nothing else
 
 ${existingTagsList ? `Existing tags in use: ${existingTagsList}` : ""}`,
@@ -98,7 +101,12 @@ ${existingTagsList ? `Existing tags in use: ${existingTagsList}` : ""}`,
       tags = JSON.parse(cleaned);
       if (!Array.isArray(tags)) tags = [];
       tags = tags
-        .map((t) => String(t).toLowerCase().trim().replace(/[^a-z0-9\u4e00-\u9fff\u3400-\u4dbf-]/g, ""))
+        .map((t) => {
+          const s = String(t).trim();
+          // Only lowercase Latin characters, preserve Chinese/CJK as-is
+          return s.replace(/[A-Z]/g, c => c.toLowerCase())
+            .replace(/[^a-z0-9\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef-]/g, "");
+        })
         .filter((t) => t.length > 0 && t.length <= 30)
         .slice(0, 5);
     } catch {

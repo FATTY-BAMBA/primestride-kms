@@ -10,6 +10,7 @@ interface Document {
   summary?: string;
   current_version: string;
   doc_type?: string;
+  tags?: string[];
   file_url?: string;
   file_name?: string;
   file_type?: string;
@@ -64,6 +65,13 @@ export default function DocumentView({
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [restoringVersion, setRestoringVersion] = useState(false);
 
+  // Tag management state
+  const [docTags, setDocTags] = useState<string[]>(document.tags || []);
+  const [tagInput, setTagInput] = useState("");
+  const [showTagEditor, setShowTagEditor] = useState(false);
+  const [suggestingTags, setSuggestingTags] = useState(false);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+
   useEffect(() => {
     fetch(`/api/embeddings/similar?docId=${document.doc_id}&limit=3`)
       .then((res) => res.json())
@@ -93,7 +101,6 @@ export default function DocumentView({
     if (!confirm(`Restore to ${version.version_number}? Current content will be saved as a new version first.`)) return;
     setRestoringVersion(true);
     try {
-      // First snapshot current state
       await fetch("/api/versions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -102,24 +109,70 @@ export default function DocumentView({
           changeDescription: `Snapshot before restoring to ${version.version_number}`,
         }),
       });
-
-      // Then restore old version via PATCH
       const res = await fetch(`/api/documents/${document.doc_id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: version.title,
-          content: version.content,
-        }),
+        body: JSON.stringify({ title: version.title, content: version.content }),
       });
-
-      if (res.ok) {
-        window.location.reload();
-      }
+      if (res.ok) window.location.reload();
     } catch {
       alert("Failed to restore version");
     } finally {
       setRestoringVersion(false);
+    }
+  };
+
+  // ── Tag Management ──
+  const saveTagsToServer = async (newTags: string[]) => {
+    try {
+      await fetch(`/api/documents/${document.doc_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: newTags }),
+      });
+    } catch {
+      console.error("Failed to save tags");
+    }
+  };
+
+  const addTag = (tag: string) => {
+    const cleaned = tag.trim();
+    if (cleaned && !docTags.includes(cleaned)) {
+      const newTags = [...docTags, cleaned];
+      setDocTags(newTags);
+      saveTagsToServer(newTags);
+      setSuggestedTags(suggestedTags.filter(t => t !== cleaned));
+    }
+    setTagInput("");
+  };
+
+  const removeDocTag = (tag: string) => {
+    const newTags = docTags.filter(t => t !== tag);
+    setDocTags(newTags);
+    saveTagsToServer(newTags);
+  };
+
+  const handleSuggestTags = async () => {
+    setSuggestingTags(true);
+    setSuggestedTags([]);
+    try {
+      const res = await fetch("/api/tags/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: document.title,
+          content: document.content,
+          docType: document.doc_type,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.tags) {
+        setSuggestedTags(data.tags.filter((t: string) => !docTags.includes(t)));
+      }
+    } catch {
+      console.error("Failed to suggest tags");
+    } finally {
+      setSuggestingTags(false);
     }
   };
 
@@ -271,6 +324,95 @@ export default function DocumentView({
           <h1 style={{ fontSize: 36, fontWeight: 700, marginBottom: 20, color: "#111827", lineHeight: 1.2 }}>
             {displayTitle}
           </h1>
+
+          {/* Tags */}
+          {!viewingVersion && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {docTags.map((tag) => (
+                  <span key={tag} style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "4px 10px", background: "#EEF2FF", color: "#4338CA",
+                    borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  }}>
+                    #{tag}
+                    {isAdmin && showTagEditor && (
+                      <button onClick={() => removeDocTag(tag)} style={{
+                        background: "none", border: "none", color: "#6366F1",
+                        cursor: "pointer", fontSize: 13, padding: 0, marginLeft: 2,
+                      }}>✕</button>
+                    )}
+                  </span>
+                ))}
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowTagEditor(!showTagEditor)}
+                    style={{
+                      padding: "4px 10px", background: showTagEditor ? "#7C3AED" : "#F3F4F6",
+                      color: showTagEditor ? "white" : "#6B7280",
+                      border: "none", borderRadius: 6, fontSize: 12,
+                      fontWeight: 500, cursor: "pointer",
+                    }}
+                  >
+                    {showTagEditor ? "Done" : "✏️ Edit tags"}
+                  </button>
+                )}
+              </div>
+
+              {/* Tag editor */}
+              {isAdmin && showTagEditor && (
+                <div style={{ marginTop: 10, padding: 14, background: "#F9FAFB", borderRadius: 8, border: "1px solid #E5E7EB" }}>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      placeholder="Add tag..."
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (tagInput.trim()) addTag(tagInput); } }}
+                      style={{
+                        flex: 1, padding: "8px 12px", border: "1px solid #D1D5DB",
+                        borderRadius: 6, fontSize: 13, outline: "none",
+                      }}
+                    />
+                    <button
+                      onClick={() => { if (tagInput.trim()) addTag(tagInput); }}
+                      style={{
+                        padding: "8px 14px", background: "#7C3AED", color: "white",
+                        border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      }}
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={handleSuggestTags}
+                      disabled={suggestingTags}
+                      style={{
+                        padding: "8px 14px", background: suggestingTags ? "#A5B4FC" : "#4F46E5",
+                        color: "white", border: "none", borderRadius: 6, fontSize: 13,
+                        fontWeight: 600, cursor: suggestingTags ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {suggestingTags ? "⏳" : "🏷️ AI Suggest"}
+                    </button>
+                  </div>
+
+                  {suggestedTags.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {suggestedTags.map((tag) => (
+                        <button key={tag} onClick={() => addTag(tag)} style={{
+                          padding: "4px 10px", background: "white", color: "#4F46E5",
+                          border: "1px solid #C7D2FE", borderRadius: 6, fontSize: 12,
+                          fontWeight: 600, cursor: "pointer",
+                        }}>
+                          + {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 24, paddingTop: 20, borderTop: "1px solid #E5E7EB" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
