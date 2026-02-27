@@ -1,5 +1,6 @@
 "use client";
 
+import QuickCreate from "@/components/QuickCreate";
 import Link from "next/link";
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -119,11 +120,7 @@ function LibraryContent() {
 
           {/* Navigation */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            {isAdmin && (
-              <Link href="/library/new" className="btn btn-primary" style={{ padding: "8px 14px", fontSize: 13 }}>
-                ➕ New
-              </Link>
-            )}
+            {isAdmin && <QuickCreate />}
             <Link 
               href="/search" 
               style={{
