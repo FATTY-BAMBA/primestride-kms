@@ -125,29 +125,28 @@ function LibraryContent() {
               </Link>
             )}
             <Link 
-              href="/chat" 
+              href="/search" 
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 4,
                 padding: "8px 14px",
-                background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
                 color: "white",
                 borderRadius: 8,
                 textDecoration: "none",
                 fontSize: 13,
                 fontWeight: 600,
-                boxShadow: "0 2px 6px rgba(16, 185, 129, 0.3)",
+                boxShadow: "0 2px 6px rgba(124, 58, 237, 0.3)",
               }}
             >
-              🤖 Chat
+              🔍 Search & Ask AI
             </Link>
-            <Link href="/search" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🔍 Search
-            </Link>
-            <Link href="/learning" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              📊 Learning
-            </Link>
+            {isAdmin && (
+              <Link href="/learning" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+                📊 Learning
+              </Link>
+            )}
             {isAdmin && (
               <Link href="/admin" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
                 ⚙️ Admin
