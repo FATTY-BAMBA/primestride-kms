@@ -127,14 +127,10 @@ async function autoGenerateMetadata(
     .replace(/\s+/g, " ")
     .trim();
 
-  // Auto-generate doc ID: PS-DOC-XXX with incrementing number
-  const { count } = await supabase
-    .from("documents")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", organizationId);
-
-  const nextNum = (count || 0) + 1;
-  const docId = `PS-DOC-${String(nextNum).padStart(3, "0")}`;
+  // Auto-generate unique doc ID using timestamp + random suffix
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const docId = `PS-DOC-${timestamp}-${rand}`;
 
   // If no content, return basic metadata
   if (!content || content.trim().length < 10) {
@@ -250,21 +246,8 @@ export async function POST(request: NextRequest) {
         membership.organization_id
       );
 
-      // Check for duplicate doc_id and increment if needed
-      let finalDocId = metadata.docId;
-      let attempt = 0;
-      while (attempt < 10) {
-        const { data: existing } = await supabase
-          .from("documents")
-          .select("doc_id")
-          .eq("doc_id", finalDocId)
-          .eq("organization_id", membership.organization_id)
-          .single();
-        if (!existing) break;
-        attempt++;
-        const num = parseInt(finalDocId.split("-").pop() || "0") + attempt;
-        finalDocId = `PS-DOC-${String(num).padStart(3, "0")}`;
-      }
+      // Use the generated doc ID directly (timestamp+random ensures uniqueness)
+      const finalDocId = metadata.docId;
 
       // If teamId provided, verify it belongs to the org
       if (teamId) {
