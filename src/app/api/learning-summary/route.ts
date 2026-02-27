@@ -25,6 +25,8 @@ interface Document {
   file_name: string | null;
   organization_id: string;
   team_id: string | null;
+  folder_id: string | null;
+  doc_source: string | null;
 }
 
 interface FeedbackRow {
@@ -75,11 +77,12 @@ export async function GET(request: NextRequest) {
     const userTeamIds = await getUserTeams(userId);
     const isOrgAdmin = ["owner", "admin"].includes(membership.role);
 
-    // Build documents query
+    // Build documents query — includes folder_id and doc_source
     let docsQuery = supabase
       .from("documents")
-      .select("doc_id,title,current_version,status,doc_type,domain,tags,file_url,file_name,organization_id,team_id")
-      .eq("organization_id", membership.organization_id);
+      .select("doc_id,title,current_version,status,doc_type,domain,tags,file_url,file_name,organization_id,team_id,folder_id,doc_source")
+      .eq("organization_id", membership.organization_id)
+      .order("created_at", { ascending: false });
 
     // Apply team filter
     if (teamFilter === "org-wide") {
@@ -89,12 +92,6 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: docs, error: docsErr } = await docsQuery;
-
-    console.log("ROUTE: /api/learning-summary");
-    console.log("USER:", userId);
-    console.log("ORG:", membership.organization_id);
-    console.log("TEAM FILTER:", teamFilter);
-    console.log("DOCS LENGTH:", docs?.length);
 
     if (docsErr) {
       return NextResponse.json(
@@ -171,6 +168,8 @@ export async function GET(request: NextRequest) {
         tags: d.tags,
         file_url: d.file_url,
         team_id: d.team_id,
+        folder_id: d.folder_id,
+        doc_source: d.doc_source,
         teams: d.team_id ? teamsMap[d.team_id] || null : null,
         feedback_counts: {
           helped: counts.helpful,

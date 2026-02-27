@@ -64,7 +64,8 @@ export async function POST(request: NextRequest) {
     };
 
     const contentType = contentTypes[fileExtension || ""] || "application/octet-stream";
-    const filePath = `${membership.organization_id}/${effectiveDocId}/${Date.now()}-${fileName}`;
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filePath = `${membership.organization_id}/${effectiveDocId}/${Date.now()}-${safeName}`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("documents")
