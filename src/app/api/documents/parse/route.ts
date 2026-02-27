@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         content = content
           .replace(/\\[a-z]+[-]?\d*\s?/g, "") // Remove RTF control words
           .replace(/[{}]/g, "")                 // Remove braces
-          .replace(/\\\'/[0-9a-f]{2}/gi, "")   // Remove hex escapes
+          .replace(/\\'[0-9a-f]{2}/gi, "")   // Remove hex escapes
           .replace(/\r\n/g, "\n")
           .trim();
       }
