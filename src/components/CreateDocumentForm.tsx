@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -69,17 +69,24 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [teamId, setTeamId] = useState<string>("");
   const [folderId, setFolderId] = useState<string>("");
+  const folderIdRef = useRef<string>("");
   const [folderName, setFolderName] = useState<string>("");
   const [teams, setTeams] = useState<{ id: string; name: string; color: string }[]>([]);
   const [folders, setFolders] = useState<{ id: string; name: string; icon: string }[]>([]);
   const [teamsLoaded, setTeamsLoaded] = useState(false);
+
+  // Keep ref in sync with state
+  const updateFolderId = (val: string) => {
+    setFolderId(val);
+    folderIdRef.current = val;
+  };
 
   // Read folder param from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const folderParam = params.get("folder");
     if (folderParam) {
-      setFolderId(folderParam);
+      updateFolderId(folderParam);
       // Fetch folder name
       fetch(`/api/folders`)
         .then(r => r.json())
@@ -254,7 +261,7 @@ export default function UploadPage() {
           fileType: uploadData.fileType,
           originalFileName: uf.name,
           teamId: teamId || null,
-          folderId: folderId || null,
+          folderId: folderIdRef.current || null,
           autoGenerate: true, // Signal to API to auto-generate everything
         }),
       });
@@ -363,7 +370,7 @@ export default function UploadPage() {
             </label>
             <select
               value={folderId}
-              onChange={(e) => setFolderId(e.target.value)}
+              onChange={(e) => updateFolderId(e.target.value)}
               onFocus={loadTeams}
               style={{
                 padding: "10px 14px", borderRadius: 8,
