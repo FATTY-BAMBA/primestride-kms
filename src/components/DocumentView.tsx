@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import DocComments from "./DocComments";
 
 interface Document {
   doc_id: string;
@@ -41,6 +42,7 @@ interface Props {
   notHelpfulCount: number;
   organizationId: string;
   userRole?: string;
+  userId?: string;
 }
 
 export default function DocumentView({
@@ -49,6 +51,7 @@ export default function DocumentView({
   notHelpfulCount,
   organizationId,
   userRole,
+  userId,
 }: Props) {
   const isAdmin = userRole === "owner" || userRole === "admin";
   const [similarDocs, setSimilarDocs] = useState<SimilarDoc[]>([]);
@@ -71,6 +74,67 @@ export default function DocumentView({
   const [showTagEditor, setShowTagEditor] = useState(false);
   const [suggestingTags, setSuggestingTags] = useState(false);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+
+  // Text selection → inline comment
+  const [selectedText, setSelectedText] = useState("");
+  const [showCommentPopup, setShowCommentPopup] = useState(false);
+  const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
+  const [inlineComment, setInlineComment] = useState("");
+  const [postingInline, setPostingInline] = useState(false);
+
+  const handleTextSelect = useCallback(() => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+      // Small delay to allow click on popup
+      setTimeout(() => {
+        if (!document.querySelector(".inline-comment-popup:hover")) {
+          setShowCommentPopup(false);
+          setSelectedText("");
+        }
+      }, 200);
+      return;
+    }
+
+    const text = selection.toString().trim();
+    if (text.length < 3) return;
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    setSelectedText(text);
+    setPopupPos({
+      top: rect.bottom + window.scrollY + 8,
+      left: Math.min(rect.left + window.scrollX, window.innerWidth - 320),
+    });
+    setShowCommentPopup(true);
+    setInlineComment("");
+  }, []);
+
+  const handlePostInlineComment = async () => {
+    if (!inlineComment.trim() || !selectedText) return;
+    setPostingInline(true);
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          docId: document.doc_id,
+          content: inlineComment.trim(),
+          highlightedText: selectedText,
+        }),
+      });
+      if (res.ok) {
+        setShowCommentPopup(false);
+        setSelectedText("");
+        setInlineComment("");
+        window.getSelection()?.removeAllRanges();
+        // Force re-render of comments
+        window.dispatchEvent(new CustomEvent("comments-updated"));
+      }
+    } catch {} finally {
+      setPostingInline(false);
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/embeddings/similar?docId=${document.doc_id}&limit=3`)
@@ -591,10 +655,89 @@ export default function DocumentView({
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             {viewingVersion ? `Content (${viewingVersion.version_number})` : document.file_url ? "Extracted Text" : "Content"}
           </h3>
-          <div style={{ fontSize: 17, lineHeight: 1.8, color: "#1F2937", whiteSpace: "pre-wrap", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+          <div
+            onMouseUp={handleTextSelect}
+            style={{ fontSize: 17, lineHeight: 1.8, color: "#1F2937", whiteSpace: "pre-wrap", fontFamily: "system-ui, -apple-system, sans-serif", cursor: "text" }}
+          >
             {displayContent || "No content available"}
           </div>
+          <div style={{ marginTop: 12, fontSize: 12, color: "#9CA3AF" }}>
+            💡 Tip: Select text to add an inline comment
+          </div>
         </div>
+
+        {/* Inline comment popup */}
+        {showCommentPopup && (
+          <div
+            className="inline-comment-popup"
+            style={{
+              position: "absolute", top: popupPos.top, left: popupPos.left,
+              zIndex: 50, width: 300, padding: 16,
+              background: "white", borderRadius: 12,
+              border: "1px solid #E5E7EB",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>
+              Comment on selection:
+            </div>
+            <div style={{
+              padding: "6px 10px", marginBottom: 10, borderLeft: "3px solid #7C3AED",
+              background: "#F5F3FF", borderRadius: "0 4px 4px 0",
+              fontSize: 12, color: "#5B21B6", fontStyle: "italic",
+              maxHeight: 60, overflow: "hidden",
+            }}>
+              &ldquo;{selectedText.length > 100 ? selectedText.slice(0, 100) + "..." : selectedText}&rdquo;
+            </div>
+            <textarea
+              value={inlineComment}
+              onChange={(e) => setInlineComment(e.target.value)}
+              placeholder="Add your comment..."
+              autoFocus
+              rows={2}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handlePostInlineComment();
+                if (e.key === "Escape") { setShowCommentPopup(false); setSelectedText(""); }
+              }}
+              style={{
+                width: "100%", padding: "8px 10px", border: "1px solid #D1D5DB",
+                borderRadius: 6, fontSize: 13, resize: "none", outline: "none",
+                marginBottom: 8,
+              }}
+            />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => { setShowCommentPopup(false); setSelectedText(""); }}
+                style={{
+                  padding: "5px 12px", borderRadius: 6, border: "1px solid #D1D5DB",
+                  background: "white", fontSize: 12, cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePostInlineComment}
+                disabled={!inlineComment.trim() || postingInline}
+                style={{
+                  padding: "5px 12px", borderRadius: 6, border: "none",
+                  background: !inlineComment.trim() ? "#D1D5DB" : "#7C3AED",
+                  color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                {postingInline ? "..." : "Comment"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Comments Section */}
+        {!viewingVersion && userId && (
+          <DocComments
+            docId={document.doc_id}
+            currentUserId={userId}
+            isAdmin={isAdmin}
+          />
+        )}
 
         {/* Feedback Section */}
         {!viewingVersion && (
