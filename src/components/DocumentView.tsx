@@ -87,7 +87,7 @@ export default function DocumentView({
     if (!selection || selection.isCollapsed || !selection.toString().trim()) {
       // Small delay to allow click on popup
       setTimeout(() => {
-        if (!document.querySelector(".inline-comment-popup:hover")) {
+        if (!globalThis.document.querySelector(".inline-comment-popup:hover")) {
           setShowCommentPopup(false);
           setSelectedText("");
         }
