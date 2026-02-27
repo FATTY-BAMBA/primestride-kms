@@ -178,12 +178,18 @@ Return ONLY valid JSON, no markdown, no backticks.`
       organizationId
     );
 
+    // If AI didn't return a summary, generate one separately
+    let summary = parsed.summary || "";
+    if (!summary && content.trim().length > 50) {
+      summary = await generateSummary(parsed.title || cleanTitle, content);
+    }
+
     return {
       docId,
       title: parsed.title || cleanTitle || "Untitled Document",
       docType: parsed.docType || "document",
       tags,
-      summary: parsed.summary || "",
+      summary,
     };
   } catch (error) {
     console.error("Auto-generate metadata failed:", error);
