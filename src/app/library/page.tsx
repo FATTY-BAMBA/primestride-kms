@@ -387,6 +387,8 @@ function LibraryContent() {
 
   const getDocIcon = (doc: DocRow) => {
     if (doc.doc_source === "note") return "📝";
+    if (doc.doc_source === "url") return "🔗";
+    if (doc.doc_source === "youtube") return "🎬";
     if (doc.file_url) {
       const ext = doc.doc_type?.toLowerCase() || "";
       if (ext === "pdf" || doc.file_url?.includes(".pdf")) return "📕";
@@ -637,6 +639,8 @@ function LibraryContent() {
                     {d.doc_type && <span className="badge">{d.doc_type}</span>}
                     {d.file_url && <span className="badge" title="Has attached file">📎 File</span>}
                     {d.doc_source === "note" && <span className="badge" style={{ background: "#D1FAE5", color: "#065F46" }}>📝 Note</span>}
+                    {d.doc_source === "url" && <span className="badge" style={{ background: "#DBEAFE", color: "#1E40AF" }}>🔗 URL</span>}
+                    {d.doc_source === "youtube" && <span className="badge" style={{ background: "#FEE2E2", color: "#991B1B" }}>🎬 YouTube</span>}
                     {d.teams ? (
                       <span className="badge" style={{ background: d.teams.color + "20", color: d.teams.color, borderColor: d.teams.color }}>
                         {d.teams.name}
