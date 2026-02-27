@@ -117,6 +117,8 @@ export default function UploadPage() {
       setFiles(prev => prev.map(f => f.id === uf.id ? { ...f, ...updates } : f));
     };
 
+    const MAX_API_SIZE = 4 * 1024 * 1024; // 4MB safe limit for Vercel
+
     try {
       // Step 1: Extract text
       updateFile({ status: "extracting", progress: "Extracting text..." });
@@ -126,34 +128,84 @@ export default function UploadPage() {
 
       if (["txt", "md", "csv", "tsv", "json", "xml", "html"].includes(ext)) {
         extractedContent = await uf.file.text();
-      } else {
-        const formData = new FormData();
-        formData.append("file", uf.file);
-        const parseRes = await fetch("/api/documents/parse", {
-          method: "POST",
-          body: formData,
-        });
-        const parseData = await parseRes.json();
-        if (parseRes.ok && parseData.content) {
-          extractedContent = parseData.content;
+      } else if (uf.file.size <= MAX_API_SIZE) {
+        // Only send to parse API if under 4MB
+        try {
+          const formData = new FormData();
+          formData.append("file", uf.file);
+          const parseRes = await fetch("/api/documents/parse", {
+            method: "POST",
+            body: formData,
+          });
+          if (parseRes.ok) {
+            const parseData = await parseRes.json();
+            if (parseData.content) {
+              extractedContent = parseData.content;
+            }
+          }
+        } catch {
+          // Parse failed, continue without extracted text
+          console.log(`Text extraction skipped for ${uf.name}`);
         }
+      } else {
+        // File too large for API — skip text extraction
+        updateFile({ progress: "Large file — uploading directly..." });
       }
 
       // Step 2: Upload file to storage
       updateFile({ status: "uploading", progress: "Uploading file..." });
 
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", uf.file);
-      uploadFormData.append("docId", "auto");
+      let uploadData: any;
 
-      const uploadRes = await fetch("/api/documents/upload", {
-        method: "POST",
-        body: uploadFormData,
-      });
-      const uploadData = await uploadRes.json();
+      if (uf.file.size <= MAX_API_SIZE) {
+        // Normal upload via API route
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", uf.file);
+        uploadFormData.append("docId", "auto");
 
-      if (!uploadRes.ok) {
-        throw new Error(uploadData.error || "Upload failed");
+        const uploadRes = await fetch("/api/documents/upload", {
+          method: "POST",
+          body: uploadFormData,
+        });
+        uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || "Upload failed");
+        }
+      } else {
+        // Large file: upload directly to Supabase Storage from client
+        updateFile({ progress: "Uploading large file..." });
+
+        const timestamp = Date.now();
+        const safeName = uf.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const filePath = `direct-uploads/${timestamp}-${safeName}`;
+
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+
+        const { error: storageError } = await supabase.storage
+          .from("documents")
+          .upload(filePath, uf.file, {
+            contentType: uf.file.type || "application/octet-stream",
+            upsert: true,
+          });
+
+        if (storageError) {
+          throw new Error("Storage upload failed: " + storageError.message);
+        }
+
+        const { data: urlData } = supabase.storage
+          .from("documents")
+          .getPublicUrl(filePath);
+
+        uploadData = {
+          fileUrl: urlData.publicUrl,
+          fileName: uf.name,
+          fileType: ext,
+        };
       }
 
       // Step 3: Create document (AI auto-generates everything)
