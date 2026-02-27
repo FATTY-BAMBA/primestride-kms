@@ -4,8 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserOrganization } from "@/lib/get-user-organization";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-// Create Supabase admin client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -14,19 +14,15 @@ const supabase = createClient(
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's organization membership
     const membership = await getUserOrganization(userId);
-
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
-    // Only admins and owners can upload
     if (!["owner", "admin"].includes(membership.role || "")) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
@@ -39,30 +35,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!docId) {
-      return NextResponse.json({ error: "No document ID provided" }, { status: 400 });
-    }
+    // Use docId or generate a timestamp-based one for auto mode
+    const effectiveDocId = (!docId || docId === "auto") 
+      ? `upload-${Date.now()}` 
+      : docId;
 
     const fileName = file.name;
     const fileExtension = fileName.split(".").pop()?.toLowerCase();
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Determine content type
     const contentTypes: Record<string, string> = {
       pdf: "application/pdf",
       docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       doc: "application/msword",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ppt: "application/vnd.ms-powerpoint",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      xls: "application/vnd.ms-excel",
+      csv: "text/csv",
+      tsv: "text/tab-separated-values",
       txt: "text/plain",
       md: "text/markdown",
+      rtf: "application/rtf",
+      json: "application/json",
+      xml: "application/xml",
+      html: "text/html",
     };
 
     const contentType = contentTypes[fileExtension || ""] || "application/octet-stream";
+    const filePath = `${membership.organization_id}/${effectiveDocId}/${Date.now()}-${fileName}`;
 
-    // Create a unique file path: org_id/doc_id/filename
-    const filePath = `${membership.organization_id}/${docId}/${Date.now()}-${fileName}`;
-
-    // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from("documents")
       .upload(filePath, buffer, {
@@ -78,16 +81,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the public URL
     const { data: urlData } = supabase.storage
       .from("documents")
       .getPublicUrl(filePath);
 
     return NextResponse.json({
       fileUrl: urlData.publicUrl,
-      fileName: fileName,
+      fileName,
       fileType: fileExtension,
-      filePath: filePath,
+      filePath,
     });
   } catch (error) {
     console.error("File upload error:", error);
