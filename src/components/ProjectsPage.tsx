@@ -39,6 +39,13 @@ export default function ProjectsPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#F9FAFB", paddingBottom: 60 }}>
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "40px 20px" }}>
+        {/* Back nav */}
+        <div style={{ marginBottom: 24 }}>
+          <Link href="/library" style={{ color: "#6B7280", textDecoration: "none", fontSize: 14, fontWeight: 500 }}>
+            ← Back to Library
+          </Link>
+        </div>
+
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
           <div>
