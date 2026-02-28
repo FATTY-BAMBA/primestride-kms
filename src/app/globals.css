@@ -390,3 +390,22 @@ input::placeholder, textarea::placeholder {
     text-align: center !important;
   }
 }
+/* ── Clerk User Menu Fix ──
+   Append this to globals.css
+   Ensures Clerk popover appears above sidebar */
+
+.cl-userButtonPopoverCard,
+.cl-popoverBox,
+.cl-userButtonPopoverRootBox,
+.cl-rootBox,
+.cl-card,
+.cl-userButtonPopoverFooter,
+[data-clerk-portal] {
+  z-index: 9999 !important;
+}
+
+/* Ensure Clerk org switcher also pops above */
+.cl-organizationSwitcherPopoverCard,
+.cl-organizationSwitcherPopoverRootBox {
+  z-index: 9999 !important;
+}

@@ -172,6 +172,9 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         padding: collapsed ? "12px 6px" : "12px 16px",
         borderTop: "1px solid #E5E7EB",
         display: "flex", flexDirection: "column", gap: 8,
+        overflow: "visible",
+        position: "relative",
+        zIndex: 50,
       }}>
         {!collapsed && <OrgSwitcher />}
         <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between" }}>
@@ -200,7 +203,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         borderRight: "1px solid #E5E7EB",
         display: "flex", flexDirection: "column",
         transition: "width 0.2s ease",
-        position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 30,
+        position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 40,
+        overflow: "visible",
       }}
         className="sidebar-desktop"
       >
