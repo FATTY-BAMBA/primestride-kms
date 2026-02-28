@@ -108,7 +108,10 @@ RULES:
 - Support English and Traditional Chinese
 - Use document content/summaries to make informed decisions
 - When creating content, be thorough and professional
-- Return ONLY valid JSON, no markdown fences`
+- Return ONLY valid JSON, no markdown fences
+- CRITICAL: When the user asks you to CREATE something, you MUST use the CREATE_DOC action with full content in the params. Do NOT just reply saying you created something — actually include the action.
+- CRITICAL: Always prefer ACTIONS over REPLY. If the user wants something done, DO IT with actions. Only use REPLY for pure questions.
+- Example: User says "Create meeting notes" → You respond with actions: [{"type":"CREATE_DOC","params":{"title":"Meeting Notes — Feb 28, 2026","content":"# Meeting Notes\\n\\n## Date: February 28, 2026\\n\\n## Attendees\\n- \\n\\n## Agenda\\n1. \\n\\n## Discussion\\n\\n\\n## Action Items\\n- [ ] \\n\\n## Next Steps\\n","docType":"meeting-notes","tags":["meeting","notes"]}}]`
       }
     ];
 
@@ -141,7 +144,7 @@ RULES:
     const results: string[] = [];
     const createdItems: { type: string; id: string; title: string }[] = [];
 
-    for (const action of (plan.actions || []).filter(a => a && a.type)) {
+    for (const action of plan.actions) {
       try {
         switch (action.type) {
           case "CREATE_DOC": {
