@@ -37,7 +37,7 @@ Input: "${text}"
 
 Return ONLY valid JSON with these fields:
 {
-  "leave_type": one of: "特休 Annual", "病假 Sick", "事假 Personal", "婚假 Marriage", "喪假 Bereavement", "產假 Maternity", "陪產假 Paternity", "公假 Official",
+  "leave_type": one of these exact strings: "特休 Annual", "病假 Sick", "事假 Personal", "婚假 Marriage", "喪假 Bereavement", "產假 Maternity", "陪產假 Paternity", "公假 Official",
   "start_date": "YYYY-MM-DD",
   "end_date": "YYYY-MM-DD",
   "days": number (calculate from dates, half days = 0.5),
@@ -45,11 +45,14 @@ Return ONLY valid JSON with these fields:
   "proxy": string or null
 }
 
-Rules:
+CRITICAL Rules:
+- leave_type MUST be one of the exact strings listed above
 - "明天" = tomorrow from today, "下週一" = next Monday, "下個月" = next month
-- "三天" means 3 days, calculate end_date accordingly (skip weekends if not specified)
-- If half day, days = 0.5
+- "三天" means 3 days, calculate end_date accordingly (include weekdays only if business days implied)
+- If half day mentioned, days = 0.5
 - If no specific leave type mentioned, default to "事假 Personal"
+- If "特休" or "年假" mentioned, use "特休 Annual"
+- If "病假" or "生病" mentioned, use "病假 Sick"
 - If reason not explicitly stated, infer from context
 - Return ONLY JSON, no markdown fences`;
     } else if (form_type === "overtime") {
@@ -60,18 +63,22 @@ Input: "${text}"
 Return ONLY valid JSON:
 {
   "date": "YYYY-MM-DD",
-  "start_time": "HH:MM" (24hr),
-  "end_time": "HH:MM" (24hr),
-  "hours": number,
-  "overtime_type": one of: "平日加班 Weekday", "假日加班 Holiday", "國定假日 National Holiday",
-  "reason": string,
+  "start_time": "HH:MM" (24-hour format, e.g. "18:00"),
+  "end_time": "HH:MM" (24-hour format, e.g. "21:30"),
+  "hours": number (calculate: end_time minus start_time, e.g. 3.5),
+  "overtime_type": one of these exact strings: "平日加班 Weekday", "假日加班 Holiday", "國定假日 National Holiday",
+  "reason": string (in the same language as input),
   "project": string or null
 }
 
-Rules:
-- Calculate hours from start_time and end_time
-- If just "加班3小時" with no time, assume 18:00-21:00
-- Weekend = "假日加班 Holiday", weekday = "平日加班 Weekday"
+CRITICAL Rules:
+- start_time and end_time MUST be in "HH:MM" 24-hour format (e.g. "18:00", "21:30")
+- overtime_type MUST be one of the exact strings above, NOT a time value
+- If user says "加班到九點/九點半", end_time is "21:00"/"21:30" and start_time defaults to "18:00"
+- If user says "晚上要加班", start_time defaults to "18:00"
+- Always calculate hours = (end_time - start_time) in decimal (e.g. 3.5 hours)
+- Weekend dates = "假日加班 Holiday", weekday dates = "平日加班 Weekday"
+- If project name is mentioned, extract it
 - Return ONLY JSON, no markdown fences`;
     } else if (form_type === "business_trip") {
       parsePrompt = `Parse this business trip request into structured data. Today is ${today} (${dayOfWeek}).

@@ -326,19 +326,32 @@ ${s.reviewed_at ? `<p style="color:#6B7280;font-size:13px">審核: ${s.reviewer_
             <div style={{ background: "white", borderRadius: 14, border: `2px solid ${getFormType(activeForm)?.color}30`, padding: 24 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 16 }}>📋 表單預覽 — 請確認後送出 | Review & Submit</div>
               <div style={{ display: "grid", gap: 16 }}>
-                {Object.entries(formData).map(([key, value]) => (
-                  <div key={key}>
-                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 4 }}>{getFieldLabel(key)}</label>
-                    {typeof value === "string" && value.length > 50 ? (
-                      <textarea value={String(value || "")} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })} rows={2}
-                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
-                    ) : (
-                      <input type={key.includes("date") ? "date" : key.includes("time") ? "time" : key === "hours" || key === "days" ? "number" : "text"}
-                        value={String(value || "")} onChange={(e) => setFormData({ ...formData, [key]: key === "hours" || key === "days" ? parseFloat(e.target.value) : e.target.value })}
-                        style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                    )}
-                  </div>
-                ))}
+                {Object.entries(formData).map(([key, value]) => {
+                  const selectOptions: Record<string, string[]> = {
+                    leave_type: ["特休 Annual", "病假 Sick", "事假 Personal", "婚假 Marriage", "喪假 Bereavement", "產假 Maternity", "陪產假 Paternity", "公假 Official"],
+                    overtime_type: ["平日加班 Weekday", "假日加班 Holiday", "國定假日 National Holiday"],
+                    transport: ["高鐵 HSR", "飛機 Flight", "自駕 Driving", "火車 Train", "其他 Other"],
+                  };
+                  const options = selectOptions[key];
+                  return (
+                    <div key={key}>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 4 }}>{getFieldLabel(key)}</label>
+                      {options ? (
+                        <select value={String(value || "")} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                          style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box", background: "white" }}>
+                          {options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : typeof value === "string" && value.length > 50 ? (
+                        <textarea value={String(value || "")} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })} rows={2}
+                          style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                      ) : (
+                        <input type={key.includes("date") ? "date" : (key === "start_time" || key === "end_time") ? "time" : key === "hours" || key === "days" ? "number" : "text"}
+                          value={String(value || "")} onChange={(e) => setFormData({ ...formData, [key]: key === "hours" || key === "days" ? parseFloat(e.target.value) : e.target.value })}
+                          style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                 <button onClick={handleSubmit} disabled={submitting}
