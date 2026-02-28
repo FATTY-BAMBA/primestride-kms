@@ -34,6 +34,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     { href: "/projects", icon: "🎯", label: "專案", labelEn: "Projects" },
     { href: "/agent", icon: "🤖", label: "AI 助手", labelEn: "AI Agent" },
     { href: "/search", icon: "🔍", label: "搜尋", labelEn: "Search" },
+    { href: "/workflows", icon: "📋", label: "表單申請", labelEn: "Forms" },
   ];
 
   const analyticsLinks = [
