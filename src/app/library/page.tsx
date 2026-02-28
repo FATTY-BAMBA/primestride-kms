@@ -473,9 +473,6 @@ function LibraryContent() {
             }}>
               🤖 AI Agent
             </Link>
-            {isAdmin && (
-              </Link>
-            )}
             <OrgSwitcher />
             <UserMenu />
           </div>
