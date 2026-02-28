@@ -124,3 +124,52 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Failed to delete template" }, { status: 500 });
   }
 }
+
+// PATCH update a template (admin only)
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const membership = await getUserOrganization(userId);
+    if (!membership) {
+      return NextResponse.json({ error: "No organization found" }, { status: 404 });
+    }
+
+    if (!["owner", "admin"].includes(membership.role || "")) {
+      return NextResponse.json({ error: "Only admins can edit templates" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { id, name, description, content, docType, icon } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Template ID required" }, { status: 400 });
+    }
+
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (name?.trim()) updates.name = name.trim();
+    if (typeof description === "string") updates.description = description.trim() || null;
+    if (content?.trim()) updates.content = content.trim();
+    if (docType !== undefined) updates.doc_type = docType || null;
+    if (icon) updates.icon = icon;
+
+    const { data: template, error } = await supabase
+      .from("document_templates")
+      .update(updates)
+      .eq("id", id)
+      .eq("organization_id", membership.organization_id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ template });
+  } catch {
+    return NextResponse.json({ error: "Failed to update template" }, { status: 500 });
+  }
+}

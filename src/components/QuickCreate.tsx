@@ -221,14 +221,17 @@ function TemplatePickerModal({ isAdmin, onClose, onCreated, onManage }: {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Template | null>(null);
 
-  useEffect(() => {
+  const fetchTemplates = () => {
     fetch("/api/templates")
       .then(r => r.json())
       .then(d => setTemplates(d.templates || []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchTemplates(); }, []);
 
   const handleUse = async (template: Template) => {
     setCreating(template.id);
@@ -322,16 +325,26 @@ function TemplatePickerModal({ isAdmin, onClose, onCreated, onManage }: {
                 }}>Creating...</div>
               )}
               {isAdmin && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
-                  style={{
-                    position: "absolute", top: 8, right: 8,
-                    background: "none", border: "none", color: "#D1D5DB",
-                    cursor: "pointer", fontSize: 14, padding: 4,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#DC2626")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#D1D5DB")}
-                >✕</button>
+                <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4 }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditing(t); }}
+                    style={{
+                      background: "none", border: "none", color: "#D1D5DB",
+                      cursor: "pointer", fontSize: 13, padding: 4,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#7C3AED")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D1D5DB")}
+                  >✏️</button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
+                    style={{
+                      background: "none", border: "none", color: "#D1D5DB",
+                      cursor: "pointer", fontSize: 13, padding: 4,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#DC2626")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D1D5DB")}
+                  >✕</button>
+                </div>
               )}
             </div>
           ))}
@@ -341,6 +354,14 @@ function TemplatePickerModal({ isAdmin, onClose, onCreated, onManage }: {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
         <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB", background: "white", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Cancel</button>
       </div>
+
+      {editing && (
+        <EditTemplateModal
+          template={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); fetchTemplates(); }}
+        />
+      )}
     </ModalWrapper>
   );
 }
@@ -477,6 +498,95 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
             fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
           }}>
           {saving ? "Saving..." : "💾 Save Template"}
+        </button>
+      </div>
+    </ModalWrapper>
+  );
+}
+
+// ── Edit Template Modal ──
+function EditTemplateModal({ template, onClose, onSaved }: {
+  template: Template; onClose: () => void; onSaved: () => void;
+}) {
+  const [name, setName] = useState(template.name);
+  const [description, setDescription] = useState(template.description || "");
+  const [icon, setIcon] = useState(template.icon);
+  const [docType, setDocType] = useState(template.doc_type || "");
+  const [content, setContent] = useState(template.content);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const icons = ["📋", "📊", "📈", "📝", "🎯", "💡", "🔬", "📚", "🗂️", "⚙️", "🏗️", "📐", "🧪", "📌", "🎨", "💼"];
+
+  const handleSave = async () => {
+    if (!name.trim() || !content.trim()) { setError("Name and content are required"); return; }
+    setSaving(true); setError("");
+    try {
+      const res = await fetch("/api/templates", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: template.id, name, description, content, docType, icon }),
+      });
+      if (res.ok) onSaved();
+      else { const d = await res.json(); setError(d.error || "Failed to save"); }
+    } catch { setError("Failed to save"); } finally { setSaving(false); }
+  };
+
+  return (
+    <ModalWrapper onClose={onClose} wide>
+      <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 20px 0" }}>Edit Template</h3>
+
+      {error && <div style={{ padding: 10, background: "#FEE2E2", color: "#991B1B", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>{error}</div>}
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Template Name *</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none" }} />
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Icon</label>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", maxWidth: 200 }}>
+            {icons.map(ic => (
+              <button key={ic} onClick={() => setIcon(ic)} style={{
+                width: 32, height: 32, borderRadius: 6, border: icon === ic ? "2px solid #7C3AED" : "1px solid #E5E7EB",
+                background: icon === ic ? "#F5F3FF" : "white", fontSize: 16, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{ic}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Description</label>
+        <input type="text" value={description} onChange={(e) => setDescription(e.target.value)}
+          style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none" }} />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Document Type</label>
+        <input type="text" value={docType} onChange={(e) => setDocType(e.target.value)}
+          style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none" }} />
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Template Content *</label>
+        <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={12}
+          style={{
+            width: "100%", padding: "14px", border: "1px solid #D1D5DB", borderRadius: 8,
+            fontSize: 14, fontFamily: "monospace", lineHeight: 1.6, resize: "vertical", outline: "none",
+          }} />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB", background: "white", fontSize: 14, cursor: "pointer", fontWeight: 500 }}>Cancel</button>
+        <button onClick={handleSave} disabled={saving || !name.trim() || !content.trim()}
+          style={{
+            padding: "10px 20px", borderRadius: 8, border: "none",
+            background: saving ? "#A78BFA" : "#7C3AED", color: "white",
+            fontSize: 14, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
+          }}>
+          {saving ? "Saving..." : "💾 Save Changes"}
         </button>
       </div>
     </ModalWrapper>
