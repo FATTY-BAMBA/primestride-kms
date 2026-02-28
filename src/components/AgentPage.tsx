@@ -128,7 +128,9 @@ export default function AgentPage() {
 
                 {msg.createdItems && msg.createdItems.length > 0 && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F3F4F6" }}>
-                    <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Quick links:</div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>
+                      {msg.actions?.some(a => (a || "").includes("SEARCH")) ? "📄 Results:" : "Quick links:"}
+                    </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {msg.createdItems.map((item, j) => (
                         <Link key={j}

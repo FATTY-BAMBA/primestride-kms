@@ -222,7 +222,10 @@ RULES:
             ).slice(0, 5);
 
             if (matches.length > 0) {
-              results.push(`🔍 Found ${matches.length} document(s):\n${matches.map(m => `  • "${m.title}" (${m.doc_id})`).join("\n")}`);
+              results.push(`🔍 Found ${matches.length} document(s):`);
+              for (const m of matches) {
+                createdItems.push({ type: "doc", id: m.doc_id, title: m.title });
+              }
             } else {
               results.push(`🔍 No documents found matching "${action.params.query}"`);
             }
