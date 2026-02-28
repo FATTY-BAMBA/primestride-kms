@@ -11,6 +11,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [branding, setBranding] = useState<{ org_name?: string; logo_emoji?: string; primary_color?: string; accent_color?: string; tagline?: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -18,6 +19,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       .then(d => {
         if (d.role && ["owner", "admin"].includes(d.role)) setIsAdmin(true);
       })
+      .catch(() => {});
+    fetch("/api/branding")
+      .then(r => r.json())
+      .then(d => { if (d.branding) setBranding(d.branding); })
       .catch(() => {});
   }, []);
 
@@ -42,6 +47,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     { href: "/teams", icon: "🏷️", label: "群組", labelEn: "Groups" },
     { href: "/developer", icon: "🔑", label: "API", labelEn: "Developer" },
     { href: "/audit-logs", icon: "📋", label: "操作紀錄", labelEn: "Audit Logs" },
+    { href: "/branding", icon: "🎨", label: "品牌設定", labelEn: "Branding" },
   ];
 
   const isActive = (href: string) => {
@@ -52,6 +58,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const renderLink = (link: { href: string; icon: string; label: string; labelEn: string; adminOnly?: boolean }) => {
     if (link.adminOnly && !isAdmin) return null;
     const active = isActive(link.href);
+    const activeColor = branding?.primary_color || "#7C3AED";
+    const activeBg = activeColor + "18";
     return (
       <Link
         key={link.href}
@@ -61,8 +69,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           padding: collapsed ? "10px 0" : "10px 14px",
           justifyContent: collapsed ? "center" : "flex-start",
           borderRadius: 8, textDecoration: "none",
-          background: active ? "#EDE9FE" : "transparent",
-          color: active ? "#7C3AED" : "#4B5563",
+          background: active ? activeBg : "transparent",
+          color: active ? activeColor : "#4B5563",
           fontWeight: active ? 700 : 500,
           fontSize: 14, transition: "all 0.15s",
         }}
@@ -92,14 +100,14 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       }}>
         <div style={{
           width: 32, height: 32, borderRadius: 8,
-          background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
+          background: `linear-gradient(135deg, ${branding?.primary_color || "#7C3AED"} 0%, ${branding?.accent_color || "#A78BFA"} 100%)`,
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 16, flexShrink: 0,
-        }}>📚</div>
+        }}>{branding?.logo_emoji || "📚"}</div>
         {!collapsed && (
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: "#111827" }}>PS Atlas</div>
-            <div style={{ fontSize: 10, color: "#9CA3AF" }}>Knowledge System</div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: "#111827" }}>{branding?.org_name || "PS Atlas"}</div>
+            <div style={{ fontSize: 10, color: "#9CA3AF" }}>{branding?.tagline || "Knowledge System"}</div>
           </div>
         )}
       </div>
