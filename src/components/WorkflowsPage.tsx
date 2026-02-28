@@ -30,6 +30,28 @@ const formTypes = [
     placeholderEn: "e.g., Business trip to Kaohsiung for 2 days next week to visit a client" },
 ];
 
+const fieldLabels: Record<string, string> = {
+  leave_type: "假別 Leave Type",
+  start_date: "開始日期 Start Date",
+  end_date: "結束日期 End Date",
+  days: "天數 Days",
+  reason: "事由 Reason",
+  proxy: "職務代理人 Proxy",
+  date: "日期 Date",
+  start_time: "開始時間 Start Time",
+  end_time: "結束時間 End Time",
+  hours: "時數 Hours",
+  overtime_type: "加班類別 Type",
+  project: "專案名稱 Project",
+  destination: "出差地點 Destination",
+  purpose: "出差目的 Purpose",
+  transport: "交通方式 Transport",
+  budget: "預估費用 Budget",
+  accommodation: "住宿安排 Accommodation",
+};
+
+const getFieldLabel = (key: string) => fieldLabels[key] || key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "⏳ 待審核 Pending", color: "#D97706", bg: "#FEF3C7" },
   approved: { label: "✅ 已核准 Approved", color: "#059669", bg: "#D1FAE5" },
@@ -252,7 +274,7 @@ export default function WorkflowsPage() {
                 {Object.entries(formData).map(([key, value]) => (
                   <div key={key}>
                     <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 4 }}>
-                      {key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+                      {getFieldLabel(key)}
                     </label>
                     {typeof value === "string" && value.length > 50 ? (
                       <textarea
@@ -369,7 +391,7 @@ export default function WorkflowsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8, marginBottom: 12 }}>
                   {Object.entries(s.form_data).map(([key, value]) => (
                     <div key={key} style={{ padding: "6px 10px", background: "#F9FAFB", borderRadius: 6 }}>
-                      <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{key.replace(/_/g, " ")}</div>
+                      <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{getFieldLabel(key)}</div>
                       <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{renderFormValue(key, value)}</div>
                     </div>
                   ))}
