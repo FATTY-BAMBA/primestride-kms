@@ -463,6 +463,28 @@ function LibraryContent() {
             <Link href="/projects" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               🎯 Projects
             </Link>
+            <Link href="/agent" style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "8px 14px",
+              background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
+              color: "white", borderRadius: 8, textDecoration: "none",
+              fontSize: 13, fontWeight: 600,
+              boxShadow: "0 2px 6px rgba(124, 58, 237, 0.3)",
+            }}>
+              🤖 AI Agent
+            </Link>
+            {isAdmin && (
+              <Link href="/agent" style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                padding: "8px 14px",
+                background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
+                color: "white", borderRadius: 8, textDecoration: "none",
+                fontSize: 13, fontWeight: 600,
+                boxShadow: "0 2px 6px rgba(124, 58, 237, 0.3)",
+              }}>
+                🤖 AI Agent
+              </Link>
+            )}
             <OrgSwitcher />
             <UserMenu />
           </div>
@@ -646,6 +668,7 @@ function LibraryContent() {
                     {d.doc_source === "url" && <span className="badge" style={{ background: "#DBEAFE", color: "#1E40AF" }}>🔗 URL</span>}
                     {d.doc_source === "youtube" && <span className="badge" style={{ background: "#FEE2E2", color: "#991B1B" }}>🎬 YouTube</span>}
                     {d.doc_source === "template" && <span className="badge" style={{ background: "#FCE7F3", color: "#9D174D" }}>📋 Template</span>}
+                    {d.doc_source === "ai-agent" && <span className="badge" style={{ background: "linear-gradient(135deg, #EDE9FE, #FCE7F3)", color: "#7C3AED" }}>🤖 AI Agent</span>}
                     {d.teams ? (
                       <span className="badge" style={{ background: d.teams.color + "20", color: d.teams.color, borderColor: d.teams.color }}>
                         {d.teams.name}
