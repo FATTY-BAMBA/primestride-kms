@@ -416,7 +416,7 @@ function LibraryContent() {
 
       {/* Stats Cards */}
       {!loading && !err && (
-        <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
+        <div className="mobile-stats" style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
           <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
             <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>{docs.length}</div>
             <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Documents</div>
@@ -466,7 +466,7 @@ function LibraryContent() {
           <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 14, color: "var(--text-muted)" }}>
             📁 Folders
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+          <div className="mobile-folder-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
             {folders.map((f) => {
               const docCount = f.documents?.[0]?.count || docs.filter(d => d.folder_id === f.id).length;
               return (

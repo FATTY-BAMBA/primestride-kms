@@ -84,7 +84,7 @@ export default function AgentPage() {
               <p style={{ fontSize: 15, color: "#6B7280", maxWidth: 500, margin: "0 auto 32px" }}>
                 I can create documents, organize folders, search your knowledge base, summarize content, tag documents, and manage projects — all through natural language.
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, maxWidth: 600, margin: "0 auto" }}>
+              <div className="mobile-suggestions" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, maxWidth: 600, margin: "0 auto" }}>
                 {suggestions.map(s => (
                   <button key={s} onClick={() => { setInput(s); inputRef.current?.focus(); }}
                     style={{ padding: "12px 16px", borderRadius: 10, border: "1px solid #E5E7EB", background: "white", fontSize: 13, cursor: "pointer", color: "#374151", textAlign: "left", transition: "all 0.15s", lineHeight: 1.4 }}

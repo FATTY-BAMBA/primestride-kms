@@ -213,8 +213,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           background: "none", border: "none", fontSize: 24, cursor: "pointer", padding: 4,
         }}>☰</button>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 16 }}>📚</span>
-          <span style={{ fontWeight: 800, fontSize: 15 }}>PS Atlas</span>
+          <span style={{ fontSize: 16 }}>{branding?.logo_emoji || "📚"}</span>
+          <span style={{ fontWeight: 800, fontSize: 15 }}>{branding?.org_name || "PS Atlas"}</span>
         </div>
         <UserMenu />
       </div>

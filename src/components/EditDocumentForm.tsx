@@ -527,7 +527,7 @@ function WritingAssistant({ content, onApply, disabled }: {
       borderRadius: "8px 8px 0 0", background: "white", overflow: "hidden",
     }}>
       {/* Toolbar */}
-      <div style={{
+      <div className="mobile-toolbar" style={{
         padding: "8px 12px",
         background: "linear-gradient(135deg, #FAFAFE 0%, #F5F3FF 100%)",
         borderBottom: "1px solid #EDE9FE",

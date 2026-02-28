@@ -375,7 +375,7 @@ export default function DocumentView({
         )}
 
         {/* Document Header Card */}
-        <div className="card" style={{ padding: "32px 40px", marginBottom: 24, background: "white", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+        <div className="card" style={{ padding: "clamp(16px, 4vw, 40px)", marginBottom: 24, background: "white", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
             <span style={{ padding: "6px 14px", background: "#EEF2FF", color: "#4F46E5", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
               {document.doc_id}
