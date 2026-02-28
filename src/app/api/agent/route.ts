@@ -141,7 +141,7 @@ RULES:
     const results: string[] = [];
     const createdItems: { type: string; id: string; title: string }[] = [];
 
-    for (const action of plan.actions) {
+    for (const action of (plan.actions || []).filter(a => a && a.type)) {
       try {
         switch (action.type) {
           case "CREATE_DOC": {
