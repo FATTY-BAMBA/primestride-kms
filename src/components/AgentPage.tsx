@@ -114,14 +114,14 @@ export default function AgentPage() {
               }}>
                 {msg.content}
 
-                {msg.actions && msg.actions.length > 0 && msg.actions[0] !== "REPLY" && (
+                {msg.actions && msg.actions.length > 0 && msg.actions.some(a => a && a !== "REPLY") && (
                   <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #F3F4F6", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {msg.actions.filter(a => a !== "REPLY").map((a, j) => (
+                    {msg.actions.filter(a => a && a !== "REPLY").map((a, j) => (
                       <span key={j} style={{
                         padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        background: a.includes("CREATE") ? "#D1FAE5" : a.includes("MOVE") ? "#DBEAFE" : a.includes("SEARCH") ? "#FEF3C7" : a.includes("TAG") ? "#EDE9FE" : "#F3F4F6",
-                        color: a.includes("CREATE") ? "#065F46" : a.includes("MOVE") ? "#1E40AF" : a.includes("SEARCH") ? "#92400E" : a.includes("TAG") ? "#5B21B6" : "#374151",
-                      }}>{a.replace("_", " ")}</span>
+                        background: (a || "").includes("CREATE") ? "#D1FAE5" : (a || "").includes("MOVE") ? "#DBEAFE" : (a || "").includes("SEARCH") ? "#FEF3C7" : (a || "").includes("TAG") ? "#EDE9FE" : "#F3F4F6",
+                        color: (a || "").includes("CREATE") ? "#065F46" : (a || "").includes("MOVE") ? "#1E40AF" : (a || "").includes("SEARCH") ? "#92400E" : (a || "").includes("TAG") ? "#5B21B6" : "#374151",
+                      }}>{(a || "").replace("_", " ")}</span>
                     ))}
                   </div>
                 )}
