@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import UserMenu from "@/components/UserMenu";
-import OrgSwitcher from "@/components/OrgSwitcher";
 
 type Team = {
   id: string;
@@ -402,86 +400,18 @@ function LibraryContent() {
 
   return (
     <>
-      <header style={{ marginBottom: 40 }}>
-        <div
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            gap: 16, marginBottom: 8, flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            <div
-              style={{
-                width: 36, height: 36, borderRadius: 8,
-                background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
-              }}
-            >
-              📚
-            </div>
-            <h1 style={{ fontSize: 20, margin: 0 }}>PS Atlas</h1>
+      <header style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <h1 style={{ fontSize: 22, margin: 0, fontWeight: 700, color: "#111827" }}>文件庫 Knowledge Library</h1>
+            <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "4px 0 0 0" }}>
+              透過回饋持續改善的知識文件 | Learning-enabled docs with feedback
+            </p>
           </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {isAdmin && <QuickCreate onCreateFolder={() => setShowCreateFolder(true)} isAdmin={isAdmin} />}
-            <Link
-              href="/search"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "8px 14px",
-                background: "linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)",
-                color: "white", borderRadius: 8, textDecoration: "none",
-                fontSize: 13, fontWeight: 600,
-                boxShadow: "0 2px 6px rgba(124, 58, 237, 0.3)",
-              }}
-            >
-              🔍 Search & Ask AI
-            </Link>
-            {isAdmin && (
-              <Link href="/learning" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-                📊 Learning
-              </Link>
-            )}
-            {isAdmin && (
-              <Link href="/admin" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-                ⚙️ Admin
-              </Link>
-            )}
-            {isAdmin && (
-              <Link href="/team" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-                👤 Members
-              </Link>
-            )}
-            {isAdmin && (
-              <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-                🏷️ Groups
-              </Link>
-            )}
-            <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🧠 Graph
-            </Link>
-            <Link href="/projects" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🎯 Projects</Link>
-            <Link href="/developer" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🔑 API
-            </Link>
-            <Link href="/agent" style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              padding: "8px 14px",
-              background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
-              color: "white", borderRadius: 8, textDecoration: "none",
-              fontSize: 13, fontWeight: 600,
-              boxShadow: "0 2px 6px rgba(124, 58, 237, 0.3)",
-            }}>
-              🤖 AI Agent
-            </Link>
-            <OrgSwitcher />
-            <UserMenu />
           </div>
         </div>
-        <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-          Learning-enabled docs with feedback → weekly improvements
-        </p>
       </header>
 
       {/* Stats Cards */}
