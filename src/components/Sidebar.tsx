@@ -12,6 +12,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [branding, setBranding] = useState<{ org_name?: string; logo_emoji?: string; primary_color?: string; accent_color?: string; tagline?: string } | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -24,6 +25,10 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       .then(r => r.json())
       .then(d => { if (d.branding) setBranding(d.branding); })
       .catch(() => {});
+    fetch("/api/workflows?view=all&status=pending")
+      .then(r => r.json())
+      .then(d => { if (d.submissions) setPendingCount(d.submissions.length); })
+      .catch(() => {});
   }, []);
 
   // Close mobile sidebar on route change
@@ -34,7 +39,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     { href: "/projects", icon: "🎯", label: "專案", labelEn: "Projects" },
     { href: "/agent", icon: "🤖", label: "AI 助手", labelEn: "AI Agent" },
     { href: "/search", icon: "🔍", label: "搜尋", labelEn: "Search" },
-    { href: "/workflows", icon: "📋", label: "表單申請", labelEn: "Forms" },
+    { href: "/workflows", icon: "📋", label: "表單申請", labelEn: "Forms", badge: true },
   ];
 
   const analyticsLinks = [
@@ -56,11 +61,12 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  const renderLink = (link: { href: string; icon: string; label: string; labelEn: string; adminOnly?: boolean }) => {
+  const renderLink = (link: { href: string; icon: string; label: string; labelEn: string; adminOnly?: boolean; badge?: boolean }) => {
     if (link.adminOnly && !isAdmin) return null;
     const active = isActive(link.href);
     const activeColor = branding?.primary_color || "#7C3AED";
     const activeBg = activeColor + "18";
+    const showBadge = link.badge && pendingCount > 0 && isAdmin;
     return (
       <Link
         key={link.href}
@@ -74,16 +80,27 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           color: active ? activeColor : "#4B5563",
           fontWeight: active ? 700 : 500,
           fontSize: 14, transition: "all 0.15s",
+          position: "relative",
         }}
         onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#F3F4F6"; }}
         onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
         title={collapsed ? `${link.label} ${link.labelEn}` : undefined}
       >
-        <span style={{ fontSize: 18, flexShrink: 0 }}>{link.icon}</span>
+        <span style={{ fontSize: 18, flexShrink: 0, position: "relative" }}>
+          {link.icon}
+          {showBadge && collapsed && (
+            <span style={{ position: "absolute", top: -4, right: -6, width: 16, height: 16, borderRadius: "50%", background: "#DC2626", color: "white", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{pendingCount}</span>
+          )}
+        </span>
         {!collapsed && (
-          <span style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
-            {link.label}
-            <span style={{ color: "#9CA3AF", fontWeight: 400, marginLeft: 4, fontSize: 12 }}>{link.labelEn}</span>
+          <span style={{ overflow: "hidden", whiteSpace: "nowrap", flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>
+              {link.label}
+              <span style={{ color: "#9CA3AF", fontWeight: 400, marginLeft: 4, fontSize: 12 }}>{link.labelEn}</span>
+            </span>
+            {showBadge && (
+              <span style={{ minWidth: 20, height: 20, borderRadius: 10, background: "#DC2626", color: "white", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{pendingCount}</span>
+            )}
           </span>
         )}
       </Link>
