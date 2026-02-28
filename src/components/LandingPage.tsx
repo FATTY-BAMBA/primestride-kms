@@ -261,16 +261,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ TECH BAR ═══ */}
-      <div className="tech-bar">
-        <div className="tech-in">
-          <span className="tech-label">技術架構</span>
-          {[['▲', 'Next.js'], ['⚡', 'Supabase'], ['🤖', 'GPT-4o'], ['🔐', 'Clerk Auth'], ['📧', 'Resend'], ['🔑', 'REST API']].map(([icon, name]) => (
-            <div className="tech-item" key={name}><div className="tech-icon">{icon}</div> {name}</div>
-          ))}
-        </div>
-      </div>
-
       {/* ═══ ERP HIGHLIGHT ═══ */}
       <section className="erp-hero" id="erp">
         <div className="con">
