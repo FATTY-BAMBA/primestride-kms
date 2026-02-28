@@ -461,7 +461,9 @@ function LibraryContent() {
               🧠 Graph
             </Link>
             <Link href="/projects" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-              🎯 Projects
+              🎯 Projects</Link>
+            <Link href="/developer" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+              🔑 API
             </Link>
             <Link href="/agent" style={{
               display: "inline-flex", alignItems: "center", gap: 4,
