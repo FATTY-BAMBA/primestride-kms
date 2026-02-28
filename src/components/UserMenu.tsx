@@ -43,7 +43,7 @@ export default function UserMenu() {
       {open && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
-          <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 200, background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)", zIndex: 50, overflow: "hidden" }}>
+          <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, width: 200, background: "var(--bg-secondary)", border: "1px solid var(--border-color)", borderRadius: "var(--radius-md)", boxShadow: "0 10px 40px rgba(0,0,0,0.3)", zIndex: 50, overflow: "hidden" }}>
             <div style={{ padding: 12, borderBottom: "1px solid var(--border-color)" }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{displayName}</div>
               <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{user.email}</div>
