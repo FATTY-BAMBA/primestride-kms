@@ -374,7 +374,18 @@ export default function EditDocumentForm({ document }: { document: Document }) {
               <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 8, color: "#374151" }}>
                 Content *
               </label>
-              <textarea value={content} onChange={(e) => setContent(e.target.value)} disabled={saving} rows={16} style={{ ...inputStyle, padding: "16px", fontSize: 15, fontFamily: "monospace", lineHeight: 1.6, resize: "vertical", opacity: saving ? 0.6 : 1 }} />
+
+              {/* AI Writing Assistant Toolbar */}
+              <WritingAssistant content={content} onApply={(newContent) => setContent(newContent)} disabled={saving} />
+
+              <textarea
+                id="content-editor"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                disabled={saving}
+                rows={16}
+                style={{ ...inputStyle, padding: "16px", fontSize: 15, fontFamily: "monospace", lineHeight: 1.6, resize: "vertical", opacity: saving ? 0.6 : 1, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+              />
               <p style={{ fontSize: 13, color: "#6B7280", marginTop: 8 }}>{content.length} characters</p>
             </div>
 
@@ -408,6 +419,270 @@ export default function EditDocumentForm({ document }: { document: Document }) {
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── AI Writing Assistant ──
+function WritingAssistant({ content, onApply, disabled }: {
+  content: string; onApply: (text: string) => void; disabled: boolean;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [action, setAction] = useState("");
+  const [preview, setPreview] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [generatePrompt, setGeneratePrompt] = useState("");
+
+  const quickActions = [
+    { id: "improve", label: "✨ 優化 Improve", color: "#7C3AED" },
+    { id: "fix-grammar", label: "📝 修正 Fix", color: "#059669" },
+    { id: "make-shorter", label: "📐 精簡 Shorter", color: "#D97706" },
+    { id: "make-longer", label: "📏 擴展 Longer", color: "#2563EB" },
+    { id: "bullet-points", label: "📋 條列 Bullets", color: "#6B7280" },
+    { id: "summarize", label: "📊 摘要 Summary", color: "#EC4899" },
+  ];
+
+  const toneActions = [
+    { id: "formal", label: "👔 正式" },
+    { id: "casual", label: "😊 輕鬆" },
+    { id: "technical", label: "🔬 專業" },
+  ];
+
+  const translateActions = [
+    { id: "translate-zh", label: "🇹🇼 翻譯中文" },
+    { id: "translate-en", label: "🇺🇸 Translate EN" },
+  ];
+
+  const getSelectedText = (): { text: string; start: number; end: number } | null => {
+    const textarea = globalThis.document.getElementById("content-editor") as HTMLTextAreaElement | null;
+    if (!textarea) return null;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end) return null;
+    return { text: content.slice(start, end), start, end };
+  };
+
+  const runAction = async (actionId: string, prompt?: string) => {
+    const selection = getSelectedText();
+    const textToProcess = selection?.text || content;
+
+    if (!textToProcess.trim()) return;
+
+    setLoading(true);
+    setAction(actionId);
+    setPreview("");
+
+    try {
+      const res = await fetch("/api/writing-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: actionId,
+          text: textToProcess,
+          context: selection ? content.slice(0, 500) : undefined,
+          customPrompt: prompt,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.result) {
+        setPreview(data.result);
+      }
+    } catch {
+      setPreview("❌ Failed to process. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyPreview = () => {
+    if (!preview) return;
+    const selection = getSelectedText();
+
+    if (selection && (action !== "generate")) {
+      // Replace selected text
+      const newContent = content.slice(0, selection.start) + preview + content.slice(selection.end);
+      onApply(newContent);
+    } else if (action === "generate") {
+      // Append generated content
+      onApply(content + (content.endsWith("\n") ? "" : "\n\n") + preview);
+    } else {
+      // Replace entire content
+      onApply(preview);
+    }
+    setPreview("");
+    setAction("");
+  };
+
+  const dismissPreview = () => {
+    setPreview("");
+    setAction("");
+  };
+
+  return (
+    <div style={{
+      border: "1px solid #E5E7EB", borderBottom: "none",
+      borderRadius: "8px 8px 0 0", background: "white", overflow: "hidden",
+    }}>
+      {/* Toolbar */}
+      <div style={{
+        padding: "8px 12px",
+        background: "linear-gradient(135deg, #FAFAFE 0%, #F5F3FF 100%)",
+        borderBottom: "1px solid #EDE9FE",
+        display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center",
+      }}>
+        <span style={{ fontSize: 12, color: "#7C3AED", fontWeight: 700, marginRight: 4 }}>🤖 AI</span>
+
+        {/* Quick actions */}
+        {quickActions.map(a => (
+          <button
+            key={a.id}
+            onClick={() => runAction(a.id)}
+            disabled={disabled || loading || !content.trim()}
+            style={{
+              padding: "4px 10px", borderRadius: 6, border: "1px solid #E5E7EB",
+              background: "white", fontSize: 12, cursor: "pointer", color: "#374151",
+              fontWeight: 500, opacity: disabled || loading || !content.trim() ? 0.5 : 1,
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.borderColor = a.color; e.currentTarget.style.color = a.color; }}}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.color = "#374151"; }}
+          >{a.label}</button>
+        ))}
+
+        <span style={{ width: 1, height: 20, background: "#E5E7EB", margin: "0 2px" }} />
+
+        {/* Tone */}
+        {toneActions.map(a => (
+          <button
+            key={a.id}
+            onClick={() => runAction(a.id)}
+            disabled={disabled || loading || !content.trim()}
+            style={{
+              padding: "4px 8px", borderRadius: 6, border: "1px solid #E5E7EB",
+              background: "white", fontSize: 11, cursor: "pointer", color: "#6B7280",
+              opacity: disabled || loading || !content.trim() ? 0.5 : 1,
+            }}
+          >{a.label}</button>
+        ))}
+
+        <span style={{ width: 1, height: 20, background: "#E5E7EB", margin: "0 2px" }} />
+
+        {/* Translate */}
+        {translateActions.map(a => (
+          <button
+            key={a.id}
+            onClick={() => runAction(a.id)}
+            disabled={disabled || loading || !content.trim()}
+            style={{
+              padding: "4px 8px", borderRadius: 6, border: "1px solid #E5E7EB",
+              background: "white", fontSize: 11, cursor: "pointer", color: "#6B7280",
+              opacity: disabled || loading || !content.trim() ? 0.5 : 1,
+            }}
+          >{a.label}</button>
+        ))}
+
+        <span style={{ width: 1, height: 20, background: "#E5E7EB", margin: "0 2px" }} />
+
+        {/* Custom */}
+        <button
+          onClick={() => setShowCustom(!showCustom)}
+          disabled={disabled || loading || !content.trim()}
+          style={{
+            padding: "4px 10px", borderRadius: 6, border: "1px solid #E5E7EB",
+            background: showCustom ? "#7C3AED" : "white", color: showCustom ? "white" : "#374151",
+            fontSize: 12, cursor: "pointer", fontWeight: 500,
+            opacity: disabled || loading || !content.trim() ? 0.5 : 1,
+          }}
+        >🎯 自訂 Custom</button>
+
+        {/* Generate */}
+        <button
+          onClick={() => setShowGenerate(!showGenerate)}
+          disabled={disabled || loading}
+          style={{
+            padding: "4px 10px", borderRadius: 6, border: "1px solid #E5E7EB",
+            background: showGenerate ? "#EC4899" : "white", color: showGenerate ? "white" : "#374151",
+            fontSize: 12, cursor: "pointer", fontWeight: 500,
+            opacity: disabled || loading ? 0.5 : 1,
+          }}
+        >💡 生成 Generate</button>
+
+        {loading && (
+          <span style={{ fontSize: 12, color: "#7C3AED", fontWeight: 600, marginLeft: 4 }}>
+            ⏳ 處理中 Processing...
+          </span>
+        )}
+      </div>
+
+      {/* Selection hint */}
+      <div style={{ padding: "4px 12px", background: "#FEFCE8", fontSize: 11, color: "#92400E", borderBottom: "1px solid #FDE68A" }}>
+        💡 選取文字只轉換該段落，或直接套用整篇內容 | Select text to transform just that section, or apply to full content
+      </div>
+
+      {/* Custom prompt input */}
+      {showCustom && (
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid #E5E7EB", display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            placeholder="告訴 AI 如何修改文字... 例如：'為每個重點加上範例' | Tell AI what to do..."
+            onKeyDown={(e) => { if (e.key === "Enter" && customPrompt.trim()) { runAction("custom", customPrompt); setShowCustom(false); } }}
+            style={{ flex: 1, padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 6, fontSize: 13, outline: "none" }}
+          />
+          <button
+            onClick={() => { if (customPrompt.trim()) { runAction("custom", customPrompt); setShowCustom(false); } }}
+            style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: "#7C3AED", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >Apply</button>
+        </div>
+      )}
+
+      {/* Generate prompt input */}
+      {showGenerate && (
+        <div style={{ padding: "10px 12px", borderBottom: "1px solid #E5E7EB", display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            value={generatePrompt}
+            onChange={(e) => setGeneratePrompt(e.target.value)}
+            placeholder="AI 應該寫什麼？例如：'撰寫專案提案的介紹' | What should AI write?"
+            onKeyDown={(e) => { if (e.key === "Enter" && generatePrompt.trim()) { runAction("generate", generatePrompt); setShowGenerate(false); } }}
+            style={{ flex: 1, padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 6, fontSize: 13, outline: "none" }}
+          />
+          <button
+            onClick={() => { if (generatePrompt.trim()) { runAction("generate", generatePrompt); setShowGenerate(false); } }}
+            style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: "#EC4899", color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+          >Generate</button>
+        </div>
+      )}
+
+      {/* Preview */}
+      {preview && (
+        <div style={{ borderBottom: "1px solid #E5E7EB" }}>
+          <div style={{ padding: "8px 12px", background: "#F0FDF4", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#065F46" }}>✨ AI 建議 Suggestion</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={applyPreview}
+                style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: "#059669", color: "white", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                ✓ 套用 Apply
+              </button>
+              <button onClick={dismissPreview}
+                style={{ padding: "5px 14px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", fontSize: 12, cursor: "pointer", color: "#6B7280" }}>
+                ✕ 取消 Dismiss
+              </button>
+            </div>
+          </div>
+          <div style={{
+            padding: "12px 16px", maxHeight: 200, overflowY: "auto",
+            fontSize: 14, lineHeight: 1.6, whiteSpace: "pre-wrap",
+            background: "#F9FFF9", color: "#1a1a1a", fontFamily: "monospace",
+          }}>
+            {preview}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
