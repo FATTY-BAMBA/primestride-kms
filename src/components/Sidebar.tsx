@@ -41,6 +41,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     { href: "/team", icon: "👤", label: "成員", labelEn: "Members" },
     { href: "/teams", icon: "🏷️", label: "群組", labelEn: "Groups" },
     { href: "/developer", icon: "🔑", label: "API", labelEn: "Developer" },
+    { href: "/audit-logs", icon: "📋", label: "操作紀錄", labelEn: "Audit Logs" },
   ];
 
   const isActive = (href: string) => {
