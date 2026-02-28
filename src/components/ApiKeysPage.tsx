@@ -177,7 +177,7 @@ Content-Type: application/json
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <code style={{
-                flex: 1, padding: "10px 14px", background: "white", borderRadius: 8,
+                flex: 1, padding: "10px 14px", background: "white", borderRadius: 8, color: "#111827",
                 border: "1px solid #D1D5DB", fontSize: 13, fontFamily: "monospace",
                 wordBreak: "break-all",
               }}>{newKeyValue}</code>
