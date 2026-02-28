@@ -460,6 +460,9 @@ function LibraryContent() {
             <Link href="/ai-graph" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
               🧠 Graph
             </Link>
+            <Link href="/projects" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+              🎯 Projects
+            </Link>
             <OrgSwitcher />
             <UserMenu />
           </div>
