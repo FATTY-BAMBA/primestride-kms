@@ -358,14 +358,19 @@ export default function DocumentView({
         )}
 
         {/* Action Buttons */}
-        {isAdmin && !viewingVersion && (
-          <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-            <Link href={`/library/${document.doc_id}/edit`} className="btn" style={{ padding: "10px 20px", fontSize: 14 }}>
-              ✏️ Edit
-            </Link>
-            <button className="btn" onClick={handleDelete} style={{ padding: "10px 20px", fontSize: 14, background: "#FEE2E2", color: "#991B1B", border: "1px solid #FCA5A5" }}>
-              🗑️ Delete
-            </button>
+        {!viewingVersion && (
+          <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+            {isAdmin && (
+              <Link href={`/library/${document.doc_id}/edit`} className="btn" style={{ padding: "10px 20px", fontSize: 14 }}>
+                ✏️ Edit
+              </Link>
+            )}
+            {isAdmin && (
+              <button className="btn" onClick={handleDelete} style={{ padding: "10px 20px", fontSize: 14, background: "#FEE2E2", color: "#991B1B", border: "1px solid #FCA5A5" }}>
+                🗑️ Delete
+              </button>
+            )}
+            <ExportDropdown docId={document.doc_id} title={document.title} />
           </div>
         )}
 
@@ -785,6 +790,81 @@ export default function DocumentView({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Export Dropdown ──
+function ExportDropdown({ docId, title }: { docId: string; title: string }) {
+  const [open, setOpen] = useState(false);
+
+  const formats = [
+    { id: "pdf", label: "📥 Export as PDF", desc: "Print-ready format" },
+    { id: "docx", label: "📘 Export as Word (.doc)", desc: "Editable in Microsoft Word" },
+    { id: "html", label: "🌐 Export as HTML", desc: "Web-ready format" },
+    { id: "md", label: "📝 Export as Markdown", desc: "Plain text with formatting" },
+    { id: "txt", label: "📄 Export as Text", desc: "Plain text, no formatting" },
+  ];
+
+  const handleExport = (format: string) => {
+    setOpen(false);
+    const url = `/api/export?docId=${encodeURIComponent(docId)}&format=${format}`;
+    if (format === "pdf") {
+      // PDF opens in new tab for print dialog
+      window.open(url, "_blank");
+    } else {
+      // Others trigger download
+      const a = globalThis.document.createElement("a");
+      a.href = url;
+      a.download = "";
+      globalThis.document.body.appendChild(a);
+      a.click();
+      globalThis.document.body.removeChild(a);
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="btn"
+        style={{
+          padding: "10px 20px", fontSize: 14, display: "flex",
+          alignItems: "center", gap: 6,
+        }}
+      >
+        📤 Export
+        <span style={{ fontSize: 10, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▼</span>
+      </button>
+
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50,
+            background: "white", borderRadius: 12, border: "1px solid #E5E7EB",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 240, overflow: "hidden",
+          }}>
+            {formats.map(f => (
+              <button
+                key={f.id}
+                onClick={() => handleExport(f.id)}
+                style={{
+                  display: "block", width: "100%", padding: "12px 16px",
+                  border: "none", background: "white", cursor: "pointer",
+                  textAlign: "left", borderBottom: "1px solid #F3F4F6",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>{f.label}</div>
+                <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>{f.desc}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
