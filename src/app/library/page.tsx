@@ -474,15 +474,6 @@ function LibraryContent() {
               🤖 AI Agent
             </Link>
             {isAdmin && (
-              <Link href="/agent" style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "8px 14px",
-                background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
-                color: "white", borderRadius: 8, textDecoration: "none",
-                fontSize: 13, fontWeight: 600,
-                boxShadow: "0 2px 6px rgba(124, 58, 237, 0.3)",
-              }}>
-                🤖 AI Agent
               </Link>
             )}
             <OrgSwitcher />
