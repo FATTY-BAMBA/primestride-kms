@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import { notifyAdminsNewSubmission, notifySubmitterStatus } from "@/lib/workflow-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -175,6 +176,37 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // ✅ Email notify admins (fire-and-forget, don't block response)
+    try {
+      const { data: admins } = await supabase
+        .from("organization_members")
+        .select("user_id")
+        .eq("organization_id", membership.organization_id)
+        .in("role", ["owner", "admin"])
+        .eq("is_active", true);
+
+      if (admins && admins.length > 0) {
+        const { data: adminProfiles } = await supabase
+          .from("profiles")
+          .select("email")
+          .in("id", admins.map(a => a.user_id));
+
+        const adminEmails = (adminProfiles || []).map(p => p.email).filter(Boolean) as string[];
+        if (adminEmails.length > 0) {
+          notifyAdminsNewSubmission({
+            adminEmails,
+            submitterName,
+            formType: form_type,
+            formData: form_data,
+            originalText: original_text || undefined,
+          }).catch(err => console.error("Email notification error:", err));
+        }
+      }
+    } catch (notifyErr) {
+      console.error("Failed to send admin notifications:", notifyErr);
+    }
+
     return NextResponse.json({ submission: data }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Failed to submit" }, { status: 500 });
@@ -302,6 +334,29 @@ export async function PATCH(request: NextRequest) {
       }
 
       results.push(data);
+
+      // ✅ Email notify submitter on approve/reject (fire-and-forget)
+      try {
+        const { data: submitterProfile } = await supabase
+          .from("profiles")
+          .select("full_name, email")
+          .eq("id", sub.submitted_by)
+          .single();
+
+        if (submitterProfile?.email) {
+          notifySubmitterStatus({
+            submitterEmail: submitterProfile.email,
+            submitterName: submitterProfile.full_name || submitterProfile.email.split("@")[0],
+            reviewerName,
+            formType: sub.form_type,
+            formData: sub.form_data || {},
+            status: action as "approved" | "rejected",
+            reviewNote: review_note || undefined,
+          }).catch(err => console.error("Email notification error:", err));
+        }
+      } catch (notifyErr) {
+        console.error("Failed to send submitter notification:", notifyErr);
+      }
     }
 
     return NextResponse.json({
