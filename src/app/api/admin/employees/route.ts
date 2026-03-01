@@ -25,23 +25,18 @@ export async function GET() {
     const org = await getUserOrganization(userId);
     if (!org) return NextResponse.json({ error: "No organization" }, { status: 403 });
 
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("organization_id", org.id)
-      .eq("is_active", true)
-      .single();
-
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
+    const isAdmin = ["owner", "admin"].includes(org.role || "");
+    if (!isAdmin) {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
+
+    const orgId = org.organization_id;
 
     // Get all org members
     const { data: members } = await supabase
       .from("organization_members")
       .select("user_id")
-      .eq("organization_id", org.id)
+      .eq("organization_id", orgId)
       .eq("is_active", true);
 
     if (!members || members.length === 0) {
@@ -62,13 +57,13 @@ export async function GET() {
     const { data: allSubmissions } = await supabase
       .from("workflow_submissions")
       .select("submitted_by, form_type, form_data, status, created_at")
-      .eq("organization_id", org.id);
+      .eq("organization_id", orgId);
 
     // Get leave balances
     const { data: leaveBalances } = await supabase
       .from("leave_balances")
       .select("*")
-      .eq("organization_id", org.id)
+      .eq("organization_id", orgId)
       .eq("year", new Date().getFullYear());
 
     const balanceMap = new Map((leaveBalances || []).map(b => [b.user_id, b]));
