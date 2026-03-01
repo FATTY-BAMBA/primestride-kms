@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ComplianceConflictScanner from "@/components/ComplianceConflictScanner";
 
 interface Submission {
   id: string;
@@ -454,7 +455,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* API Info */}
-          <div style={{ background: "#F8FAFC", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20 }}>
+          <div style={{ background: "#F8FAFC", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", marginBottom: 8 }}>🔗 資料來源</div>
             <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.8 }}>
               勞動部開放資料 API: apiservice.mol.gov.tw<br />
@@ -463,6 +464,9 @@ export default function AdminDashboard() {
               規則來源: 勞動基準法、勞工請假規則、性別平等工作法
             </div>
           </div>
+
+          {/* ═══ CONFLICT SCANNER ═══ */}
+          <ComplianceConflictScanner />
         </div>
       )}
     </div>
