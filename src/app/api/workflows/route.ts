@@ -10,6 +10,32 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// ── Helper: Resolve user IDs to names from profiles table ──
+async function resolveUserNames(submissions: any[]): Promise<any[]> {
+  if (!submissions || submissions.length === 0) return [];
+
+  const userIds = new Set<string>();
+  submissions.forEach(s => {
+    if (s.submitted_by) userIds.add(s.submitted_by);
+    if (s.reviewed_by) userIds.add(s.reviewed_by);
+  });
+
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", Array.from(userIds));
+
+  const nameMap = new Map(
+    (profiles || []).map((p: any) => [p.id, p.full_name || p.email?.split("@")[0] || p.id.slice(0, 12)])
+  );
+
+  return submissions.map(s => ({
+    ...s,
+    submitter_name: nameMap.get(s.submitted_by) || s.submitted_by?.slice(0, 12) || "Unknown",
+    reviewer_name: s.reviewed_by ? (nameMap.get(s.reviewed_by) || s.reviewed_by?.slice(0, 12)) : null,
+  }));
+}
+
 // GET — list submissions + stats + leave balance
 export async function GET(request: NextRequest) {
   try {
@@ -23,6 +49,7 @@ export async function GET(request: NextRequest) {
     const view = searchParams.get("view") || "my";
     const status = searchParams.get("status");
     const formType = searchParams.get("form_type");
+    const userIdFilter = searchParams.get("user_id");
 
     const isAdmin = ["owner", "admin"].includes(membership.role || "");
     const orgId = membership.organization_id;
@@ -39,8 +66,12 @@ export async function GET(request: NextRequest) {
     }
     if (status) query = query.eq("status", status);
     if (formType) query = query.eq("form_type", formType);
+    if (userIdFilter && isAdmin) query = query.eq("submitted_by", userIdFilter);
 
     const { data: submissions } = await query.limit(50);
+
+    // ✅ Resolve user names from profiles table
+    const enriched = await resolveUserNames(submissions || []);
 
     // Fetch stats
     const now = new Date();
@@ -90,7 +121,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      submissions: submissions || [],
+      submissions: enriched,
       isAdmin,
       stats,
       leave_balance: balance,
@@ -116,15 +147,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "form_type and form_data required" }, { status: 400 });
     }
 
+    // ✅ Get name from profiles table (not organization_members)
     let submitterName = userId;
     try {
-      const profileRes = await supabase
-        .from("organization_members")
-        .select("display_name")
-        .eq("user_id", userId)
-        .eq("organization_id", membership.organization_id)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", userId)
         .single();
-      if (profileRes.data?.display_name) submitterName = profileRes.data.display_name;
+      if (profile?.full_name) submitterName = profile.full_name;
+      else if (profile?.email) submitterName = profile.email.split("@")[0];
     } catch {}
 
     const { data, error } = await supabase
@@ -165,7 +197,7 @@ export async function PATCH(request: NextRequest) {
     const orgId = membership.organization_id;
 
     // Cancel — user can cancel their own
-    if (action === "cancel") {
+    if (action === "cancel" || action === "cancelled") {
       const { data, error } = await supabase
         .from("workflow_submissions")
         .update({ status: "cancelled", updated_at: new Date().toISOString() })
@@ -185,15 +217,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
+    // ✅ Get reviewer name from profiles
     let reviewerName = userId;
     try {
-      const profileRes = await supabase
-        .from("organization_members")
-        .select("display_name")
-        .eq("user_id", userId)
-        .eq("organization_id", orgId)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", userId)
         .single();
-      if (profileRes.data?.display_name) reviewerName = profileRes.data.display_name;
+      if (profile?.full_name) reviewerName = profile.full_name;
+      else if (profile?.email) reviewerName = profile.email.split("@")[0];
     } catch {}
 
     // Batch approval support
@@ -231,7 +264,7 @@ export async function PATCH(request: NextRequest) {
 
       if (error) continue;
 
-      // Deduct leave balance on approval
+      // ✅ Deduct leave balance on approval (extended for all leave types)
       if (action === "approved" && sub.form_type === "leave" && sub.form_data) {
         const days = parseFloat(sub.form_data.days) || 0;
         const leaveType = (sub.form_data.leave_type || "").toLowerCase();
@@ -241,9 +274,13 @@ export async function PATCH(request: NextRequest) {
         if (leaveType.includes("特休") || leaveType.includes("annual")) column = "annual_used";
         else if (leaveType.includes("病假") || leaveType.includes("sick")) column = "sick_used";
         else if (leaveType.includes("事假") || leaveType.includes("personal")) column = "personal_used";
+        else if (leaveType.includes("家庭") || leaveType.includes("family")) column = "family_care_used";
+        else if (leaveType.includes("婚假") || leaveType.includes("marriage")) column = "marriage_used";
+        else if (leaveType.includes("喪假") || leaveType.includes("bereavement")) column = "bereavement_used";
+        else if (leaveType.includes("產假") || leaveType.includes("maternity")) column = "maternity_used";
+        else if (leaveType.includes("陪產") || leaveType.includes("paternity")) column = "paternity_used";
 
         if (column && days > 0) {
-          // Get current balance
           const { data: bal } = await supabase
             .from("leave_balances")
             .select("*")
