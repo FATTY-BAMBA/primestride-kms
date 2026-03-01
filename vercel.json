@@ -1,12 +1,8 @@
 {
-  "functions": {
-    "src/app/api/documents/parse/route.ts": {
-      "maxDuration": 60,
-      "memory": 1024
-    },
-    "src/app/api/documents/upload/route.ts": {
-      "maxDuration": 60,
-      "memory": 1024
+  "crons": [
+    {
+      "path": "/api/compliance/sync",
+      "schedule": "0 3 1,15 * *"
     }
-  }
+  ]
 }
