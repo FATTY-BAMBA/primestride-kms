@@ -409,3 +409,98 @@ input::placeholder, textarea::placeholder {
 .cl-organizationSwitcherPopoverRootBox {
   z-index: 9999 !important;
 }
+/* ══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS QUICK FIX
+   Add this to your global CSS (globals.css or app layout)
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Base: ensure viewport works ── */
+/* Make sure your layout.tsx has: 
+   <meta name="viewport" content="width=device-width, initial-scale=1" /> 
+   (Next.js usually has this by default) */
+
+/* ── Fix grid overflows on mobile ── */
+@media (max-width: 640px) {
+  /* Stats grid: 4 columns → 2 columns */
+  div[style*="gridTemplateColumns: repeat(4"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Form data grid: auto-fill → single column */
+  div[style*="gridTemplateColumns: repeat(auto-fill"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Leave balance grid */
+  div[style*="minmax(130px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Tables scroll horizontally */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce padding on cards */
+  div[style*="padding: 24px"] {
+    padding: 16px !important;
+  }
+
+  div[style*="padding: 20px"] {
+    padding: 14px !important;
+  }
+
+  /* Text input full width */
+  textarea, input, select {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Flex wrapping for button groups */
+  div[style*="display: flex"][style*="gap"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Admin dashboard tabs: scroll horizontally if too many */
+  div[style*="display: flex"][style*="borderBottom"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  div[style*="display: flex"][style*="borderBottom"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Compliance scanner summary: 4 cols → 2 cols */
+  div[style*="display: flex"][style*="gap: 12"] {
+    flex-wrap: wrap !important;
+  }
+
+  div[style*="display: flex"][style*="gap: 12"] > div[style*="flex: 1"] {
+    flex: 1 1 45% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* ── Small phones ── */
+@media (max-width: 380px) {
+  div[style*="gridTemplateColumns: repeat(2"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  div[style*="fontSize: 22"] {
+    font-size: 18px !important;
+  }
+
+  div[style*="fontSize: 28"] {
+    font-size: 22px !important;
+  }
+}

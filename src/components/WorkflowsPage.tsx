@@ -116,7 +116,11 @@ export default function WorkflowsPage() {
       setIsAdmin(data.isAdmin || false);
       if (data.stats) setStats(data.stats);
       if (data.leave_balance) setLeaveBalance(data.leave_balance);
-    } catch {} finally { setLoading(false); }
+    } catch (err) {
+      console.error("Failed to fetch submissions:", err);
+      setMessage("⚠️ 無法載入申請紀錄，請重新整理頁面。Failed to load submissions.");
+      setTimeout(() => setMessage(""), 5000);
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchSubmissions(); }, [viewMode, statusFilter]);
@@ -126,18 +130,26 @@ export default function WorkflowsPage() {
     if (!nlpInput.trim()) return;
     setParsing(true); setFormData(null); setParsedType(null); setCompliance(null); setShowEditMode(false);
     try {
-      // Let the AI detect form type + fill fields in one call
       const res = await fetch("/api/workflows/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: nlpInput, form_type: "auto" }),
       });
       const data = await res.json();
+      if (!res.ok || data.error) {
+        setMessage(`⚠️ ${data.error || "AI 解析失敗"} | AI parsing failed, try again.`);
+        setTimeout(() => setMessage(""), 5000);
+        return;
+      }
       if (data.form_data) {
         setFormData(data.form_data);
         setParsedType(data.form_type || "leave");
       }
-    } catch {} finally { setParsing(false); }
+    } catch (err) {
+      console.error("NLP parse error:", err);
+      setMessage("⚠️ AI 解析失敗，請再試一次或手動填寫。AI parsing failed, please try again.");
+      setTimeout(() => setMessage(""), 5000);
+    } finally { setParsing(false); }
   };
 
   // ── Compliance Check (auto-runs when form parsed) ──
@@ -184,8 +196,16 @@ export default function WorkflowsPage() {
         setNlpInput(""); setFormData(null); setParsedType(null); setCompliance(null);
         fetchSubmissions();
         setTimeout(() => setMessage(""), 3000);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setMessage(`❌ ${errData.error || "送出失敗"} | Submission failed.`);
+        setTimeout(() => setMessage(""), 5000);
       }
-    } catch {} finally { setSubmitting(false); }
+    } catch (err) {
+      console.error("Submit error:", err);
+      setMessage("❌ 送出失敗，請再試一次。Submission failed, please try again.");
+      setTimeout(() => setMessage(""), 5000);
+    } finally { setSubmitting(false); }
   };
 
   // ── Admin Actions ──
@@ -197,14 +217,22 @@ export default function WorkflowsPage() {
         body: JSON.stringify({ id, action, review_note: reviewNote }),
       });
       setReviewingId(null); setReviewNote(""); fetchSubmissions();
-    } catch {}
+    } catch (err) {
+      console.error("Review error:", err);
+      setMessage("⚠️ 審核操作失敗，請再試一次。Review action failed.");
+      setTimeout(() => setMessage(""), 4000);
+    }
   };
 
   const handleCancel = async (id: string) => {
     try {
       await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "cancelled" }) });
       fetchSubmissions();
-    } catch {}
+    } catch (err) {
+      console.error("Cancel error:", err);
+      setMessage("⚠️ 取消失敗，請再試一次。Cancel failed.");
+      setTimeout(() => setMessage(""), 4000);
+    }
   };
 
   const handleBatchApproval = async (action: string) => {
@@ -214,7 +242,11 @@ export default function WorkflowsPage() {
         body: JSON.stringify({ ids: Array.from(selectedIds), action, review_note: reviewNote }),
       });
       setSelectedIds(new Set()); setReviewNote(""); fetchSubmissions();
-    } catch {}
+    } catch (err) {
+      console.error("Batch action error:", err);
+      setMessage("⚠️ 批次操作失敗，請再試一次。Batch action failed.");
+      setTimeout(() => setMessage(""), 4000);
+    }
   };
 
   const toggleSelect = (id: string) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
@@ -357,21 +389,26 @@ export default function WorkflowsPage() {
               {!showEditMode ? (
                 /* ── READ-ONLY SUMMARY ── */
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
-                  {Object.entries(formData).map(([key, value]) => (
+                  {Object.entries(formData).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
                     <div key={key} style={{ padding: "8px 12px", background: "#F9FAFB", borderRadius: 8 }}>
                       <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
-                      <div style={{ fontSize: 14, color: "#111827", fontWeight: 600, marginTop: 2 }}>{String(value || "—")}</div>
+                      <div style={{ fontSize: 14, color: "#111827", fontWeight: 600, marginTop: 2 }}>
+                        {String(value || "—")}
+                        {key === "proxy" && formData._proxy_suggested && (
+                          <span style={{ marginLeft: 6, padding: "1px 6px", background: "#EDE9FE", color: "#7C3AED", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>AI 建議</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 /* ── EDIT MODE (hidden by default) ── */
                 <div style={{ display: "grid", gap: 12 }}>
-                  {Object.entries(formData).map(([key, value]) => {
+                  {Object.entries(formData).filter(([key]) => !key.startsWith("_")).map(([key, value]) => {
                     const selectOptions: Record<string, string[]> = {
-                      leave_type: ["特休 Annual", "病假 Sick", "事假 Personal", "家庭照顧假 Family Care", "婚假 Marriage", "喪假 Bereavement", "產假 Maternity", "陪產假 Paternity", "公假 Official"],
+                      leave_type: ["特休 Annual", "補休 Comp", "病假 Sick", "事假 Personal", "家庭照顧假 Family Care", "生理假 Menstrual", "婚假 Marriage", "喪假 Bereavement", "產假 Maternity", "陪產假 Paternity", "公假 Official"],
                       overtime_type: ["平日加班 Weekday", "假日加班 Holiday", "國定假日 National Holiday"],
-                      transport: ["高鐵 HSR", "飛機 Flight", "自駕 Driving", "火車 Train", "其他 Other"],
+                      transport: ["高鐵 HSR", "飛機 Flight", "自駕 Driving", "火車 Train", "客運 Bus", "其他 Other"],
                     };
                     const options = selectOptions[key];
                     return (
@@ -539,7 +576,7 @@ export default function WorkflowsPage() {
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6, marginBottom: 10 }}>
-                  {Object.entries(s.form_data).map(([key, value]) => (
+                  {Object.entries(s.form_data).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
                     <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
                       <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
                       <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{value || "—"}</div>
