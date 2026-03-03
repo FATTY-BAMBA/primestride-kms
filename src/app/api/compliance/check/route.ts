@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
+import { getUserOrganization } from "@/lib/get-user-organization";
 import OpenAI from "openai";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -10,6 +12,10 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Validates a workflow submission against Taiwan labor law
 // Called BEFORE submission is saved (pre-submit check)
 // or AFTER submission for admin review
+//
+// FIX: Now pulls user_id and organization_id from Clerk auth
+// so the frontend doesn't need to pass them explicitly.
+// Falls back to body params for backward compatibility (admin tools).
 // ══════════════════════════════════════════════════════════════
 
 interface ComplianceResult {
@@ -29,10 +35,33 @@ interface ComplianceResult {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { form_type, form_data, user_id, organization_id } = body;
+    const { form_type, form_data } = body;
 
-    if (!form_type || !form_data || !user_id || !organization_id) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!form_type || !form_data) {
+      return NextResponse.json({ error: "form_type and form_data are required" }, { status: 400 });
+    }
+
+    // ── Resolve user_id and organization_id from auth (with body fallback) ──
+    let user_id = body.user_id || null;
+    let organization_id = body.organization_id || null;
+
+    if (!user_id || !organization_id) {
+      try {
+        const { userId } = await auth();
+        if (userId) {
+          user_id = userId;
+          const org = await getUserOrganization(userId);
+          if (org) {
+            organization_id = org.organization_id;
+          }
+        }
+      } catch {
+        // Auth not available — continue with whatever we have
+      }
+    }
+
+    if (!user_id || !organization_id) {
+      return NextResponse.json({ error: "Unable to resolve user context. Please log in." }, { status: 401 });
     }
 
     const result: ComplianceResult = { status: "pass", checks: [] };
@@ -43,7 +72,6 @@ export async function POST(req: NextRequest) {
     } else if (form_type === "overtime") {
       await checkOvertimeCompliance(result, form_data, user_id, organization_id);
     } else if (form_type === "business_trip") {
-      // Business trips: lighter checks
       result.checks.push({
         check_type: "trip_basic",
         status: "pass",
@@ -60,7 +88,6 @@ export async function POST(req: NextRequest) {
       result.ai_analysis = aiAnalysis.en;
       result.ai_analysis_zh = aiAnalysis.zh;
 
-      // If AI found issues, add them
       if (aiAnalysis.issues && aiAnalysis.issues.length > 0) {
         for (const issue of aiAnalysis.issues) {
           result.checks.push({
@@ -130,7 +157,6 @@ async function checkLeaveCompliance(
     let usedDays = 0;
     let balanceField = "";
 
-    // Map leave type to balance field
     const leaveTypeKey = (leave_type || "").toLowerCase();
     if (leaveTypeKey.includes("特休") || leaveTypeKey.includes("annual")) {
       totalDays = balance.annual_total || 7;
@@ -253,12 +279,11 @@ async function checkOvertimeCompliance(
     const monthStart = date.substring(0, 7) + "-01";
     const monthEnd = date.substring(0, 7) + "-31";
 
-    // Get all approved overtime this month
     const { data: monthOT } = await supabase
       .from("workflow_submissions")
       .select("form_data")
       .eq("organization_id", org_id)
-      .eq("user_id", user_id)
+      .eq("submitted_by", user_id)
       .eq("form_type", "overtime")
       .in("status", ["approved", "pending"])
       .gte("created_at", monthStart)
@@ -314,12 +339,37 @@ async function checkOvertimeCompliance(
       }
     }
   }
+
+  // 4. Overtime pay rate info (always show as informational pass)
+  if (numHours > 0) {
+    const overtimeType = (form_data.overtime_type || "").toLowerCase();
+    let rateInfo = "";
+    let rateInfoZh = "";
+
+    if (overtimeType.includes("假日") || overtimeType.includes("holiday")) {
+      rateInfo = `Holiday overtime: First 2h at 1.34x, remaining at 1.67x base rate.`;
+      rateInfoZh = `假日加班：前2小時按1.34倍、第3小時起按1.67倍計算。`;
+    } else if (overtimeType.includes("國定") || overtimeType.includes("national")) {
+      rateInfo = `National holiday overtime: All hours at 2x base rate.`;
+      rateInfoZh = `國定假日加班：全部時數按2倍計算。`;
+    } else {
+      rateInfo = `Weekday overtime: First 2h at 1.34x, hours 3-4 at 1.67x base rate.`;
+      rateInfoZh = `平日加班：前2小時按1.34倍、第3-4小時按1.67倍計算。`;
+    }
+
+    result.checks.push({
+      check_type: "overtime_pay_rate",
+      status: "pass",
+      rule_reference: "LSA Art. 24 - Overtime Pay",
+      message: rateInfo,
+      message_zh: rateInfoZh,
+      details: { overtime_type: form_data.overtime_type, hours: numHours },
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
 // AI-POWERED COMPLIANCE ANALYSIS (RAG)
-// Queries the compliance_knowledge table for relevant rules
-// and asks GPT-4o to analyze the request
 // ══════════════════════════════════════════════════════════════
 async function runAIComplianceCheck(
   form_type: string,
@@ -327,7 +377,6 @@ async function runAIComplianceCheck(
   org_id: string
 ): Promise<{ en: string; zh: string; issues: { severity: string; rule: string; message_en: string; message_zh: string }[] } | null> {
   try {
-    // 1. Get relevant compliance rules
     const category = form_type === "leave" ? "leave" : form_type === "overtime" ? "overtime" : "general";
     const { data: rules } = await supabase
       .from("compliance_knowledge")
@@ -342,7 +391,6 @@ async function runAIComplianceCheck(
       .map((r) => `[${r.article_number || "Policy"}] ${r.title}\n${r.content}\nMetadata: ${JSON.stringify(r.metadata)}`)
       .join("\n\n");
 
-    // 2. Ask GPT-4o to analyze
     const today = new Date().toISOString().split("T")[0];
     const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date().getDay()];
 
