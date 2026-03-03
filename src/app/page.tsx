@@ -147,9 +147,9 @@ export default function LandingPage() {
         .sec-dark2 { background: var(--surface); }
         .sec-dark3 { background: linear-gradient(180deg, var(--ink2) 0%, var(--ink) 100%); }
         .con { max-width: var(--mw); margin: 0 auto; }
-        .sec-hd { max-width: 600px; margin-bottom: 52px; }
+        .sec-hd { max-width: 720px; margin-bottom: 52px; }
         .sec-hd.ctr { margin-left: auto; margin-right: auto; text-align: center; }
-        .sec-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+        .sec-label { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 12px; }
         .sec-label-blue { color: var(--blue-l); }
         .sec-label-green { color: var(--green-l); }
         .sec-label-dark { color: var(--text3); }
@@ -200,14 +200,14 @@ export default function LandingPage() {
         .compare-header.legacy { color: var(--light-text2); }
         .compare-header.atlas { color: var(--blue); }
         .compare-cell { padding: 16px 24px; background: white; border-top: 1px solid rgba(10,14,23,0.04); }
-        .compare-cell-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--light-text2); margin-bottom: 4px; }
+        .compare-cell-label { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; color: var(--light-text2); margin-bottom: 4px; }
         .compare-cell p { font-size: 14px; line-height: 1.5; color: var(--light-text); }
         .compare-cell.atlas-col p { color: var(--blue); font-weight: 600; }
 
         /* ─── Pillar Sections ─── */
         .pillar { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
         .pillar.rev { direction: rtl; } .pillar.rev > * { direction: ltr; }
-        .pillar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+        .pillar-label { font-size: 14px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 8px; }
         .pillar-title { font-family: 'DM Serif Display', 'Noto Sans TC', serif; font-size: clamp(22px, 3vw, 30px); font-weight: 400; line-height: 1.3; margin-bottom: 14px; }
         .pillar-desc { font-size: 14.5px; color: var(--text2); line-height: 1.7; margin-bottom: 22px; font-family: 'Noto Sans TC', sans-serif; }
         .pillar-features { display: flex; flex-direction: column; gap: 10px; }
@@ -261,12 +261,23 @@ export default function LandingPage() {
         .why-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: var(--light-text); font-family: 'Noto Sans TC', sans-serif; }
         .why-card p { font-size: 13px; color: var(--light-text2); line-height: 1.5; font-family: 'Noto Sans TC', sans-serif; }
 
+        /* ─── Roadmap ─── */
+        .roadmap-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
+        .roadmap-track::before { content: ''; position: absolute; top: 20px; left: 12.5%; right: 12.5%; height: 2px; background: var(--border); }
+        .roadmap-item { text-align: center; position: relative; padding: 0 12px; }
+        .roadmap-dot { width: 12px; height: 12px; border-radius: 50%; margin: 14px auto 18px; position: relative; z-index: 1; }
+        .roadmap-dot.active { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-glow); }
+        .roadmap-dot.upcoming { background: var(--text3); }
+        .roadmap-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue-l); }
+        .roadmap-item h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .roadmap-item p { font-size: 12px; color: var(--text3); line-height: 1.5; }
+
         /* ─── Pricing ─── */
         .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         .price-card { padding: 32px; border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); }
         .price-card.pop { border: 2px solid var(--blue); position: relative; box-shadow: 0 8px 40px rgba(37,99,235,0.12); }
         .price-pop { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 4px 16px; border-radius: 100px; background: var(--blue); color: white; font-size: 12px; font-weight: 700; white-space: nowrap; }
-        .price-tier { font-size: 14px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
+        .price-tier { font-size: 15px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
         .price-val { font-family: 'DM Serif Display', serif; font-size: 42px; color: var(--text); margin-bottom: 4px; }
         .price-val span { font-size: 16px; font-weight: 400; color: var(--text3); font-family: 'Instrument Sans', sans-serif; }
         .price-note { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
@@ -301,6 +312,8 @@ export default function LandingPage() {
           .prob-grid, .price-grid { grid-template-columns: 1fr; }
           .why-grid { grid-template-columns: 1fr 1fr; }
           .compare-grid { grid-template-columns: 1fr; }
+          .roadmap-track { grid-template-columns: 1fr 1fr; gap: 24px; }
+          .roadmap-track::before { display: none; }
           .ev-fields { grid-template-columns: 1fr; }
         }
       `}</style>
@@ -632,7 +645,7 @@ export default function LandingPage() {
                 <li>五格式匯出 + API</li>
                 <li>稽核日誌 + 品牌設定</li>
               </ul>
-              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>立即升級 →</a>
+              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>Start Free Trial →</a>
             </div>
             <div className="price-card fi">
               <div className="price-tier">Enterprise 企業版</div>
@@ -655,13 +668,13 @@ export default function LandingPage() {
 
       {/* ═══ 10. CTA ═══ */}
       <section className="cta">
-        <h2>讓 AI 守護你的每一筆流程</h2>
-        <p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p>
+        <h2>Your company{`'`}s nervous<br />system is waiting.</h2>
+        <p>加入首批 5 家台灣企業，體驗合規、智慧、一站式的流程管理。</p>
         <div className="cta-acts">
-          <a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a>
-          <a href="/contact" className="btn btn-w btn-lg">預約 Demo</a>
+          <a href="/signup" className="btn btn-p btn-lg">Request Early Access →</a>
+          <a href="/contact" className="btn btn-w btn-lg">與我們聊聊</a>
         </div>
-        <div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 五分鐘完成設定</div>
+        <div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 隨時可取消</div>
       </section>
 
       {/* ═══ FOOTER ═══ */}
