@@ -1,5 +1,144 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 1: shadcn/Tailwind theme tokens
+   These power the shadcn components (Button, Badge, etc.)
+   ═══════════════════════════════════════════════════════ */
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.129 0.042 264.695);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.129 0.042 264.695);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.129 0.042 264.695);
+  --primary: oklch(0.208 0.042 265.755);
+  --primary-foreground: oklch(0.984 0.003 247.858);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.554 0.046 257.417);
+  --accent: oklch(0.968 0.007 247.896);
+  --accent-foreground: oklch(0.208 0.042 265.755);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.929 0.013 255.508);
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.704 0.04 256.788);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.984 0.003 247.858);
+  --sidebar-foreground: oklch(0.129 0.042 264.695);
+  --sidebar-primary: oklch(0.208 0.042 265.755);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.968 0.007 247.896);
+  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.704 0.04 256.788);
+}
+
+.dark {
+  --background: oklch(0.129 0.042 264.695);
+  --foreground: oklch(0.984 0.003 247.858);
+  --card: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.984 0.003 247.858);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+  --primary: oklch(0.929 0.013 255.508);
+  --primary-foreground: oklch(0.208 0.042 265.755);
+  --secondary: oklch(0.279 0.041 260.031);
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);
+  --accent: oklch(0.279 0.041 260.031);
+  --accent-foreground: oklch(0.984 0.003 247.858);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.551 0.027 264.364);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.551 0.027 264.364);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 2: shadcn base layer
+   IMPORTANT: We do NOT apply bg-background/text-foreground
+   to body globally — that conflicts with the legacy dark theme.
+   Instead, the Sidebar component handles its own bg.
+   ═══════════════════════════════════════════════════════ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* Removed: body { @apply bg-background text-foreground; }
+     This was overriding the legacy dark theme on all pages.
+     The new Sidebar/Library use their own bg-white/bg-slate-50. */
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 3: Legacy PrimeStride dark theme
+   These custom properties power all EXISTING pages
+   (agent, search, projects, admin, workflows, etc.)
+   ═══════════════════════════════════════════════════════ */
 :root {
   /* Colors - Dark professional theme */
   --bg-primary: #0a0a0b;
@@ -8,12 +147,12 @@
   --bg-card-hover: #1c1c1f;
   --border-color: #2a2a2d;
   --border-hover: #3a3a3f;
-  
+
   /* Text colors */
   --text-primary: #fafafa;
   --text-secondary: #a0a0a5;
   --text-muted: #6a6a70;
-  
+
   /* Accent colors */
   --accent-green: #22c55e;
   --accent-green-soft: rgba(34, 197, 94, 0.15);
@@ -23,19 +162,11 @@
   --accent-red-soft: rgba(239, 68, 68, 0.15);
   --accent-blue: #3b82f6;
   --accent-blue-soft: rgba(59, 130, 246, 0.15);
-  
-  /* Spacing */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
+/* ═══════════════════════════════════════════════════════
+   SECTION 4: Global element styles (legacy)
+   ═══════════════════════════════════════════════════════ */
 html,
 body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -47,7 +178,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Utility classes */
+/* Legacy container */
 .container {
   max-width: 1000px;
   margin: 0 auto;
@@ -60,14 +191,8 @@ h1, h2, h3 {
   letter-spacing: -0.02em;
 }
 
-h1 {
-  font-size: 32px;
-  line-height: 1.2;
-}
-
-h2 {
-  font-size: 24px;
-}
+h1 { font-size: 32px; line-height: 1.2; }
+h2 { font-size: 24px; }
 
 /* Links */
 a {
@@ -75,12 +200,16 @@ a {
   text-decoration: none;
   transition: color 0.2s ease;
 }
+a:hover { color: var(--text-primary); }
 
-a:hover {
-  color: var(--text-primary);
-}
+/* ═══════════════════════════════════════════════════════
+   SECTION 5: Legacy component classes
+   Used by pages that haven't migrated to Tailwind yet.
+   SCOPED: these only apply when the class is explicitly used.
+   They won't conflict with Tailwind utility classes.
+   ═══════════════════════════════════════════════════════ */
 
-/* Buttons */
+/* Legacy buttons — only applies to elements with .btn class */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -97,53 +226,38 @@ a:hover {
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
 .btn:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
 }
-
 .btn-primary {
   background: var(--accent-blue);
   border-color: var(--accent-blue);
 }
-
 .btn-primary:hover {
   background: #2563eb;
   border-color: #2563eb;
 }
-
 .btn-success {
   background: var(--accent-green-soft);
   border-color: var(--accent-green);
   color: var(--accent-green);
 }
-
-.btn-success:hover {
-  background: rgba(34, 197, 94, 0.25);
-}
-
+.btn-success:hover { background: rgba(34, 197, 94, 0.25); }
 .btn-warning {
   background: var(--accent-yellow-soft);
   border-color: var(--accent-yellow);
   color: var(--accent-yellow);
 }
-
-.btn-warning:hover {
-  background: rgba(234, 179, 8, 0.25);
-}
-
+.btn-warning:hover { background: rgba(234, 179, 8, 0.25); }
 .btn-danger {
   background: var(--accent-red-soft);
   border-color: var(--accent-red);
   color: var(--accent-red);
 }
+.btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
 
-.btn-danger:hover {
-  background: rgba(239, 68, 68, 0.25);
-}
-
-/* Cards */
+/* Legacy cards */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -151,13 +265,12 @@ a:hover {
   padding: 20px;
   transition: all 0.2s ease;
 }
-
 .card:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
 }
 
-/* Form elements */
+/* Legacy form elements */
 input, textarea {
   font-family: inherit;
   font-size: 14px;
@@ -169,18 +282,16 @@ input, textarea {
   width: 100%;
   transition: all 0.2s ease;
 }
-
 input:focus, textarea:focus {
   outline: none;
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 3px var(--accent-blue-soft);
 }
-
 input::placeholder, textarea::placeholder {
   color: var(--text-muted);
 }
 
-/* Badge */
+/* Legacy badge */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -192,21 +303,9 @@ input::placeholder, textarea::placeholder {
   background: var(--bg-secondary);
   color: var(--text-secondary);
 }
-
-.badge-success {
-  background: var(--accent-green-soft);
-  color: var(--accent-green);
-}
-
-.badge-warning {
-  background: var(--accent-yellow-soft);
-  color: var(--accent-yellow);
-}
-
-.badge-danger {
-  background: var(--accent-red-soft);
-  color: var(--accent-red);
-}
+.badge-success { background: var(--accent-green-soft); color: var(--accent-green); }
+.badge-warning { background: var(--accent-yellow-soft); color: var(--accent-yellow); }
+.badge-danger { background: var(--accent-red-soft); color: var(--accent-red); }
 
 /* Loading state */
 .loading {
@@ -228,98 +327,70 @@ input::placeholder, textarea::placeholder {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 .animate-in {
   animation: fadeIn 0.3s ease forwards;
 }
-/* ══════════════════════════════════════════════════════
-   PrimeStride Atlas — Mobile Responsive Additions
-   APPEND this to the end of your existing globals.css
-   ══════════════════════════════════════════════════════ */
 
-/* ── Mobile Responsive ── */
+/* ═══════════════════════════════════════════════════════
+   SECTION 6: Mobile responsive (legacy pages)
+   ═══════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  /* Library stats */
   .mobile-stats {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 8px !important;
   }
-
-  /* Document card row actions */
   .mobile-doc-card {
     flex-direction: column !important;
     align-items: flex-start !important;
     gap: 8px !important;
   }
-
   .mobile-doc-actions {
     width: 100%;
     display: flex;
     gap: 8px;
     justify-content: flex-end;
   }
-
-  /* Folder grid */
   .mobile-folder-grid {
     grid-template-columns: repeat(2, 1fr) !important;
   }
-
-  /* Filter bar */
   .mobile-filters {
     flex-wrap: wrap !important;
     gap: 6px !important;
   }
-
-  /* Page headers */
   .mobile-header {
     flex-direction: column !important;
     align-items: flex-start !important;
     gap: 12px !important;
   }
-
-  /* Agent suggestions grid */
   .mobile-suggestions {
     grid-template-columns: 1fr !important;
     max-width: 100% !important;
   }
-
-  /* Writing assistant toolbar */
   .mobile-toolbar {
     gap: 4px !important;
     padding: 6px 8px !important;
   }
-
   .mobile-toolbar button {
     font-size: 11px !important;
     padding: 3px 6px !important;
   }
-
-  /* Project grid */
   .mobile-project-grid {
     grid-template-columns: 1fr !important;
   }
-
-  /* API docs code blocks */
   pre {
     font-size: 11px !important;
     padding: 10px !important;
     overflow-x: auto;
   }
-
-  /* General content padding */
   .mobile-page {
     padding: 20px 12px !important;
   }
-
-  /* Tables */
   .mobile-table {
     display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-
-  /* Modals */
   .mobile-modal {
     width: 95vw !important;
     max-width: 95vw !important;
@@ -327,13 +398,9 @@ input::placeholder, textarea::placeholder {
     margin: 5vh auto !important;
     padding: 16px !important;
   }
-
-  /* Chat messages */
   .mobile-chat-input {
     padding: 8px 12px !important;
   }
-
-  /* Export dropdown */
   .mobile-dropdown {
     position: fixed !important;
     bottom: 0 !important;
@@ -343,57 +410,79 @@ input::placeholder, textarea::placeholder {
     border-radius: 16px 16px 0 0 !important;
     max-height: 60vh !important;
   }
-
-  /* Branding color grid */
   .mobile-color-grid {
     grid-template-columns: repeat(2, 1fr) !important;
   }
-
-  /* Key/code display */
   code {
     word-break: break-all !important;
     font-size: 12px !important;
   }
-
-  /* Hide non-essential on mobile */
-  .hide-mobile {
-    display: none !important;
-  }
-
-  /* Show only on mobile */
-  .show-mobile {
-    display: block !important;
-  }
-
-  /* Compact text on mobile */
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: block !important; }
   h1 { font-size: 20px !important; }
   h2 { font-size: 17px !important; }
 }
 
-@media (max-width: 480px) {
-  .mobile-stats {
-    grid-template-columns: 1fr 1fr !important;
+@media (max-width: 640px) {
+  div[style*="gridTemplateColumns: repeat(4"] {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
-
-  .mobile-folder-grid {
+  div[style*="gridTemplateColumns: repeat(auto-fill"] {
     grid-template-columns: 1fr !important;
   }
+  div[style*="minmax(130px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  body { overflow-x: hidden; }
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  div[style*="padding: 24px"] { padding: 16px !important; }
+  div[style*="padding: 20px"] { padding: 14px !important; }
+  textarea, input, select {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  div[style*="display: flex"][style*="gap"] { flex-wrap: wrap !important; }
+  div[style*="display: flex"][style*="borderBottom"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  div[style*="display: flex"][style*="borderBottom"]::-webkit-scrollbar { display: none; }
+  div[style*="display: flex"][style*="gap: 12"] { flex-wrap: wrap !important; }
+  div[style*="display: flex"][style*="gap: 12"] > div[style*="flex: 1"] {
+    flex: 1 1 45% !important;
+    min-width: 0 !important;
+  }
+}
 
-  /* Stack buttons vertically */
+@media (max-width: 480px) {
+  .mobile-stats { grid-template-columns: 1fr 1fr !important; }
+  .mobile-folder-grid { grid-template-columns: 1fr !important; }
   .mobile-btn-stack {
     flex-direction: column !important;
     width: 100%;
   }
-
   .mobile-btn-stack > * {
     width: 100% !important;
     text-align: center !important;
   }
 }
-/* ── Clerk User Menu Fix ──
-   Append this to globals.css
-   Ensures Clerk popover appears above sidebar */
 
+@media (max-width: 380px) {
+  div[style*="gridTemplateColumns: repeat(2"] {
+    grid-template-columns: 1fr !important;
+  }
+  div[style*="fontSize: 22"] { font-size: 18px !important; }
+  div[style*="fontSize: 28"] { font-size: 22px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 7: Clerk z-index fixes
+   ═══════════════════════════════════════════════════════ */
 .cl-userButtonPopoverCard,
 .cl-popoverBox,
 .cl-userButtonPopoverRootBox,
@@ -403,104 +492,7 @@ input::placeholder, textarea::placeholder {
 [data-clerk-portal] {
   z-index: 9999 !important;
 }
-
-/* Ensure Clerk org switcher also pops above */
 .cl-organizationSwitcherPopoverCard,
 .cl-organizationSwitcherPopoverRootBox {
   z-index: 9999 !important;
-}
-/* ══════════════════════════════════════════════════════════════
-   MOBILE RESPONSIVENESS QUICK FIX
-   Add this to your global CSS (globals.css or app layout)
-   ══════════════════════════════════════════════════════════════ */
-
-/* ── Base: ensure viewport works ── */
-/* Make sure your layout.tsx has: 
-   <meta name="viewport" content="width=device-width, initial-scale=1" /> 
-   (Next.js usually has this by default) */
-
-/* ── Fix grid overflows on mobile ── */
-@media (max-width: 640px) {
-  /* Stats grid: 4 columns → 2 columns */
-  div[style*="gridTemplateColumns: repeat(4"] {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-
-  /* Form data grid: auto-fill → single column */
-  div[style*="gridTemplateColumns: repeat(auto-fill"] {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* Leave balance grid */
-  div[style*="minmax(130px"] {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-
-  /* Prevent horizontal scroll */
-  body {
-    overflow-x: hidden;
-  }
-
-  /* Tables scroll horizontally */
-  table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Reduce padding on cards */
-  div[style*="padding: 24px"] {
-    padding: 16px !important;
-  }
-
-  div[style*="padding: 20px"] {
-    padding: 14px !important;
-  }
-
-  /* Text input full width */
-  textarea, input, select {
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Flex wrapping for button groups */
-  div[style*="display: flex"][style*="gap"] {
-    flex-wrap: wrap !important;
-  }
-
-  /* Admin dashboard tabs: scroll horizontally if too many */
-  div[style*="display: flex"][style*="borderBottom"] {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  div[style*="display: flex"][style*="borderBottom"]::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Compliance scanner summary: 4 cols → 2 cols */
-  div[style*="display: flex"][style*="gap: 12"] {
-    flex-wrap: wrap !important;
-  }
-
-  div[style*="display: flex"][style*="gap: 12"] > div[style*="flex: 1"] {
-    flex: 1 1 45% !important;
-    min-width: 0 !important;
-  }
-}
-
-/* ── Small phones ── */
-@media (max-width: 380px) {
-  div[style*="gridTemplateColumns: repeat(2"] {
-    grid-template-columns: 1fr !important;
-  }
-
-  div[style*="fontSize: 22"] {
-    font-size: 18px !important;
-  }
-
-  div[style*="fontSize: 28"] {
-    font-size: 22px !important;
-  }
 }
