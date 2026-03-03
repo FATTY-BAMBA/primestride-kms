@@ -3,15 +3,55 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { 
+  Library, 
+  FolderKanban, 
+  Bot, 
+  Search, 
+  FileText, 
+  BarChart3, 
+  Share2, 
+  Settings, 
+  Users, 
+  UserCircle,
+  MoreVertical,
+  Key,
+  Clock,
+  Tag,
+  ChevronRight,
+  ChevronLeft,
+  Menu,
+  X
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import UserMenu from "./UserMenu";
 import OrgSwitcher from "./OrgSwitcher";
 
-export default function Sidebar({ children }: { children: React.ReactNode }) {
+interface SidebarProps {
+  children: React.ReactNode;
+}
+
+interface LinkItem {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  labelEn: string;
+  adminOnly?: boolean;
+  badge?: boolean;
+}
+
+export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [branding, setBranding] = useState<{ org_name?: string; logo_emoji?: string; primary_color?: string; accent_color?: string; tagline?: string } | null>(null);
+  const [branding, setBranding] = useState<{ 
+    org_name?: string; 
+    logo_emoji?: string; 
+    primary_color?: string; 
+    accent_color?: string; 
+    tagline?: string 
+  } | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -31,29 +71,28 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, []);
 
-  // Close mobile sidebar on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  const mainLinks = [
-    { href: "/library", icon: "📄", label: "文件庫", labelEn: "Library" },
-    { href: "/projects", icon: "🎯", label: "專案", labelEn: "Projects" },
-    { href: "/agent", icon: "🤖", label: "AI 助手", labelEn: "AI Agent" },
-    { href: "/search", icon: "🔍", label: "搜尋", labelEn: "Search" },
-    { href: "/workflows", icon: "📋", label: "表單申請", labelEn: "Forms", badge: true },
+  const mainLinks: LinkItem[] = [
+    { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
+    { href: "/projects", icon: FolderKanban, label: "專案", labelEn: "Projects" },
+    { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent" },
+    { href: "/search", icon: Search, label: "搜尋", labelEn: "Search" },
+    { href: "/workflows", icon: FileText, label: "表單申請", labelEn: "Forms", badge: true },
   ];
 
-  const analyticsLinks = [
-    { href: "/learning", icon: "📊", label: "學習分析", labelEn: "Learning", adminOnly: true },
-    { href: "/ai-graph", icon: "🧠", label: "知識圖譜", labelEn: "Graph" },
+  const analyticsLinks: LinkItem[] = [
+    { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
+    { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph" },
   ];
 
-  const adminLinks = [
-    { href: "/admin", icon: "⚙️", label: "管理", labelEn: "Admin" },
-    { href: "/team", icon: "👤", label: "成員", labelEn: "Members" },
-    { href: "/teams", icon: "🏷️", label: "群組", labelEn: "Groups" },
-    { href: "/developer", icon: "🔑", label: "API", labelEn: "Developer" },
-    { href: "/audit-logs", icon: "📋", label: "操作紀錄", labelEn: "Audit Logs" },
-    { href: "/branding", icon: "🎨", label: "品牌設定", labelEn: "Branding" },
+  const adminLinks: LinkItem[] = [
+    { href: "/admin", icon: Settings, label: "管理", labelEn: "Admin" },
+    { href: "/team", icon: Users, label: "成員", labelEn: "Members" },
+    { href: "/teams", icon: UserCircle, label: "群組", labelEn: "Groups" },
+    { href: "/developer", icon: Key, label: "API", labelEn: "Developer" },
+    { href: "/audit-logs", icon: Clock, label: "操作紀錄", labelEn: "Audit Logs" },
+    { href: "/branding", icon: Tag, label: "品牌設定", labelEn: "Branding" },
   ];
 
   const isActive = (href: string) => {
@@ -61,45 +100,48 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  const renderLink = (link: { href: string; icon: string; label: string; labelEn: string; adminOnly?: boolean; badge?: boolean }) => {
+  const primaryColor = branding?.primary_color || "#7C3AED";
+
+  const NavLink = ({ link }: { link: LinkItem }) => {
     if (link.adminOnly && !isAdmin) return null;
     const active = isActive(link.href);
-    const activeColor = branding?.primary_color || "#7C3AED";
-    const activeBg = activeColor + "18";
+    const Icon = link.icon;
     const showBadge = link.badge && pendingCount > 0 && isAdmin;
+
     return (
       <Link
-        key={link.href}
         href={link.href}
-        style={{
-          display: "flex", alignItems: "center", gap: collapsed ? 0 : 10,
-          padding: collapsed ? "10px 0" : "10px 14px",
-          justifyContent: collapsed ? "center" : "flex-start",
-          borderRadius: 8, textDecoration: "none",
-          background: active ? activeBg : "transparent",
-          color: active ? activeColor : "#4B5563",
-          fontWeight: active ? 700 : 500,
-          fontSize: 14, transition: "all 0.15s",
-          position: "relative",
-        }}
-        onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "#F3F4F6"; }}
-        onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group",
+          collapsed ? "justify-center" : "justify-start",
+          active 
+            ? "bg-violet-50 text-violet-700 font-medium" 
+            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+        )}
         title={collapsed ? `${link.label} ${link.labelEn}` : undefined}
       >
-        <span style={{ fontSize: 18, flexShrink: 0, position: "relative" }}>
-          {link.icon}
+        <span className="relative">
+          <Icon className={cn(
+            "w-4 h-4 flex-shrink-0",
+            active ? "text-violet-600" : "text-slate-400 group-hover:text-slate-600"
+          )} />
           {showBadge && collapsed && (
-            <span style={{ position: "absolute", top: -4, right: -6, width: 16, height: 16, borderRadius: "50%", background: "#DC2626", color: "white", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>{pendingCount}</span>
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+              {pendingCount}
+            </span>
           )}
         </span>
+        
         {!collapsed && (
-          <span style={{ overflow: "hidden", whiteSpace: "nowrap", flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span className="flex-1 flex items-center justify-between">
             <span>
               {link.label}
-              <span style={{ color: "#9CA3AF", fontWeight: 400, marginLeft: 4, fontSize: 12 }}>{link.labelEn}</span>
+              <span className="text-slate-400 font-normal ml-1.5 text-xs">{link.labelEn}</span>
             </span>
             {showBadge && (
-              <span style={{ minWidth: 20, height: 20, borderRadius: 10, background: "#DC2626", color: "white", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{pendingCount}</span>
+              <span className="min-w-5 h-5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center px-1.5">
+                {pendingCount}
+              </span>
             )}
           </span>
         )}
@@ -107,87 +149,84 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const sidebarContent = (
+  const SectionHeader = ({ title }: { title: string }) => {
+    if (collapsed) return null;
+    return (
+      <p className="px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 mt-4 first:mt-0">
+        {title}
+      </p>
+    );
+  };
+
+  const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div style={{
-        padding: collapsed ? "20px 8px" : "20px 16px",
-        borderBottom: "1px solid #E5E7EB",
-        display: "flex", alignItems: "center", gap: 10,
-        justifyContent: collapsed ? "center" : "flex-start",
-      }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: `linear-gradient(135deg, ${branding?.primary_color || "#7C3AED"} 0%, ${branding?.accent_color || "#A78BFA"} 100%)`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 16, flexShrink: 0,
-        }}>{branding?.logo_emoji || "📚"}</div>
+      <div className={cn(
+        "border-b border-slate-100 flex items-center gap-3",
+        collapsed ? "p-4 justify-center" : "p-4"
+      )}>
+        <div 
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+          style={{ 
+            background: `linear-gradient(135deg, ${primaryColor} 0%, ${branding?.accent_color || "#A78BFA"} 100%)` 
+          }}
+        >
+          <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
+        </div>
         {!collapsed && (
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: "#111827" }}>{branding?.org_name || "PS Atlas"}</div>
-            <div style={{ fontSize: 10, color: "#9CA3AF" }}>{branding?.tagline || "Knowledge System"}</div>
+            <h1 className="font-semibold text-slate-900 text-sm">
+              {branding?.org_name || "PS Atlas"}
+            </h1>
+            <p className="text-xs text-slate-400">{branding?.tagline || "Knowledge System"}</p>
           </div>
         )}
       </div>
 
       {/* Navigation */}
-      <div style={{ flex: 1, overflowY: "auto", padding: collapsed ? "12px 6px" : "12px" }}>
-        {/* Main */}
-        {!collapsed && (
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", padding: "8px 14px 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            主要功能 Main
-          </div>
-        )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 16 }}>
-          {mainLinks.map(renderLink)}
+      <div className="flex-1 overflow-y-auto py-4 px-3">
+        <SectionHeader title="主要功能 Main" />
+        <div className="space-y-0.5 mb-4">
+          {mainLinks.map((link) => (
+            <NavLink key={link.href} link={link} />
+          ))}
         </div>
 
-        {/* Analytics */}
-        {!collapsed && (
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", padding: "8px 14px 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            分析 Analytics
-          </div>
-        )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 16 }}>
-          {analyticsLinks.map(renderLink)}
+        <SectionHeader title="分析 Analytics" />
+        <div className="space-y-0.5 mb-4">
+          {analyticsLinks.map((link) => (
+            <NavLink key={link.href} link={link} />
+          ))}
         </div>
 
-        {/* Admin */}
         {isAdmin && (
           <>
-            {!collapsed && (
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", padding: "8px 14px 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                管理 Admin
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {adminLinks.map(renderLink)}
+            <SectionHeader title="管理 Admin" />
+            <div className="space-y-0.5">
+              {adminLinks.map((link) => (
+                <NavLink key={link.href} link={link} />
+              ))}
             </div>
           </>
         )}
       </div>
 
-      {/* Bottom — Org Switcher + User */}
-      <div style={{
-        padding: collapsed ? "12px 6px" : "12px 16px",
-        borderTop: "1px solid #E5E7EB",
-        display: "flex", flexDirection: "column", gap: 8,
-        overflow: "visible",
-        position: "relative",
-        zIndex: 50,
-      }}>
+      {/* Bottom */}
+      <div className="p-4 border-t border-slate-100 relative z-50">
         {!collapsed && <OrgSwitcher />}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between" }}>
+        <div className={cn(
+          "flex items-center mt-2",
+          collapsed ? "justify-center" : "justify-between"
+        )}>
           <UserMenu />
           {!collapsed && (
             <button
               onClick={() => setCollapsed(true)}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: "#9CA3AF", fontSize: 16, padding: 4,
-              }}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               title="收合側邊欄 Collapse"
-            >◀</button>
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>
@@ -195,88 +234,74 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div className="flex min-h-screen">
       {/* Desktop Sidebar */}
-      <aside style={{
-        width: collapsed ? 60 : 240,
-        background: "white",
-        borderRight: "1px solid #E5E7EB",
-        display: "flex", flexDirection: "column",
-        transition: "width 0.2s ease",
-        position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 40,
-        overflow: "visible",
-      }}
-        className="sidebar-desktop"
+      <aside 
+        className={cn(
+          "bg-white border-r border-slate-200 flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-200",
+          collapsed ? "w-[60px]" : "w-60"
+        )}
       >
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            style={{
-              position: "absolute", top: 20, right: -12,
-              width: 24, height: 24, borderRadius: "50%",
-              background: "white", border: "1px solid #E5E7EB",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", fontSize: 10, color: "#6B7280",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)", zIndex: 31,
-            }}
-          >▶</button>
+            className="absolute top-5 -right-3 w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:bg-slate-50 text-slate-500"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </button>
         )}
-        {sidebarContent}
+        <SidebarContent />
       </aside>
 
       {/* Mobile Header */}
-      <div className="mobile-header" style={{
-        display: "none", position: "fixed", top: 0, left: 0, right: 0,
-        height: 56, background: "white", borderBottom: "1px solid #E5E7EB",
-        padding: "0 16px", alignItems: "center", justifyContent: "space-between",
-        zIndex: 30,
-      }}>
-        <button onClick={() => setMobileOpen(true)} style={{
-          background: "none", border: "none", fontSize: 24, cursor: "pointer", padding: 4,
-        }}>☰</button>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 16 }}>{branding?.logo_emoji || "📚"}</span>
-          <span style={{ fontWeight: 800, fontSize: 15 }}>{branding?.org_name || "PS Atlas"}</span>
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between z-30">
+        <button 
+          onClick={() => setMobileOpen(true)}
+          className="p-2 -ml-2 hover:bg-slate-100 rounded-lg"
+        >
+          <Menu className="w-5 h-5 text-slate-600" />
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
+          <span className="font-semibold text-sm">{branding?.org_name || "PS Atlas"}</span>
         </div>
         <UserMenu />
       </div>
 
       {/* Mobile Sidebar Overlay */}
       {mobileOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
-          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }}
-            onClick={() => setMobileOpen(false)} />
-          <aside style={{
-            position: "absolute", top: 0, left: 0, bottom: 0,
-            width: 260, background: "white",
-            display: "flex", flexDirection: "column",
-            boxShadow: "4px 0 12px rgba(0,0,0,0.1)",
-          }}>
-            {sidebarContent}
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div 
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileOpen(false)} 
+          />
+          <aside className="absolute top-0 left-0 bottom-0 w-64 bg-white flex flex-col shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <span className="font-semibold">Menu</span>
+              <button 
+                onClick={() => setMobileOpen(false)}
+                className="p-2 hover:bg-slate-100 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <SidebarContent />
+            </div>
           </aside>
         </div>
       )}
 
       {/* Main Content */}
-      <main style={{
-        flex: 1,
-        marginLeft: collapsed ? 60 : 240,
-        transition: "margin-left 0.2s ease",
-        background: "#F9FAFB",
-        minHeight: "100vh",
-      }}
-        className="main-content"
+      <main 
+        className={cn(
+          "flex-1 bg-slate-50 min-h-screen transition-all duration-200",
+          "lg:pt-0 pt-14",
+          collapsed ? "lg:ml-[60px]" : "lg:ml-60"
+        )}
       >
         {children}
       </main>
-
-      <style jsx global>{`
-        @media (max-width: 768px) {
-          .sidebar-desktop { display: none !important; }
-          .mobile-header { display: flex !important; }
-          .main-content { margin-left: 0 !important; padding-top: 56px !important; }
-        }
-      `}</style>
     </div>
   );
 }

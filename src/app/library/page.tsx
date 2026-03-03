@@ -5,6 +5,37 @@ import Link from "next/link";
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { 
+  FolderKanban, 
+  FileText, 
+  File, 
+  Link as LinkIcon, 
+  Youtube, 
+  ClipboardList, 
+  Bot,
+  ChevronRight,
+  MoreVertical,
+  Search,
+  Filter,
+  Globe,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Edit3,
+  Trash2,
+  Plus,
+  ArrowLeft
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Team = {
   id: string;
@@ -35,6 +66,7 @@ type DocRow = {
   folder_id?: string | null;
   doc_source?: string | null;
   teams?: Team | null;
+  updated_at?: string;
   feedback_counts: {
     helped: number;
     not_confident: number;
@@ -88,120 +120,90 @@ function CreateFolderModal({
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 100,
-        background: "rgba(0,0,0,0.4)", display: "flex",
-        alignItems: "center", justifyContent: "center",
-        padding: 20,
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "white", borderRadius: 16, padding: 32,
-          width: "100%", maxWidth: 420,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-        }}
-      >
-        <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 20 }}>New Folder</h3>
-
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Folder</DialogTitle>
+        </DialogHeader>
+        
         {error && (
-          <div style={{ padding: 10, background: "#FEE2E2", color: "#991B1B", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+          <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
             {error}
           </div>
         )}
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-            Folder Name
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., Onboarding Docs"
-            autoFocus
-            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-            style={{
-              width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB",
-              borderRadius: 8, fontSize: 15, outline: "none",
-            }}
-          />
-        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-2">
+              Folder Name
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Onboarding Docs"
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+            />
+          </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-            Icon
-          </label>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {icons.map((ic) => (
-              <button
-                key={ic}
-                type="button"
-                onClick={() => setIcon(ic)}
-                style={{
-                  width: 40, height: 40, borderRadius: 8, border: icon === ic ? "2px solid #7C3AED" : "1px solid #E5E7EB",
-                  background: icon === ic ? "#F5F3FF" : "white",
-                  fontSize: 20, cursor: "pointer", display: "flex",
-                  alignItems: "center", justifyContent: "center",
-                }}
-              >
-                {ic}
-              </button>
-            ))}
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-2">
+              Icon
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {icons.map((ic) => (
+                <button
+                  key={ic}
+                  type="button"
+                  onClick={() => setIcon(ic)}
+                  className={cn(
+                    "w-10 h-10 rounded-lg border text-xl flex items-center justify-center transition-all",
+                    icon === ic 
+                      ? "border-violet-500 bg-violet-50" 
+                      : "border-slate-200 hover:border-slate-300"
+                  )}
+                >
+                  {ic}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-2">
+              Color
+            </label>
+            <div className="flex gap-2">
+              {colors.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={cn(
+                    "w-8 h-8 rounded-full transition-all",
+                    color === c ? "ring-2 ring-offset-2 ring-slate-900" : ""
+                  )}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-            Color
-          </label>
-          <div style={{ display: "flex", gap: 8 }}>
-            {colors.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                style={{
-                  width: 32, height: 32, borderRadius: "50%", border: color === c ? "3px solid #111827" : "2px solid transparent",
-                  background: c, cursor: "pointer", outline: color === c ? "2px solid white" : "none",
-                  outlineOffset: -4,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "10px 20px", borderRadius: 8, border: "1px solid #D1D5DB",
-              background: "white", fontSize: 14, cursor: "pointer", fontWeight: 500,
-            }}
-          >
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            onClick={handleCreate}
+          </Button>
+          <Button 
+            onClick={handleCreate} 
             disabled={!name.trim() || creating}
-            style={{
-              padding: "10px 20px", borderRadius: 8, border: "none",
-              background: creating || !name.trim() ? "#D1D5DB" : "#7C3AED",
-              color: "white", fontSize: 14, cursor: creating ? "not-allowed" : "pointer",
-              fontWeight: 600,
-            }}
+            className="bg-violet-600 hover:bg-violet-700"
           >
             {creating ? "Creating..." : "Create Folder"}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -238,39 +240,20 @@ function MoveToFolderModal({
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 100,
-        background: "rgba(0,0,0,0.4)", display: "flex",
-        alignItems: "center", justifyContent: "center", padding: 20,
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "white", borderRadius: 16, padding: 32,
-          width: "100%", maxWidth: 360,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-        }}
-      >
-        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Move to Folder</h3>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto" }}>
-          {/* Unfiled option */}
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Move to Folder</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-2 max-h-72 overflow-y-auto">
           <button
             onClick={() => handleMove(null)}
             disabled={moving}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 14px", borderRadius: 8, border: "1px solid #E5E7EB",
-              background: "white", cursor: "pointer", fontSize: 14, textAlign: "left", width: "100%",
-            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
           >
-            <span>🌐</span>
+            <Globe className="w-4 h-4 text-slate-400" />
             <span>Unfiled (root)</span>
           </button>
 
@@ -279,28 +262,184 @@ function MoveToFolderModal({
               key={f.id}
               onClick={() => handleMove(f.id)}
               disabled={moving}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px", borderRadius: 8, border: "1px solid #E5E7EB",
-                background: "white", cursor: "pointer", fontSize: 14, textAlign: "left", width: "100%",
-              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
             >
               <span>{f.icon}</span>
-              <span style={{ fontWeight: 500 }}>{f.name}</span>
+              <span className="font-medium">{f.name}</span>
             </button>
           ))}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-        <div style={{ marginTop: 16, textAlign: "right" }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "8px 16px", borderRadius: 8, border: "1px solid #D1D5DB",
-              background: "white", fontSize: 13, cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
+// ── Document Card Component ──
+function DocumentCard({ 
+  doc, 
+  folders, 
+  isAdmin, 
+  onMove 
+}: { 
+  doc: DocRow; 
+  folders: Folder[]; 
+  isAdmin: boolean;
+  onMove: (id: string) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const getDocIcon = () => {
+    const iconClass = "w-4 h-4";
+    switch (doc.doc_source) {
+      case "note": return <FileText className={cn(iconClass, "text-emerald-600")} />;
+      case "url": return <LinkIcon className={cn(iconClass, "text-blue-600")} />;
+      case "youtube": return <Youtube className={cn(iconClass, "text-red-600")} />;
+      case "template": return <ClipboardList className={cn(iconClass, "text-pink-600")} />;
+      case "ai-agent": return <Bot className={cn(iconClass, "text-violet-600")} />;
+      default:
+        if (doc.file_url) {
+          const ext = doc.doc_type?.toLowerCase() || "";
+          if (ext === "pdf" || doc.file_url?.includes(".pdf")) return <File className={cn(iconClass, "text-red-500")} />;
+        }
+        return <FileText className={cn(iconClass, "text-violet-600")} />;
+    }
+  };
+
+  const getIconBg = () => {
+    switch (doc.doc_source) {
+      case "note": return "bg-emerald-100";
+      case "url": return "bg-blue-100";
+      case "youtube": return "bg-red-100";
+      case "template": return "bg-pink-100";
+      case "ai-agent": return "bg-violet-100";
+      default: return "bg-slate-100";
+    }
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return date.toLocaleDateString();
+  };
+
+  const totalFeedback = doc.feedback_counts.helped + doc.feedback_counts.not_confident + doc.feedback_counts.didnt_help;
+
+  return (
+    <div
+      className="group bg-white border border-slate-200 rounded-xl p-4 hover:border-violet-300 hover:shadow-sm transition-all duration-200"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div className="flex items-start gap-4">
+        {/* Icon */}
+        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", getIconBg())}>
+          {getDocIcon()}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="font-medium text-slate-900 truncate">{doc.title}</h3>
+            </div>
+            
+            {/* Actions - shown on hover */}
+            <div className={cn(
+              "flex items-center gap-2 transition-opacity duration-200",
+              hovered ? "opacity-100" : "opacity-0"
+            )}>
+              {isAdmin && folders.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 text-slate-600"
+                  onClick={() => onMove(doc.doc_id)}
+                >
+                  <FolderKanban className="w-4 h-4" />
+                </Button>
+              )}
+              {isAdmin && (
+                <Link href={`/library/${encodeURIComponent(doc.doc_id)}/edit`}>
+                  <Button variant="ghost" size="sm" className="h-8 text-slate-600">
+                    <Edit3 className="w-4 h-4" />
+                  </Button>
+                </Link>
+              )}
+              <Link href={`/library/${encodeURIComponent(doc.doc_id)}`}>
+                <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700 text-white gap-1">
+                  View
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="text-xs text-slate-400 font-mono">{doc.doc_id}</span>
+            <span className="text-xs text-slate-400">{doc.current_version}</span>
+            <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-50 border-0 text-xs font-normal">
+              {doc.status}
+            </Badge>
+            {doc.doc_type && (
+              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
+                {doc.doc_type}
+              </Badge>
+            )}
+            {doc.teams ? (
+              <Badge 
+                className="font-normal text-xs border-0"
+                style={{ background: doc.teams.color + "20", color: doc.teams.color }}
+              >
+                {doc.teams.name}
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
+                <Globe className="w-3 h-3 mr-1" />
+                Org-Wide
+              </Badge>
+            )}
+            {doc.folder_id && (
+              <Badge className="bg-amber-50 text-amber-600 border-0 text-xs font-normal">
+                {folders.find(f => f.id === doc.folder_id)?.icon || "📁"}
+                {folders.find(f => f.id === doc.folder_id)?.name}
+              </Badge>
+            )}
+            
+            {/* Feedback summary - only show if there's feedback */}
+            {totalFeedback > 0 && (
+              <div className="flex items-center gap-2 ml-auto text-xs">
+                {doc.feedback_counts.helped > 0 && (
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {doc.feedback_counts.helped}
+                  </span>
+                )}
+                {doc.feedback_counts.not_confident > 0 && (
+                  <span className="flex items-center gap-1 text-amber-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    {doc.feedback_counts.not_confident}
+                  </span>
+                )}
+                {doc.feedback_counts.didnt_help > 0 && (
+                  <span className="flex items-center gap-1 text-red-600">
+                    <XCircle className="w-3 h-3" />
+                    {doc.feedback_counts.didnt_help}
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {doc.updated_at && (
+              <span className="text-xs text-slate-400 ml-auto">{formatDate(doc.updated_at)}</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -320,9 +459,9 @@ function LibraryContent() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [userRole, setUserRole] = useState<string>("");
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [moveDocId, setMoveDocId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -349,7 +488,6 @@ function LibraryContent() {
       setFolders(folderData.folders ?? []);
 
       if (profileRes.ok && profileData.role) {
-        setUserRole(profileData.role);
         setIsAdmin(["owner", "admin"].includes(profileData.role));
       }
     } catch (e: unknown) {
@@ -367,10 +505,10 @@ function LibraryContent() {
     0
   );
 
-  // Filter docs by folder
-  const filteredDocs = folderFilter
-    ? docs.filter((d) => d.folder_id === folderFilter)
-    : docs;
+  // Filter docs by folder and search
+  const filteredDocs = docs
+    .filter(d => !folderFilter || d.folder_id === folderFilter)
+    .filter(d => !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const currentFolder = folders.find((f) => f.id === folderFilter);
 
@@ -383,112 +521,160 @@ function LibraryContent() {
     } catch {}
   };
 
-  const getDocIcon = (doc: DocRow) => {
-    if (doc.doc_source === "note") return "📝";
-    if (doc.doc_source === "url") return "🔗";
-    if (doc.doc_source === "youtube") return "🎬";
-    if (doc.doc_source === "template") return "📋";
-    if (doc.file_url) {
-      const ext = doc.doc_type?.toLowerCase() || "";
-      if (ext === "pdf" || doc.file_url?.includes(".pdf")) return "📕";
-      if (ext === "docx" || ext === "doc") return "📘";
-      if (ext === "pptx" || ext === "ppt") return "📙";
-      if (ext === "xlsx" || ext === "xls" || ext === "csv") return "📗";
-    }
-    return "📄";
-  };
+  // Filter options
+  const filterOptions = [
+    { label: "All", value: "all", count: docs.length },
+    { label: "Org-Wide", value: "org-wide", count: docs.filter(d => !d.team_id).length },
+    ...teams.map(t => ({
+      label: t.name,
+      value: t.id,
+      count: docs.filter(d => d.team_id === t.id).length,
+      color: t.color
+    }))
+  ];
 
   return (
-    <>
-      <header style={{ marginBottom: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+    <div className="p-6 lg:p-8 max-w-6xl mx-auto">
+      {/* Header */}
+      <header className="mb-8">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 style={{ fontSize: 22, margin: 0, fontWeight: 700, color: "#111827" }}>文件庫 Knowledge Library</h1>
-            <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "4px 0 0 0" }}>
-              透過回饋持續改善的知識文件 | Learning-enabled docs with feedback
+            <h1 className="text-2xl font-semibold text-slate-900">Knowledge Library</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Learning-enabled docs with feedback
             </p>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {isAdmin && <QuickCreate onCreateFolder={() => setShowCreateFolder(true)} isAdmin={isAdmin} />}
-          </div>
+          {isAdmin && (
+            <QuickCreate onCreateFolder={() => setShowCreateFolder(true)} isAdmin={isAdmin} />
+          )}
         </div>
+
+        {/* Stats Row */}
+        {!loading && !err && (
+          <div className="flex items-center gap-8 mt-6 flex-wrap">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-semibold text-slate-900">{docs.length}</span>
+              <span className="text-sm text-slate-500">Documents</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-semibold text-blue-600">{totalFeedback}</span>
+              <span className="text-sm text-slate-500">Feedback</span>
+            </div>
+            {folders.length > 0 && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-semibold text-amber-500">{folders.length}</span>
+                <span className="text-sm text-slate-500">Folders</span>
+              </div>
+            )}
+            {teams.length > 0 && (
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-semibold text-violet-500">{teams.length}</span>
+                <span className="text-sm text-slate-500">Groups</span>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
-      {/* Stats Cards */}
+      {/* Search & Filters */}
       {!loading && !err && (
-        <div className="mobile-stats" style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
-          <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
-            <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>{docs.length}</div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Documents</div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+          <div className="relative flex-1 max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              placeholder="Search documents..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
-            <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "var(--accent-blue)" }}>{totalFeedback}</div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Total Feedback</div>
-          </div>
-          {folders.length > 0 && (
-            <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "#D97706" }}>{folders.length}</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Folders</div>
-            </div>
-          )}
-          {teams.length > 0 && (
-            <div className="card" style={{ flex: "1 1 150px", minWidth: 150 }}>
-              <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, color: "#7C3AED" }}>{teams.length}</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Groups</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Team Filter */}
-      {!loading && !err && teams.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: "var(--text-muted)", marginRight: 4 }}>Filter:</span>
-            <Link href="/library" className="btn" style={{ padding: "6px 14px", fontSize: 13, background: teamFilter === "all" && !folderFilter ? "#7C3AED" : undefined, color: teamFilter === "all" && !folderFilter ? "white" : undefined }}>
-              All
-            </Link>
-            <Link href="/library?team=org-wide" className="btn" style={{ padding: "6px 14px", fontSize: 13, background: teamFilter === "org-wide" ? "#7C3AED" : undefined, color: teamFilter === "org-wide" ? "white" : undefined }}>
-              🌐 Org-Wide
-            </Link>
-            {teams.map((team) => (
-              <Link key={team.id} href={`/library?team=${team.id}`} className="btn" style={{ padding: "6px 14px", fontSize: 13, background: teamFilter === team.id ? team.color : undefined, color: teamFilter === team.id ? "white" : undefined, borderLeft: teamFilter !== team.id ? `3px solid ${team.color}` : undefined }}>
-                {team.name}
+          
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <span className="text-sm text-slate-500">Filter:</span>
+            {filterOptions.map((filter) => (
+              <Link
+                key={filter.value}
+                href={filter.value === "all" ? "/library" : `/library?team=${filter.value}`}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-sm transition-all duration-200",
+                  teamFilter === filter.value
+                    ? "bg-violet-600 text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                )}
+              >
+                {filter.label}
+                <span className={cn(
+                  "ml-1.5 text-xs",
+                  teamFilter === filter.value ? "text-violet-200" : "text-slate-400"
+                )}>
+                  {filter.count}
+                </span>
               </Link>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Folders Section ── */}
+      {/* Folder Breadcrumb */}
+      {folderFilter && currentFolder && (
+        <div className="flex items-center gap-2 mb-6">
+          <Link 
+            href="/library" 
+            className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            All Documents
+          </Link>
+          <span className="text-slate-300">/</span>
+          <span className="text-sm font-medium text-slate-900 flex items-center gap-2">
+            <span>{currentFolder.icon}</span>
+            {currentFolder.name}
+          </span>
+          {isAdmin && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteFolder(currentFolder.id)}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Delete
+              </Button>
+              <Link href={`/library/new?folder=${currentFolder.id}`}>
+                <Button size="sm" variant="outline" className="gap-1">
+                  <Plus className="w-4 h-4" />
+                  Upload
+                </Button>
+              </Link>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Folders Section */}
       {!loading && !err && folders.length > 0 && !folderFilter && (
-        <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 14, color: "var(--text-muted)" }}>
-            📁 Folders
+        <div className="mb-8">
+          <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
+            <FolderKanban className="w-4 h-4 text-slate-400" />
+            Folders
           </h2>
-          <div className="mobile-folder-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {folders.map((f) => {
               const docCount = f.documents?.[0]?.count || docs.filter(d => d.folder_id === f.id).length;
               return (
                 <Link
                   key={f.id}
                   href={`/library?folder=${f.id}`}
-                  style={{
-                    display: "flex", flexDirection: "column",
-                    padding: "16px 18px", borderRadius: 12,
-                    border: "1px solid #E5E7EB", background: "white",
-                    textDecoration: "none", color: "#111827",
-                    transition: "all 0.15s",
-                    borderLeft: `4px solid ${f.color}`,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}
+                  className="group flex flex-col p-4 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:shadow-sm transition-all duration-200"
+                  style={{ borderLeftWidth: "4px", borderLeftColor: f.color }}
                 >
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{f.icon}</div>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{f.name}</div>
-                  <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+                  <span className="text-2xl mb-2">{f.icon}</span>
+                  <span className="font-medium text-slate-900 text-sm truncate">{f.name}</span>
+                  <span className="text-xs text-slate-400 mt-1">
                     {docCount} doc{docCount !== 1 ? "s" : ""}
-                  </div>
+                  </span>
                 </Link>
               );
             })}
@@ -496,173 +682,80 @@ function LibraryContent() {
         </div>
       )}
 
-      {/* ── Folder Breadcrumb ── */}
-      {folderFilter && currentFolder && (
-        <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-          <Link href="/library" style={{ color: "#6B7280", textDecoration: "none", fontSize: 14 }}>
-            All Documents
-          </Link>
-          <span style={{ color: "#D1D5DB" }}>/</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#111827", display: "flex", alignItems: "center", gap: 6 }}>
-            {currentFolder.icon} {currentFolder.name}
-          </span>
-          {isAdmin && (
-            <button
-              onClick={() => handleDeleteFolder(currentFolder.id)}
-              style={{
-                marginLeft: 8, padding: "4px 10px", borderRadius: 6,
-                border: "1px solid #FCA5A5", background: "#FEE2E2",
-                color: "#991B1B", fontSize: 12, cursor: "pointer",
-              }}
-            >
-              Delete folder
-            </button>
-          )}
-          {isAdmin && (
-            <Link
-              href={`/library/new?folder=${currentFolder.id}`}
-              style={{
-                marginLeft: 8, padding: "4px 12px", borderRadius: 6,
-                border: "1px solid #C4B5FD", background: "#EDE9FE",
-                color: "#5B21B6", fontSize: 12, textDecoration: "none",
-                fontWeight: 600,
-              }}
-            >
-              ➕ Upload to this folder
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* ── Documents ── */}
+      {/* Documents List */}
       <section>
-        <h2 style={{ marginBottom: 20, fontSize: 18 }}>
+        <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-slate-400" />
           {folderFilter && currentFolder
-            ? `${currentFolder.icon} ${currentFolder.name}`
-            : "Knowledge Library"}
+            ? currentFolder.name
+            : "Documents"}
           {teamFilter !== "all" && teamFilter !== "org-wide" && teams.find(t => t.id === teamFilter) && (
-            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>
+            <span className="text-slate-400 font-normal">
               — {teams.find(t => t.id === teamFilter)?.name}
             </span>
           )}
           {teamFilter === "org-wide" && (
-            <span style={{ fontSize: 14, fontWeight: 400, color: "var(--text-muted)", marginLeft: 8 }}>
-              — Organization-Wide
-            </span>
+            <span className="text-slate-400 font-normal">— Organization-Wide</span>
           )}
         </h2>
 
-        {loading && <div className="loading"><span>Loading documents...</span></div>}
+        {loading && (
+          <div className="flex items-center justify-center py-12 text-slate-500">
+            <span>Loading documents...</span>
+          </div>
+        )}
 
         {err && (
-          <div className="card" style={{ borderColor: "var(--accent-red)", background: "var(--accent-red-soft)" }}>
-            <p style={{ color: "var(--accent-red)" }}>Error: {err}</p>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+            Error: {err}
           </div>
         )}
 
         {!loading && !err && (
-          <div style={{ display: "grid", gap: 16 }}>
-            {filteredDocs.map((d, i) => (
-              <div
-                key={d.doc_id}
-                className="card animate-in"
-                style={{
-                  animationDelay: `${i * 0.05}s`,
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  gap: 20, flexWrap: "wrap",
-                  borderLeft: d.teams ? `4px solid ${d.teams.color}` : "4px solid #E5E7EB",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 20 }}>{getDocIcon(d)}</span>
-                    <h3 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>{d.title}</h3>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <span className="badge mono">{d.doc_id}</span>
-                    <span className="badge">{d.current_version}</span>
-                    <span className="badge badge-success">{d.status}</span>
-                    {d.doc_type && <span className="badge">{d.doc_type}</span>}
-                    {d.file_url && <span className="badge" title="Has attached file">📎 File</span>}
-                    {d.doc_source === "note" && <span className="badge" style={{ background: "#D1FAE5", color: "#065F46" }}>📝 Note</span>}
-                    {d.doc_source === "url" && <span className="badge" style={{ background: "#DBEAFE", color: "#1E40AF" }}>🔗 URL</span>}
-                    {d.doc_source === "youtube" && <span className="badge" style={{ background: "#FEE2E2", color: "#991B1B" }}>🎬 YouTube</span>}
-                    {d.doc_source === "template" && <span className="badge" style={{ background: "#FCE7F3", color: "#9D174D" }}>📋 Template</span>}
-                    {d.doc_source === "ai-agent" && <span className="badge" style={{ background: "linear-gradient(135deg, #EDE9FE, #FCE7F3)", color: "#7C3AED" }}>🤖 AI Agent</span>}
-                    {d.teams ? (
-                      <span className="badge" style={{ background: d.teams.color + "20", color: d.teams.color, borderColor: d.teams.color }}>
-                        {d.teams.name}
-                      </span>
-                    ) : (
-                      <span className="badge" style={{ background: "#F3F4F6", color: "#6B7280" }}>🌐 Org-Wide</span>
-                    )}
-                    {/* Show folder badge if in a folder */}
-                    {d.folder_id && !folderFilter && (
-                      <span className="badge" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                        {folders.find(f => f.id === d.folder_id)?.icon || "📁"}{" "}
-                        {folders.find(f => f.id === d.folder_id)?.name || "Folder"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", gap: 16, fontSize: 14 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-green)" }}>
-                      <span>✓</span><span style={{ fontWeight: 600 }}>{d.feedback_counts.helped}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-yellow)" }}>
-                      <span>⚠</span><span style={{ fontWeight: 600 }}>{d.feedback_counts.not_confident}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent-red)" }}>
-                      <span>✗</span><span style={{ fontWeight: 600 }}>{d.feedback_counts.didnt_help}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {isAdmin && folders.length > 0 && (
-                      <button
-                        onClick={() => setMoveDocId(d.doc_id)}
-                        className="btn"
-                        style={{ padding: "6px 10px", fontSize: 12 }}
-                        title="Move to folder"
-                      >
-                        📁
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <Link href={`/library/${encodeURIComponent(d.doc_id)}/edit`} className="btn">
-                        ✏️ Edit
-                      </Link>
-                    )}
-                    <Link href={`/library/${encodeURIComponent(d.doc_id)}`} className="btn btn-primary">
-                      View →
-                    </Link>
-                  </div>
-                </div>
-              </div>
+          <div className="space-y-3">
+            {filteredDocs.map((doc) => (
+              <DocumentCard
+                key={doc.doc_id}
+                doc={doc}
+                folders={folders}
+                isAdmin={isAdmin}
+                onMove={setMoveDocId}
+              />
             ))}
           </div>
         )}
 
         {!loading && !err && filteredDocs.length === 0 && (
-          <div className="card" style={{ textAlign: "center", padding: 40 }}>
-            <p style={{ color: "var(--text-muted)" }}>
+          <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
+            <p className="text-slate-500">
               {folderFilter
                 ? "No documents in this folder yet."
                 : teamFilter !== "all"
                 ? "No documents found in this filter."
+                : searchQuery
+                ? "No documents match your search."
                 : "No documents found."}
             </p>
-            {isAdmin && !folderFilter && (
-              <Link href="/library/new" className="btn btn-primary" style={{ marginTop: 16 }}>
-                ➕ Upload Documents
+            {isAdmin && !folderFilter && !searchQuery && (
+              <Link href="/library/new">
+                <Button className="mt-4 bg-violet-600 hover:bg-violet-700 gap-2">
+                  <Plus className="w-4 h-4" />
+                  Upload Documents
+                </Button>
               </Link>
             )}
-            {folderFilter && (
-              <Link href="/library" className="btn" style={{ marginTop: 16 }}>
-                ← Back to All Documents
-              </Link>
+            {(folderFilter || searchQuery) && (
+              <Button 
+                variant="outline" 
+                className="mt-4 gap-2"
+                onClick={() => {
+                  if (folderFilter) router.push("/library");
+                  setSearchQuery("");
+                }}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to All
+              </Button>
             )}
           </div>
         )}
@@ -684,13 +777,13 @@ function LibraryContent() {
           onMoved={fetchData}
         />
       )}
-    </>
+    </div>
   );
 }
 
 function LibraryLoading() {
   return (
-    <div className="loading" style={{ padding: 40, textAlign: "center" }}>
+    <div className="flex items-center justify-center py-12 text-slate-500">
       <span>Loading library...</span>
     </div>
   );
@@ -699,7 +792,7 @@ function LibraryLoading() {
 export default function LibraryPage() {
   return (
     <ProtectedRoute>
-      <main className="container">
+      <main className="min-h-screen bg-slate-50">
         <Suspense fallback={<LibraryLoading />}>
           <LibraryContent />
         </Suspense>
