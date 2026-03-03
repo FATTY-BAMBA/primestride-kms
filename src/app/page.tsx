@@ -149,7 +149,7 @@ export default function LandingPage() {
         .con { max-width: var(--mw); margin: 0 auto; }
         .sec-hd { max-width: 720px; margin-bottom: 52px; }
         .sec-hd.ctr { margin-left: auto; margin-right: auto; text-align: center; }
-        .sec-label { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 12px; }
+        .sec-label { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
         .sec-label-blue { color: var(--blue-l); }
         .sec-label-green { color: var(--green-l); }
         .sec-label-dark { color: var(--text3); }
@@ -207,7 +207,7 @@ export default function LandingPage() {
         /* ─── Pillar Sections ─── */
         .pillar { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
         .pillar.rev { direction: rtl; } .pillar.rev > * { direction: ltr; }
-        .pillar-label { font-size: 14px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 8px; }
+        .pillar-label { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
         .pillar-title { font-family: 'DM Serif Display', 'Noto Sans TC', serif; font-size: clamp(22px, 3vw, 30px); font-weight: 400; line-height: 1.3; margin-bottom: 14px; }
         .pillar-desc { font-size: 14.5px; color: var(--text2); line-height: 1.7; margin-bottom: 22px; font-family: 'Noto Sans TC', sans-serif; }
         .pillar-features { display: flex; flex-direction: column; gap: 10px; }
@@ -278,17 +278,6 @@ export default function LandingPage() {
         .why-icon { font-size: 28px; margin-bottom: 12px; }
         .why-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: var(--light-text); font-family: 'Noto Sans TC', sans-serif; }
         .why-card p { font-size: 13px; color: var(--light-text2); line-height: 1.5; font-family: 'Noto Sans TC', sans-serif; }
-
-        /* ─── Roadmap ─── */
-        .roadmap-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
-        .roadmap-track::before { content: ''; position: absolute; top: 20px; left: 12.5%; right: 12.5%; height: 2px; background: var(--border); }
-        .roadmap-item { text-align: center; position: relative; padding: 0 12px; }
-        .roadmap-dot { width: 12px; height: 12px; border-radius: 50%; margin: 14px auto 18px; position: relative; z-index: 1; }
-        .roadmap-dot.active { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-glow); }
-        .roadmap-dot.upcoming { background: var(--text3); }
-        .roadmap-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue-l); }
-        .roadmap-item h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-        .roadmap-item p { font-size: 12px; color: var(--text3); line-height: 1.5; }
 
         /* ─── Pricing ─── */
         .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -455,10 +444,10 @@ export default function LandingPage() {
           <div className="sec-hd">
             <div className="sec-label sec-label-dark">為什麼要換</div>
             <div className="sec-title" style={{ color: 'var(--light-text)' }}>傳統 ERP 是上個時代的產物</div>
-            <p className="sec-desc" style={{ color: 'var(--light-text2)' }}>Digiwin、MAYOHR 需要手動更新、獨立 SOP 資料夾、表單密集的流程。Atlas 讓知識與行動合一。</p>
+            <p className="sec-desc" style={{ color: 'var(--light-text2)' }}>傳統 ERP 需要手動更新、獨立 SOP 資料夾、表單密集的流程。Atlas 讓知識與行動合一。</p>
           </div>
           <div className="compare-grid fi">
-            <div className="compare-header legacy">傳統 ERP (Digiwin / MAYOHR)</div>
+            <div className="compare-header legacy">傳統 ERP </div>
             <div className="compare-header atlas">PrimeStride Atlas EIP (2026)</div>
             {[
               { label: 'SOP 存取', legacy: '在另一個資料夾搜尋 PDF', atlas: '融合式。AI 讀取 SOP 自動填寫表單。' },
