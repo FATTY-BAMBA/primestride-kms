@@ -46,96 +46,169 @@ export default function AgentPage() {
   };
 
   const suggestions = [
-    "Create a weekly meeting notes template",
-    "Summarize all my documents",
-    "Organize my unfiled documents into folders",
-    "Create a project brief for Q1 planning",
-    "Find all documents about onboarding",
-    "Tag all documents automatically",
+    { text: "建立本週會議紀錄模板", en: "Create meeting notes template", icon: "📝", color: "#059669" },
+    { text: "整理未分類的文件到資料夾", en: "Organize unfiled documents", icon: "📂", color: "#2563EB" },
+    { text: "自動標記所有文件", en: "Auto-tag all documents", icon: "🏷️", color: "#7C3AED" },
+    { text: "摘要所有文件的重點", en: "Summarize all documents", icon: "📊", color: "#D97706" },
+    { text: "建立 Q1 專案簡報", en: "Create Q1 project brief", icon: "📋", color: "#DC2626" },
+    { text: "分析上季的績效報告", en: "Analyze last quarter reviews", icon: "🧠", color: "#EC4899" },
   ];
+
+  const actionColors: Record<string, { bg: string; color: string }> = {
+    CREATE: { bg: "#D1FAE5", color: "#065F46" },
+    MOVE: { bg: "#DBEAFE", color: "#1E40AF" },
+    SEARCH: { bg: "#FEF3C7", color: "#92400E" },
+    TAG: { bg: "#EDE9FE", color: "#5B21B6" },
+    SUMMARIZE: { bg: "#FCE7F3", color: "#9D174D" },
+    ANALYZE: { bg: "#FFF7ED", color: "#9A3412" },
+  };
+
+  const getActionStyle = (action: string) => {
+    const key = Object.keys(actionColors).find(k => (action || "").includes(k));
+    return key ? actionColors[key] : { bg: "#F3F4F6", color: "#374151" };
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#F9FAFB", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <div style={{ padding: "16px 24px", background: "white", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{
+        padding: "12px 24px", background: "white", borderBottom: "1px solid #E5E7EB",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/library" style={{ color: "#6B7280", textDecoration: "none", fontSize: 14 }}>← Library</Link>
-          <div style={{ width: 1, height: 20, background: "#E5E7EB" }} />
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🤖</div>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 20, boxShadow: "0 2px 8px rgba(124, 58, 237, 0.3)",
+          }}>🤖</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "#111827" }}>AI Agent</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF" }}>Create, organize, search — just ask</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "#111827", lineHeight: 1.2 }}>Atlas Agent</div>
+            <div style={{ fontSize: 12, color: "#9CA3AF" }}>建立、整理、分析 · Create, organize, analyze</div>
           </div>
         </div>
-        {messages.length > 0 && (
-          <button onClick={() => setMessages([])} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "white", fontSize: 13, cursor: "pointer", color: "#6B7280" }}>
-            Clear chat
-          </button>
-        )}
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {messages.length > 0 && (
+            <button onClick={() => setMessages([])}
+              style={{
+                padding: "6px 14px", borderRadius: 8, border: "1px solid #E5E7EB",
+                background: "white", fontSize: 12, cursor: "pointer", color: "#6B7280",
+              }}>
+              🗑️ 清除
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Chat area */}
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 100px" }}>
         <div style={{ maxWidth: 800, margin: "0 auto" }}>
           {messages.length === 0 && (
-            <div style={{ textAlign: "center", padding: "80px 20px" }}>
-              <div style={{ width: 80, height: 80, borderRadius: 20, margin: "0 auto 24px", background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>🤖</div>
-              <h2 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 8 }}>What can I help you with?</h2>
-              <p style={{ fontSize: 15, color: "#6B7280", maxWidth: 500, margin: "0 auto 32px" }}>
-                I can create documents, organize folders, search your knowledge base, summarize content, tag documents, and manage projects — all through natural language.
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: 20, margin: "0 auto 24px",
+                background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 40, boxShadow: "0 4px 20px rgba(124, 58, 237, 0.25)",
+              }}>🤖</div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
+                需要我幫你做什麼？
+              </h2>
+              <p style={{ fontSize: 15, color: "#6B7280", maxWidth: 480, margin: "0 auto 32px", lineHeight: 1.6 }}>
+                I can create documents, organize folders, auto-tag content, summarize, and analyze data — all through natural language.
               </p>
-              <div className="mobile-suggestions" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, maxWidth: 600, margin: "0 auto" }}>
-                {suggestions.map(s => (
-                  <button key={s} onClick={() => { setInput(s); inputRef.current?.focus(); }}
-                    style={{ padding: "12px 16px", borderRadius: 10, border: "1px solid #E5E7EB", background: "white", fontSize: 13, cursor: "pointer", color: "#374151", textAlign: "left", transition: "all 0.15s", lineHeight: 1.4 }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#7C3AED"; e.currentTarget.style.background = "#F5F3FF"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.background = "white"; }}
-                  >{s}</button>
+
+              {/* Action-oriented suggestions */}
+              <div className="mobile-suggestions" style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 10, maxWidth: 560, margin: "0 auto",
+              }}>
+                {suggestions.map((s, i) => (
+                  <button key={i} onClick={() => { setInput(s.text); inputRef.current?.focus(); }}
+                    style={{
+                      padding: "14px 16px", borderRadius: 10, border: "1px solid #E5E7EB",
+                      background: "white", cursor: "pointer", textAlign: "left",
+                      transition: "all 0.15s", display: "flex", alignItems: "flex-start", gap: 10,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.boxShadow = `0 2px 8px ${s.color}20`; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = "none"; }}
+                  >
+                    <span style={{ fontSize: 20, lineHeight: 1 }}>{s.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", lineHeight: 1.4 }}>{s.text}</div>
+                      <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{s.en}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Capability badges */}
+              <div style={{ marginTop: 32, display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                {["📝 Create Docs", "📂 Organize", "🏷️ Auto-Tag", "📊 Summarize", "🧠 Analyze"].map((cap) => (
+                  <span key={cap} style={{
+                    padding: "5px 12px", borderRadius: 100, background: "#F3F4F6",
+                    fontSize: 12, color: "#6B7280", fontWeight: 500,
+                  }}>{cap}</span>
                 ))}
               </div>
             </div>
           )}
 
           {messages.map((msg, i) => (
-            <div key={i} style={{ marginBottom: 20, display: "flex", gap: 12, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}>
+            <div key={i} style={{ marginBottom: 20, display: "flex", gap: 10, flexDirection: msg.role === "user" ? "row-reverse" : "row", alignItems: "flex-start" }}>
               <div style={{
-                width: 36, height: 36, borderRadius: 12, flexShrink: 0,
-                background: msg.role === "user" ? "linear-gradient(135deg, #7C3AED, #A78BFA)" : "linear-gradient(135deg, #7C3AED, #EC4899)",
-                display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 16,
+                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                background: msg.role === "user"
+                  ? "linear-gradient(135deg, #6366F1, #8B5CF6)"
+                  : "linear-gradient(135deg, #7C3AED, #EC4899)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "white", fontSize: 14,
               }}>{msg.role === "user" ? "👤" : "🤖"}</div>
 
               <div style={{
                 maxWidth: "80%", padding: "14px 18px", borderRadius: 14,
-                background: msg.role === "user" ? "#7C3AED" : "white",
+                background: msg.role === "user" ? "#6366F1" : "white",
                 color: msg.role === "user" ? "white" : "#111827",
                 border: msg.role === "assistant" ? "1px solid #E5E7EB" : "none",
                 fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap",
-                boxShadow: msg.role === "assistant" ? "0 1px 3px rgba(0,0,0,0.05)" : "none",
+                boxShadow: msg.role === "assistant" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
               }}>
                 {msg.content}
 
+                {/* Action badges */}
                 {msg.actions && msg.actions.length > 0 && msg.actions.some(a => a && a !== "REPLY") && (
                   <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #F3F4F6", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {msg.actions.filter(a => a && a !== "REPLY").map((a, j) => (
-                      <span key={j} style={{
-                        padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        background: (a || "").includes("CREATE") ? "#D1FAE5" : (a || "").includes("MOVE") ? "#DBEAFE" : (a || "").includes("SEARCH") ? "#FEF3C7" : (a || "").includes("TAG") ? "#EDE9FE" : "#F3F4F6",
-                        color: (a || "").includes("CREATE") ? "#065F46" : (a || "").includes("MOVE") ? "#1E40AF" : (a || "").includes("SEARCH") ? "#92400E" : (a || "").includes("TAG") ? "#5B21B6" : "#374151",
-                      }}>{(a || "").replace("_", " ")}</span>
-                    ))}
+                    {msg.actions.filter(a => a && a !== "REPLY").map((a, j) => {
+                      const style = getActionStyle(a);
+                      return (
+                        <span key={j} style={{
+                          padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600,
+                          background: style.bg, color: style.color,
+                        }}>{(a || "").replace("_", " ")}</span>
+                      );
+                    })}
                   </div>
                 )}
 
+                {/* Created items / search results */}
                 {msg.createdItems && msg.createdItems.length > 0 && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F3F4F6" }}>
-                    <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>
-                      {msg.actions?.some(a => (a || "").includes("SEARCH")) ? "📄 Results:" : "Quick links:"}
+                    <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 6, fontWeight: 600 }}>
+                      {msg.actions?.some(a => (a || "").includes("SEARCH")) ? "📄 Results:" : "🔗 Quick links:"}
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {msg.createdItems.map((item, j) => (
                         <Link key={j}
                           href={item.type === "doc" ? `/library/${encodeURIComponent(item.id)}` : `/library?folder=${item.id}`}
-                          style={{ padding: "4px 12px", borderRadius: 6, background: "#EEF2FF", color: "#4F46E5", fontSize: 12, fontWeight: 600, textDecoration: "none" }}>
+                          style={{
+                            padding: "5px 12px", borderRadius: 6, background: "#EEF2FF",
+                            color: "#4F46E5", fontSize: 12, fontWeight: 600, textDecoration: "none",
+                            transition: "all 0.15s",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#E0E7FF"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "#EEF2FF"; }}
+                        >
                           {item.type === "doc" ? "📄" : "📁"} {item.title}
                         </Link>
                       ))}
@@ -147,11 +220,20 @@ export default function AgentPage() {
           ))}
 
           {loading && (
-            <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 12, flexShrink: 0, background: "linear-gradient(135deg, #7C3AED, #EC4899)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: 16 }}>🤖</div>
-              <div style={{ padding: "14px 18px", borderRadius: 14, background: "white", border: "1px solid #E5E7EB", fontSize: 14, color: "#9CA3AF", display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "flex-start" }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                background: "linear-gradient(135deg, #7C3AED, #EC4899)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "white", fontSize: 14,
+              }}>🤖</div>
+              <div style={{
+                padding: "14px 18px", borderRadius: 14, background: "white",
+                border: "1px solid #E5E7EB", fontSize: 14, color: "#9CA3AF",
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#7C3AED", animation: "pulse 1s ease-in-out infinite" }} />
-                Thinking & executing...
+                執行中... Thinking & executing...
               </div>
             </div>
           )}
@@ -160,17 +242,40 @@ export default function AgentPage() {
       </div>
 
       {/* Input */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px 24px", background: "white", borderTop: "1px solid #E5E7EB", boxShadow: "0 -4px 12px rgba(0,0,0,0.05)" }}>
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0,
+        padding: "12px 24px 20px", background: "white",
+        borderTop: "1px solid #E5E7EB", boxShadow: "0 -2px 8px rgba(0,0,0,0.04)",
+      }}>
         <div style={{ maxWidth: 800, margin: "0 auto", display: "flex", gap: 10 }}>
-          <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)}
+          <input ref={inputRef} type="text" value={input}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-            placeholder="Tell the AI what to do... e.g. 'Create a meeting notes doc for today'"
+            placeholder="告訴 AI 要做什麼... e.g. '建立今天的會議紀錄'"
             disabled={loading}
-            style={{ flex: 1, padding: "14px 18px", border: "1px solid #D1D5DB", borderRadius: 12, fontSize: 15, outline: "none", opacity: loading ? 0.6 : 1 }} />
+            style={{
+              flex: 1, padding: "14px 18px", border: "2px solid #E5E7EB",
+              borderRadius: 12, fontSize: 15, outline: "none",
+              opacity: loading ? 0.6 : 1, fontFamily: "inherit",
+              transition: "border-color 0.2s",
+            }}
+            onFocus={(e) => (e.target.style.borderColor = "#7C3AED")}
+            onBlur={(e) => (e.target.style.borderColor = "#E5E7EB")}
+          />
           <button onClick={handleSend} disabled={!input.trim() || loading}
-            style={{ padding: "14px 24px", borderRadius: 12, border: "none", background: !input.trim() || loading ? "#D1D5DB" : "linear-gradient(135deg, #7C3AED, #EC4899)", color: "white", fontSize: 15, fontWeight: 700, cursor: !input.trim() || loading ? "not-allowed" : "pointer", minWidth: 80 }}>
-            {loading ? "..." : "Send"}
+            style={{
+              padding: "14px 24px", borderRadius: 12, border: "none",
+              background: !input.trim() || loading ? "#D1D5DB" : "linear-gradient(135deg, #7C3AED, #EC4899)",
+              color: "white", fontSize: 15, fontWeight: 700,
+              cursor: !input.trim() || loading ? "not-allowed" : "pointer",
+              minWidth: 80, transition: "all 0.2s",
+              boxShadow: !input.trim() || loading ? "none" : "0 2px 8px rgba(124, 58, 237, 0.3)",
+            }}>
+            {loading ? "..." : "執行 →"}
           </button>
+        </div>
+        <div style={{ fontSize: 11, color: "#D1D5DB", marginTop: 6, textAlign: "center", maxWidth: 800, margin: "6px auto 0" }}>
+          Enter 送出 · Agent 可以建立文件、整理資料夾、標記、摘要與分析
         </div>
       </div>
 

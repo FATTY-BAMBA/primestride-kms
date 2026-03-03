@@ -14,7 +14,6 @@ import {
   ClipboardList, 
   Bot,
   ChevronRight,
-  MoreVertical,
   Search,
   Filter,
   Globe,
@@ -24,7 +23,13 @@ import {
   Edit3,
   Trash2,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  Zap,
+  Type,
+  Brain,
+  X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -72,6 +77,32 @@ type DocRow = {
     not_confident: number;
     didnt_help: number;
   };
+};
+
+type Facets = {
+  doc_types: string[];
+  domains: string[];
+  ai_maturity_stages: string[];
+  statuses: string[];
+  top_tags: { tag: string; count: number }[];
+};
+
+type SearchResult = {
+  doc_id: string;
+  title: string;
+  version: string;
+  doc_type: string | null;
+  domain: string | null;
+  ai_maturity_stage: string | null;
+  tags: string[];
+  status: string | null;
+  source_url: string | null;
+  score: number;
+  snippet: string;
+  section_title?: string;
+  section_path?: string;
+  why_matched?: string[];
+  search_mode?: string;
 };
 
 // ── Folder Creation Modal ──
@@ -337,19 +368,16 @@ function DocumentCard({
       onMouseLeave={() => setHovered(false)}
     >
       <div className="flex items-start gap-4">
-        {/* Icon */}
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", getIconBg())}>
           {getDocIcon()}
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h3 className="font-medium text-slate-900 truncate">{doc.title}</h3>
             </div>
             
-            {/* Actions - shown on hover */}
             <div className={cn(
               "flex items-center gap-2 transition-opacity duration-200",
               hovered ? "opacity-100" : "opacity-0"
@@ -380,7 +408,6 @@ function DocumentCard({
             </div>
           </div>
 
-          {/* Meta row */}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span className="text-xs text-slate-400 font-mono">{doc.doc_id}</span>
             <span className="text-xs text-slate-400">{doc.current_version}</span>
@@ -412,7 +439,6 @@ function DocumentCard({
               </Badge>
             )}
             
-            {/* Feedback summary - only show if there's feedback */}
             {totalFeedback > 0 && (
               <div className="flex items-center gap-2 ml-auto text-xs">
                 {doc.feedback_counts.helped > 0 && (
@@ -446,6 +472,71 @@ function DocumentCard({
   );
 }
 
+// ── Search Result Card (for advanced search results) ──
+function SearchResultCard({ result, onNavigate }: { result: SearchResult; onNavigate: (docId: string) => void }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium text-slate-900">{result.title}</h3>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="text-xs text-slate-400 font-mono">{result.doc_id}</span>
+            <span className="text-xs text-slate-400">{result.version}</span>
+            {result.doc_type && (
+              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
+                {result.doc_type}
+              </Badge>
+            )}
+            {result.domain && (
+              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
+                {result.domain}
+              </Badge>
+            )}
+            {(result.search_mode === "semantic" || result.search_mode === "hybrid") && result.score > 0 && (
+              <Badge className={cn(
+                "border-0 text-xs font-semibold",
+                result.score >= 60 
+                  ? "bg-violet-100 text-violet-700" 
+                  : result.score >= 40 
+                    ? "bg-blue-50 text-blue-600" 
+                    : "bg-slate-100 text-slate-600"
+              )}>
+                {result.search_mode === "hybrid" ? "⚡" : "🧠"} {result.score}% match
+              </Badge>
+            )}
+          </div>
+        </div>
+        <Button 
+          size="sm" 
+          className="h-8 bg-violet-600 hover:bg-violet-700 text-white gap-1"
+          onClick={() => onNavigate(result.doc_id)}
+        >
+          View <ChevronRight className="w-4 h-4" />
+        </Button>
+      </div>
+
+      {result.why_matched && result.why_matched.length > 0 && (
+        <p className="text-xs text-violet-600 mt-2">
+          {result.search_mode === "hybrid" ? "⚡ " : "🧠 "}
+          Why matched: {result.why_matched.slice(0, 4).join(" · ")}
+        </p>
+      )}
+
+      {result.section_title && (
+        <p className="text-xs text-slate-500 mt-1">
+          Match in: <strong>{result.section_title}</strong>
+        </p>
+      )}
+
+      {result.snippet && (
+        <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm text-slate-600 leading-relaxed">
+          {result.snippet}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Library Content ──
 function LibraryContent() {
   const searchParams = useSearchParams();
@@ -461,7 +552,18 @@ function LibraryContent() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [moveDocId, setMoveDocId] = useState<string | null>(null);
+
+  // ── Search state ──
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<"browse" | "keyword" | "semantic" | "hybrid">("browse");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchErr, setSearchErr] = useState("");
+  const [facets, setFacets] = useState<Facets | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterDocType, setFilterDocType] = useState("");
+  const [filterDomain, setFilterDomain] = useState("");
+  const [filterTag, setFilterTag] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -471,10 +573,11 @@ function LibraryContent() {
         ? `/api/learning-summary?team=${teamFilter}`
         : "/api/learning-summary";
 
-      const [docRes, folderRes, profileRes] = await Promise.all([
+      const [docRes, folderRes, profileRes, facetRes] = await Promise.all([
         fetch(url),
         fetch("/api/folders"),
         fetch("/api/profile"),
+        fetch("/api/facets"),
       ]);
 
       const docData = await docRes.json();
@@ -490,6 +593,11 @@ function LibraryContent() {
       if (profileRes.ok && profileData.role) {
         setIsAdmin(["owner", "admin"].includes(profileData.role));
       }
+
+      if (facetRes.ok) {
+        const facetData = await facetRes.json();
+        setFacets(facetData);
+      }
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Error");
     } finally {
@@ -499,16 +607,61 @@ function LibraryContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // ── Advanced search handler ──
+  const handleAdvancedSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearchLoading(true);
+    setSearchErr("");
+    setSearchResults([]);
+
+    try {
+      const params = new URLSearchParams();
+      params.set("q", searchQuery.trim());
+      params.set("mode", searchMode === "browse" ? "hybrid" : searchMode);
+      if (filterDocType) params.set("doc_type", filterDocType);
+      if (filterDomain) params.set("domain", filterDomain);
+      if (filterTag) params.set("tag", filterTag);
+
+      const res = await fetch("/api/search?" + params.toString());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Search failed");
+      setSearchResults(data.results || []);
+    } catch (e: any) {
+      setSearchErr(e?.message || "Search failed");
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchErr("");
+    setSearchMode("browse");
+    setFilterDocType("");
+    setFilterDomain("");
+    setFilterTag("");
+    setShowAdvancedFilters(false);
+  };
+
+  const isAdvancedSearchActive = searchMode !== "browse" || searchResults.length > 0;
+
   const totalFeedback = docs.reduce(
     (sum, d) =>
       sum + d.feedback_counts.helped + d.feedback_counts.not_confident + d.feedback_counts.didnt_help,
     0
   );
 
-  // Filter docs by folder and search
+  // Filter docs by folder and basic search (browse mode)
   const filteredDocs = docs
     .filter(d => !folderFilter || d.folder_id === folderFilter)
-    .filter(d => !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(d => {
+      if (searchMode !== "browse" || !searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return d.title.toLowerCase().includes(q) || 
+        d.doc_id.toLowerCase().includes(q) ||
+        (d.tags || []).some(t => t.toLowerCase().includes(q));
+    });
 
   const currentFolder = folders.find((f) => f.id === folderFilter);
 
@@ -521,7 +674,10 @@ function LibraryContent() {
     } catch {}
   };
 
-  // Filter options
+  const handleNavigateToDoc = (docId: string) => {
+    router.push(`/library/${encodeURIComponent(docId)}`);
+  };
+
   const filterOptions = [
     { label: "All", value: "all", count: docs.length },
     { label: "Org-Wide", value: "org-wide", count: docs.filter(d => !d.team_id).length },
@@ -533,6 +689,8 @@ function LibraryContent() {
     }))
   ];
 
+  const activeAdvancedFilterCount = [filterDocType, filterDomain, filterTag].filter(Boolean).length;
+
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
       {/* Header */}
@@ -541,7 +699,7 @@ function LibraryContent() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Knowledge Library</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Learning-enabled docs with feedback
+              Your company&apos;s single source of truth
             </p>
           </div>
           {isAdmin && (
@@ -576,44 +734,275 @@ function LibraryContent() {
         )}
       </header>
 
-      {/* Search & Filters */}
+      {/* ═══ SEARCH BAR WITH MODES ═══ */}
       {!loading && !err && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
-          <div className="relative flex-1 max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Search documents..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          
-          <div className="flex items-center gap-2 flex-wrap">
-            <Filter className="w-4 h-4 text-slate-400" />
-            <span className="text-sm text-slate-500">Filter:</span>
-            {filterOptions.map((filter) => (
-              <Link
-                key={filter.value}
-                href={filter.value === "all" ? "/library" : `/library?team=${filter.value}`}
+        <div className="mb-6 space-y-3">
+          {/* Search input row */}
+          <div className="flex gap-3 items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder={
+                  searchMode === "semantic" 
+                    ? "Search by meaning... e.g. 'how to handle overtime'" 
+                    : searchMode === "hybrid"
+                    ? "Search by keyword + meaning..."
+                    : searchMode === "keyword"
+                    ? "Search by exact keyword..."
+                    : "Search documents..."
+                }
+                className="pl-10 pr-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (searchMode === "browse") {
+                      // Basic title filter — no API call needed
+                    } else {
+                      handleAdvancedSearch();
+                    }
+                  }
+                }}
+              />
+              {searchQuery && (
+                <button 
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Search mode toggle */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden flex-shrink-0">
+              <button
+                onClick={() => { setSearchMode("browse"); setSearchResults([]); }}
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-sm transition-all duration-200",
-                  teamFilter === filter.value
-                    ? "bg-violet-600 text-white"
-                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  "px-3 py-2 text-xs font-medium transition-all flex items-center gap-1.5",
+                  searchMode === "browse" 
+                    ? "bg-slate-900 text-white" 
+                    : "bg-white text-slate-600 hover:bg-slate-50"
                 )}
               >
-                {filter.label}
-                <span className={cn(
-                  "ml-1.5 text-xs",
-                  teamFilter === filter.value ? "text-violet-200" : "text-slate-400"
-                )}>
-                  {filter.count}
-                </span>
-              </Link>
+                <FileText className="w-3.5 h-3.5" />
+                Browse
+              </button>
+              <button
+                onClick={() => setSearchMode("hybrid")}
+                className={cn(
+                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
+                  searchMode === "hybrid" 
+                    ? "bg-violet-600 text-white" 
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Hybrid
+              </button>
+              <button
+                onClick={() => setSearchMode("keyword")}
+                className={cn(
+                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
+                  searchMode === "keyword" 
+                    ? "bg-blue-600 text-white" 
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Type className="w-3.5 h-3.5" />
+                Keyword
+              </button>
+              <button
+                onClick={() => setSearchMode("semantic")}
+                className={cn(
+                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
+                  searchMode === "semantic" 
+                    ? "bg-purple-600 text-white" 
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <Brain className="w-3.5 h-3.5" />
+                Semantic
+              </button>
+            </div>
+
+            {/* Search button (for AI modes) */}
+            {searchMode !== "browse" && (
+              <Button 
+                onClick={handleAdvancedSearch}
+                disabled={searchLoading || !searchQuery.trim()}
+                className="bg-violet-600 hover:bg-violet-700 gap-2 flex-shrink-0"
+              >
+                {searchLoading ? "Searching..." : "Search"}
+              </Button>
+            )}
+          </div>
+
+          {/* Advanced filters toggle (only for non-browse modes) */}
+          {searchMode !== "browse" && (
+            <div>
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Advanced Filters
+                {activeAdvancedFilterCount > 0 && (
+                  <Badge className="bg-violet-100 text-violet-700 border-0 text-xs ml-1">
+                    {activeAdvancedFilterCount}
+                  </Badge>
+                )}
+                {showAdvancedFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              {showAdvancedFilters && (
+                <div className="flex gap-3 mt-3 flex-wrap">
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Doc Type</label>
+                    <select
+                      value={filterDocType}
+                      onChange={(e) => setFilterDocType(e.target.value)}
+                      className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700"
+                    >
+                      <option value="">All types</option>
+                      {(facets?.doc_types ?? []).map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Domain</label>
+                    <select
+                      value={filterDomain}
+                      onChange={(e) => setFilterDomain(e.target.value)}
+                      className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700"
+                    >
+                      <option value="">All domains</option>
+                      {(facets?.domains ?? []).map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Tag</label>
+                    <Input
+                      value={filterTag}
+                      onChange={(e) => setFilterTag(e.target.value)}
+                      placeholder="e.g., compliance"
+                      className="h-8 w-40 text-sm"
+                    />
+                  </div>
+                  {facets?.top_tags && facets.top_tags.length > 0 && (
+                    <div className="flex items-end gap-1.5 flex-wrap">
+                      {facets.top_tags.slice(0, 6).map((t) => (
+                        <button
+                          key={t.tag}
+                          onClick={() => setFilterTag(t.tag)}
+                          className={cn(
+                            "px-2.5 py-1 rounded-full text-xs border transition-all",
+                            filterTag === t.tag
+                              ? "bg-violet-100 border-violet-300 text-violet-700"
+                              : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                          )}
+                        >
+                          {t.tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search mode description */}
+          {searchMode !== "browse" && (
+            <p className="text-xs text-slate-400">
+              {searchMode === "hybrid" 
+                ? "Combines keyword matching + AI meaning for the best results" 
+                : searchMode === "semantic"
+                ? "AI finds documents by meaning — \"keeping clients happy\" finds \"customer retention\" docs"
+                : "Finds exact text matches in document titles and content"}
+            </p>
+          )}
+
+          {/* Search error */}
+          {searchErr && (
+            <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+              {searchErr}
+            </div>
+          )}
+
+          {/* Team filter pills (browse mode) */}
+          {searchMode === "browse" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Filter className="w-4 h-4 text-slate-400" />
+              <span className="text-sm text-slate-500">Filter:</span>
+              {filterOptions.map((filter) => (
+                <Link
+                  key={filter.value}
+                  href={filter.value === "all" ? "/library" : `/library?team=${filter.value}`}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-sm transition-all duration-200",
+                    teamFilter === filter.value
+                      ? "bg-violet-600 text-white"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  )}
+                >
+                  {filter.label}
+                  <span className={cn(
+                    "ml-1.5 text-xs",
+                    teamFilter === filter.value ? "text-violet-200" : "text-slate-400"
+                  )}>
+                    {filter.count}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ SEARCH RESULTS (when AI search is active) ═══ */}
+      {isAdvancedSearchActive && searchMode !== "browse" && (
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium text-slate-900 flex items-center gap-2">
+              <Search className="w-4 h-4 text-slate-400" />
+              Search Results
+              {searchResults.length > 0 && (
+                <Badge variant="secondary" className="text-xs">{searchResults.length}</Badge>
+              )}
+            </h2>
+            <Button variant="ghost" size="sm" onClick={clearSearch} className="text-slate-500 gap-1">
+              <X className="w-4 h-4" />
+              Clear search
+            </Button>
+          </div>
+
+          {searchLoading && (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <span>{searchMode === "hybrid" ? "⚡ Running hybrid search..." : searchMode === "semantic" ? "🧠 AI searching..." : "Searching..."}</span>
+            </div>
+          )}
+
+          {!searchLoading && searchResults.length === 0 && searchQuery && (
+            <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
+              <p className="text-slate-500">No results found for &ldquo;{searchQuery}&rdquo;</p>
+              <p className="text-xs text-slate-400 mt-2">Try different keywords or switch search mode</p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {searchResults.map((result) => (
+              <SearchResultCard 
+                key={result.doc_id + "-" + result.version} 
+                result={result} 
+                onNavigate={handleNavigateToDoc}
+              />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Folder Breadcrumb */}
@@ -653,8 +1042,8 @@ function LibraryContent() {
         </div>
       )}
 
-      {/* Folders Section */}
-      {!loading && !err && folders.length > 0 && !folderFilter && (
+      {/* Folders Section (only in browse mode, not during search) */}
+      {!loading && !err && folders.length > 0 && !folderFilter && searchMode === "browse" && !searchQuery && (
         <div className="mb-8">
           <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
             <FolderKanban className="w-4 h-4 text-slate-400" />
@@ -682,84 +1071,86 @@ function LibraryContent() {
         </div>
       )}
 
-      {/* Documents List */}
-      <section>
-        <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-slate-400" />
-          {folderFilter && currentFolder
-            ? currentFolder.name
-            : "Documents"}
-          {teamFilter !== "all" && teamFilter !== "org-wide" && teams.find(t => t.id === teamFilter) && (
-            <span className="text-slate-400 font-normal">
-              — {teams.find(t => t.id === teamFilter)?.name}
-            </span>
+      {/* Documents List (browse mode) */}
+      {(searchMode === "browse" || !isAdvancedSearchActive) && (
+        <section>
+          <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-slate-400" />
+            {folderFilter && currentFolder
+              ? currentFolder.name
+              : "Documents"}
+            {teamFilter !== "all" && teamFilter !== "org-wide" && teams.find(t => t.id === teamFilter) && (
+              <span className="text-slate-400 font-normal">
+                — {teams.find(t => t.id === teamFilter)?.name}
+              </span>
+            )}
+            {teamFilter === "org-wide" && (
+              <span className="text-slate-400 font-normal">— Organization-Wide</span>
+            )}
+          </h2>
+
+          {loading && (
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              <span>Loading documents...</span>
+            </div>
           )}
-          {teamFilter === "org-wide" && (
-            <span className="text-slate-400 font-normal">— Organization-Wide</span>
+
+          {err && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+              Error: {err}
+            </div>
           )}
-        </h2>
 
-        {loading && (
-          <div className="flex items-center justify-center py-12 text-slate-500">
-            <span>Loading documents...</span>
-          </div>
-        )}
+          {!loading && !err && (
+            <div className="space-y-3">
+              {filteredDocs.map((doc) => (
+                <DocumentCard
+                  key={doc.doc_id}
+                  doc={doc}
+                  folders={folders}
+                  isAdmin={isAdmin}
+                  onMove={setMoveDocId}
+                />
+              ))}
+            </div>
+          )}
 
-        {err && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-            Error: {err}
-          </div>
-        )}
-
-        {!loading && !err && (
-          <div className="space-y-3">
-            {filteredDocs.map((doc) => (
-              <DocumentCard
-                key={doc.doc_id}
-                doc={doc}
-                folders={folders}
-                isAdmin={isAdmin}
-                onMove={setMoveDocId}
-              />
-            ))}
-          </div>
-        )}
-
-        {!loading && !err && filteredDocs.length === 0 && (
-          <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
-            <p className="text-slate-500">
-              {folderFilter
-                ? "No documents in this folder yet."
-                : teamFilter !== "all"
-                ? "No documents found in this filter."
-                : searchQuery
-                ? "No documents match your search."
-                : "No documents found."}
-            </p>
-            {isAdmin && !folderFilter && !searchQuery && (
-              <Link href="/library/new">
-                <Button className="mt-4 bg-violet-600 hover:bg-violet-700 gap-2">
-                  <Plus className="w-4 h-4" />
-                  Upload Documents
+          {!loading && !err && filteredDocs.length === 0 && (
+            <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
+              <p className="text-slate-500">
+                {folderFilter
+                  ? "No documents in this folder yet."
+                  : teamFilter !== "all"
+                  ? "No documents found in this filter."
+                  : searchQuery
+                  ? "No documents match your search."
+                  : "No documents found."}
+              </p>
+              {isAdmin && !folderFilter && !searchQuery && (
+                <Link href="/library/new">
+                  <Button className="mt-4 bg-violet-600 hover:bg-violet-700 gap-2">
+                    <Plus className="w-4 h-4" />
+                    Upload Documents
+                  </Button>
+                </Link>
+              )}
+              {(folderFilter || searchQuery) && (
+                <Button 
+                  variant="outline" 
+                  className="mt-4 gap-2"
+                  onClick={() => {
+                    if (folderFilter) router.push("/library");
+                    setSearchQuery("");
+                  }}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Back to All
                 </Button>
-              </Link>
-            )}
-            {(folderFilter || searchQuery) && (
-              <Button 
-                variant="outline" 
-                className="mt-4 gap-2"
-                onClick={() => {
-                  if (folderFilter) router.push("/library");
-                  setSearchQuery("");
-                }}
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to All
-              </Button>
-            )}
-          </div>
-        )}
-      </section>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Modals */}
       <CreateFolderModal
