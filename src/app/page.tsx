@@ -719,7 +719,7 @@ export default function LandingPage() {
                 <li>五格式匯出 + API</li>
                 <li>稽核日誌 + 品牌設定</li>
               </ul>
-              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>Start Free Trial →</a>
+              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>立即升級 →</a>
             </div>
             <div className="price-card fi">
               <div className="price-tier">Enterprise 企業版</div>
@@ -742,13 +742,13 @@ export default function LandingPage() {
 
       {/* ═══ 10. CTA ═══ */}
       <section className="cta">
-        <h2>Your company{`'`}s nervous<br />system is waiting.</h2>
-        <p>加入首批 5 家台灣企業，體驗合規、智慧、一站式的流程管理。</p>
+        <h2>讓 AI 守護你的每一筆流程</h2>
+        <p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p>
         <div className="cta-acts">
-          <a href="/signup" className="btn btn-p btn-lg">Request Early Access →</a>
-          <a href="/contact" className="btn btn-w btn-lg">與我們聊聊</a>
+          <a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a>
+          <a href="/contact" className="btn btn-w btn-lg">預約 Demo</a>
         </div>
-        <div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 隨時可取消</div>
+        <div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 五分鐘完成設定</div>
       </section>
 
       {/* ═══ FOOTER ═══ */}
