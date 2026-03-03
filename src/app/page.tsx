@@ -261,17 +261,6 @@ export default function LandingPage() {
         .why-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: var(--light-text); font-family: 'Noto Sans TC', sans-serif; }
         .why-card p { font-size: 13px; color: var(--light-text2); line-height: 1.5; font-family: 'Noto Sans TC', sans-serif; }
 
-        /* ─── Roadmap ─── */
-        .roadmap-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; }
-        .roadmap-track::before { content: ''; position: absolute; top: 20px; left: 12.5%; right: 12.5%; height: 2px; background: var(--border); }
-        .roadmap-item { text-align: center; position: relative; padding: 0 12px; }
-        .roadmap-dot { width: 12px; height: 12px; border-radius: 50%; margin: 14px auto 18px; position: relative; z-index: 1; }
-        .roadmap-dot.active { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-glow); }
-        .roadmap-dot.upcoming { background: var(--text3); }
-        .roadmap-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue-l); }
-        .roadmap-item h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-        .roadmap-item p { font-size: 12px; color: var(--text3); line-height: 1.5; }
-
         /* ─── Pricing ─── */
         .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         .price-card { padding: 32px; border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); }
@@ -312,8 +301,6 @@ export default function LandingPage() {
           .prob-grid, .price-grid { grid-template-columns: 1fr; }
           .why-grid { grid-template-columns: 1fr 1fr; }
           .compare-grid { grid-template-columns: 1fr; }
-          .roadmap-track { grid-template-columns: 1fr 1fr; gap: 24px; }
-          .roadmap-track::before { display: none; }
           .ev-fields { grid-template-columns: 1fr; }
         }
       `}</style>
@@ -331,7 +318,7 @@ export default function LandingPage() {
           <div className="nav-acts">
             <span className="lang-tag">EN / 中文</span>
             <a href="/login" className="btn btn-o">登入</a>
-            <a href="/signup" className="btn btn-p">Early Access →</a>
+            <a href="/signup" className="btn btn-p">免費註冊 →</a>
             <button className="mob-tog" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}><span className={mobileMenuOpen ? 'open' : ''} /></button>
           </div>
         </div>
@@ -342,7 +329,7 @@ export default function LandingPage() {
         <a href="#compliance" onClick={() => setMobileMenuOpen(false)}>合規引擎</a>
         <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>價格</a>
         <a href="/login" onClick={() => setMobileMenuOpen(false)}>登入</a>
-        <a href="/signup" className="btn btn-p" style={{ justifyContent: 'center' }}>Early Access →</a>
+        <a href="/signup" className="btn btn-p" style={{ justifyContent: 'center' }}>免費註冊 →</a>
       </div>
 
       {/* ═══ 1. HERO — Bilingual ═══ */}
@@ -358,8 +345,8 @@ export default function LandingPage() {
             One box. Zero forms. Your team speaks naturally — the AI reads your SOPs, enforces <strong>2026 Taiwan Labor Standards</strong>, and executes compliant workflows instantly.
           </p>
           <div className="hero-acts">
-            <a href="/signup" className="btn btn-p btn-lg">Start Pilot Program →</a>
-            <a href="#demo" className="btn btn-o btn-lg">See It Work</a>
+            <a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a>
+            <a href="#demo" className="btn btn-o btn-lg">探索功能</a>
           </div>
           <div className="hero-pills">
             <div className="hero-pill"><span>🛡️</span> 2026 合規引擎</div>
@@ -609,31 +596,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ 8. ROADMAP ═══ */}
-      <section className="sec">
-        <div className="con">
-          <div className="sec-hd ctr">
-            <div className="sec-label sec-label-blue">Launch Sequence</div>
-            <div className="sec-title">先服務 3–5 家企業，做到最好</div>
-          </div>
-          <div className="roadmap-track fi">
-            {[
-              { tag: 'Now', active: true, title: '合規引擎', desc: '2026 勞基法邏輯、NLP 解析、衝突偵測' },
-              { tag: 'Q2 2026', active: true, title: 'Agentic Auditor + ESG', desc: '預審智慧、一鍵 ESG 報告' },
-              { tag: 'Q3 2026', active: false, title: 'Predictive + LINE', desc: '容量預測、語音流程、行動優先' },
-              { tag: 'Q4 2026', active: false, title: 'Scale to 50', desc: 'SSO、稽核日誌、公開 API、品牌客製' },
-            ].map((r) => (
-              <div className="roadmap-item" key={r.title}>
-                <div className="roadmap-tag">{r.tag}</div>
-                <div className={`roadmap-dot ${r.active ? 'active' : 'upcoming'}`} />
-                <h4>{r.title}</h4>
-                <p>{r.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ═══ 9. PRICING ═══ */}
       <section className="sec sec-dark2" id="pricing">
         <div className="con">
@@ -670,7 +632,7 @@ export default function LandingPage() {
                 <li>五格式匯出 + API</li>
                 <li>稽核日誌 + 品牌設定</li>
               </ul>
-              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>Start Free Trial →</a>
+              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>立即升級 →</a>
             </div>
             <div className="price-card fi">
               <div className="price-tier">Enterprise 企業版</div>
@@ -693,13 +655,13 @@ export default function LandingPage() {
 
       {/* ═══ 10. CTA ═══ */}
       <section className="cta">
-        <h2>Your company{`'`}s nervous<br />system is waiting.</h2>
-        <p>加入首批 5 家台灣企業，體驗合規、智慧、一站式的流程管理。</p>
+        <h2>讓 AI 守護你的每一筆流程</h2>
+        <p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p>
         <div className="cta-acts">
-          <a href="/signup" className="btn btn-p btn-lg">Request Early Access →</a>
-          <a href="/contact" className="btn btn-w btn-lg">與我們聊聊</a>
+          <a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a>
+          <a href="/contact" className="btn btn-w btn-lg">預約 Demo</a>
         </div>
-        <div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 隨時可取消</div>
+        <div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 五分鐘完成設定</div>
       </section>
 
       {/* ═══ FOOTER ═══ */}
