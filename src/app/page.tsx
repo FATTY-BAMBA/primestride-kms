@@ -248,6 +248,24 @@ export default function LandingPage() {
         .ev-compliance-title { font-size: 10px; font-weight: 700; color: var(--green); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
         .ev-compliance-text { font-size: 11px; color: var(--text2); line-height: 1.5; }
 
+        /* ─── SOP Retrieval Card ─── */
+        .sop-card { background: linear-gradient(135deg, #0f172a 0%, #1a1040 100%); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 24px; }
+        .sop-label { font-size: 12px; font-weight: 700; color: var(--blue-l); letter-spacing: 0.04em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .sop-label .sop-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--blue-l); animation: sopPulse 1.5s ease-in-out infinite; }
+        @keyframes sopPulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(96,165,250,0.4); } 50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(96,165,250,0); } }
+        .sop-input { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; color: var(--text2); font-size: 14px; font-style: italic; margin-bottom: 14px; font-family: 'Noto Sans TC', sans-serif; }
+        .sop-arrow { text-align: center; font-size: 18px; margin-bottom: 14px; color: var(--blue-l); }
+        .sop-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+        .sop-field { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 10px 14px; border: 1px solid var(--border); }
+        .sop-field.pulse { border-color: rgba(96,165,250,0.3); animation: fieldPulse 2s ease-in-out infinite; }
+        @keyframes fieldPulse { 0%, 100% { border-color: rgba(96,165,250,0.3); box-shadow: 0 0 0 0 rgba(96,165,250,0.1); } 50% { border-color: rgba(96,165,250,0.5); box-shadow: 0 0 12px 0 rgba(96,165,250,0.08); } }
+        .sop-field-label { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: 0.03em; margin-bottom: 2px; }
+        .sop-field-val { font-size: 13px; color: var(--text); font-weight: 600; }
+        .sop-insight { margin-top: 14px; padding: 12px 16px; background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.15); border-radius: 10px; }
+        .sop-insight-title { font-size: 11px; font-weight: 700; color: var(--amber); margin-bottom: 4px; }
+        .sop-insight-text { font-size: 12px; color: var(--text2); line-height: 1.6; }
+        .sop-submit { margin-top: 14px; padding: 11px; border-radius: 8px; background: var(--blue); color: white; text-align: center; font-size: 13px; font-weight: 700; }
+
         /* ─── Compliance Banner ─── */
         .compliance-sec { padding: 80px 24px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); text-align: center; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
         .law-chips { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
@@ -312,9 +330,8 @@ export default function LandingPage() {
           .prob-grid, .price-grid { grid-template-columns: 1fr; }
           .why-grid { grid-template-columns: 1fr 1fr; }
           .compare-grid { grid-template-columns: 1fr; }
-          .roadmap-track { grid-template-columns: 1fr 1fr; gap: 24px; }
-          .roadmap-track::before { display: none; }
           .ev-fields { grid-template-columns: 1fr; }
+          .sop-fields { grid-template-columns: 1fr; }
         }
       `}</style>
 
@@ -459,7 +476,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ 5. PLATFORM — Three Pillars ═══ */}
+      {/* ═══ 5. PLATFORM — Four Pillars ═══ */}
       <div id="platform">
 
       {/* Pillar 1: AI Knowledge Management */}
@@ -527,12 +544,69 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Pillar 3: Compliance-First Workflow Automation */}
+      {/* Pillar 3: SOP-to-Workflow — The Bridge */}
+      <section className="sec" style={{ background: 'linear-gradient(180deg, #0f1420 0%, #1a1040 100%)' }}>
+        <div className="con">
+          <div className="pillar fi">
+            <div>
+              <div className="pillar-label" style={{ color: 'var(--blue-l)' }}>核心三 · 智慧執行層</div>
+              <div className="pillar-title">Stop Reading SOPs.<br />Start Executing Them.</div>
+              <div className="pillar-desc">傳統的 SOP 是躺在資料夾裡的 PDF。在 Atlas，SOP 是活的。當員工提出需求，AI 會即時檢索公司手冊，確保每一筆申請都符合公司規範與法律要求。</div>
+              <div className="pillar-features">
+                <div className="pillar-feat">
+                  <div className="pillar-feat-icon" style={{ background: 'var(--blue-glow)' }}>🧠</div>
+                  <div><strong>Contextual Retrieval</strong> — AI 根據員工職級與部門，自動套用對應的差旅與請假福利。</div>
+                </div>
+                <div className="pillar-feat">
+                  <div className="pillar-feat-icon" style={{ background: 'var(--green-glow)' }}>🛡️</div>
+                  <div><strong>Zero-Violation</strong> — 自動比對 2026 勞基法與公司內規，從源頭杜絕合規風險。</div>
+                </div>
+                <div className="pillar-feat">
+                  <div className="pillar-feat-icon" style={{ background: 'rgba(139,92,246,0.1)' }}>⚡</div>
+                  <div><strong>One-Click Fill</strong> — 只要說出「我要出差」，AI 自動根據歷史數據與手冊建議最佳流程。</div>
+                </div>
+              </div>
+            </div>
+            <div className="pillar-visual">
+              <div className="sop-card">
+                <div className="sop-label"><span className="sop-pulse" /> AI AGENT CROSS-CHECKING SOP...</div>
+                <div className="sop-input">{'"下週三要去新竹廠支援兩天，住那邊"'}</div>
+                <div className="sop-arrow">↓ AI 檢索公司手冊</div>
+                <div className="sop-fields">
+                  <div className="sop-field pulse">
+                    <div className="sop-field-label">DOC RETRIEVED</div>
+                    <div className="sop-field-val">《員工差旅管理辦法 v2.6》</div>
+                  </div>
+                  <div className="sop-field">
+                    <div className="sop-field-label">ALLOWANCE</div>
+                    <div className="sop-field-val">NT$2,200 / Night</div>
+                  </div>
+                  <div className="sop-field">
+                    <div className="sop-field-label">DESTINATION</div>
+                    <div className="sop-field-val">新竹科學園區</div>
+                  </div>
+                  <div className="sop-field">
+                    <div className="sop-field-label">DURATION</div>
+                    <div className="sop-field-val">2 Days + 1 Night</div>
+                  </div>
+                </div>
+                <div className="sop-insight">
+                  <div className="sop-insight-title">💡 Policy Insight</div>
+                  <div className="sop-insight-text">根據您的手冊：跨縣市支援可申請<strong>「遠端補助」</strong>。已自動為您勾選。</div>
+                </div>
+                <div className="sop-submit">確認送出申請 →</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pillar 4: Compliance-First Workflow Automation */}
       <section className="sec">
         <div className="con">
           <div className="pillar fi">
             <div>
-              <div className="pillar-label" style={{ color: 'var(--amber)' }}>核心三 · 合規流程自動化</div>
+              <div className="pillar-label" style={{ color: 'var(--amber)' }}>核心四 · 合規流程自動化</div>
               <div className="pillar-title">用一句話填完請假單，AI 自動合規檢查</div>
               <div className="pillar-desc">不再需要點選十個欄位。用自然語言描述需求，AI 自動解析並填好表單。每一筆申請都經過 2026 勞基法合規檢查，附帶 Compliance Seal。</div>
               <div className="pillar-features">
