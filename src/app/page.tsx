@@ -256,7 +256,7 @@ export default function LandingPage() {
           .nav-in { padding: 0 16px; }
           .nav-brand { font-size: 15px; gap: 8px; }
           .nav-mark { width: 30px; height: 30px; font-size: 12px; }
-          .nav-acts .btn-p { padding: 8px 16px; font-size: 13px; }
+          .nav-acts .btn-p { padding: 8px 14px; font-size: 12px; white-space: nowrap; }
           .hero { padding: 110px 16px 60px; }
           .hero h1 { font-size: 28px; line-height: 1.15; }
           .hero-badges { gap: 8px; margin-bottom: 20px; }
