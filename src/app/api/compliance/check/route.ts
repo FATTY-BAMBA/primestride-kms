@@ -7,17 +7,6 @@ import OpenAI from "openai";
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ══════════════════════════════════════════════════════════════
-// POST /api/compliance/check
-// Validates a workflow submission against Taiwan labor law
-// Called BEFORE submission is saved (pre-submit check)
-// or AFTER submission for admin review
-//
-// FIX: Now pulls user_id and organization_id from Clerk auth
-// so the frontend doesn't need to pass them explicitly.
-// Falls back to body params for backward compatibility (admin tools).
-// ══════════════════════════════════════════════════════════════
-
 interface ComplianceResult {
   status: "pass" | "warning" | "blocked";
   checks: {
@@ -41,7 +30,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "form_type and form_data are required" }, { status: 400 });
     }
 
-    // ── Resolve user_id and organization_id from auth (with body fallback) ──
     let user_id = body.user_id || null;
     let organization_id = body.organization_id || null;
 
@@ -56,7 +44,7 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch {
-        // Auth not available — continue with whatever we have
+        // Auth not available
       }
     }
 
@@ -66,7 +54,6 @@ export async function POST(req: NextRequest) {
 
     const result: ComplianceResult = { status: "pass", checks: [] };
 
-    // ── Run rule-based checks first (fast, deterministic) ──
     if (form_type === "leave") {
       await checkLeaveCompliance(result, form_data, user_id, organization_id);
     } else if (form_type === "overtime") {
@@ -82,7 +69,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Run AI-powered compliance analysis (RAG) ──
+    // AI-powered compliance analysis (RAG)
     const aiAnalysis = await runAIComplianceCheck(form_type, form_data, organization_id);
     if (aiAnalysis) {
       result.ai_analysis = aiAnalysis.en;
@@ -102,14 +89,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Determine overall status ──
+    // Determine overall status
     if (result.checks.some((c) => c.status === "blocked")) {
       result.status = "blocked";
     } else if (result.checks.some((c) => c.status === "warning")) {
       result.status = "warning";
     }
 
-    // ── Log the compliance check ──
+    // Log compliance checks
     for (const check of result.checks) {
       await supabase.from("compliance_checks").insert({
         organization_id,
@@ -139,10 +126,9 @@ async function checkLeaveCompliance(
   user_id: string,
   org_id: string
 ) {
-  const { leave_type, days, start_date, end_date } = form_data;
+  const { leave_type, days } = form_data;
   const numDays = parseFloat(days) || 0;
 
-  // 1. Check leave balance
   const { data: balance } = await supabase
     .from("leave_balances")
     .select("*")
@@ -159,41 +145,26 @@ async function checkLeaveCompliance(
 
     const leaveTypeKey = (leave_type || "").toLowerCase();
     if (leaveTypeKey.includes("特休") || leaveTypeKey.includes("annual")) {
-      totalDays = balance.annual_total || 7;
-      usedDays = balance.annual_used || 0;
-      balanceField = "annual";
+      totalDays = balance.annual_total || 7; usedDays = balance.annual_used || 0; balanceField = "annual";
     } else if (leaveTypeKey.includes("病假") || leaveTypeKey.includes("sick")) {
-      totalDays = balance.sick_total || 30;
-      usedDays = balance.sick_used || 0;
-      balanceField = "sick";
+      totalDays = balance.sick_total || 30; usedDays = balance.sick_used || 0; balanceField = "sick";
     } else if (leaveTypeKey.includes("事假") || leaveTypeKey.includes("personal")) {
-      totalDays = balance.personal_total || 14;
-      usedDays = balance.personal_used || 0;
-      balanceField = "personal";
+      totalDays = balance.personal_total || 14; usedDays = balance.personal_used || 0; balanceField = "personal";
     } else if (leaveTypeKey.includes("家庭") || leaveTypeKey.includes("family")) {
-      totalDays = balance.family_care_total || 7;
-      usedDays = balance.family_care_used || 0;
-      balanceField = "family_care";
+      totalDays = balance.family_care_total || 7; usedDays = balance.family_care_used || 0; balanceField = "family_care";
     } else if (leaveTypeKey.includes("婚假") || leaveTypeKey.includes("marriage")) {
-      totalDays = balance.marriage_total || 8;
-      usedDays = balance.marriage_used || 0;
-      balanceField = "marriage";
+      totalDays = balance.marriage_total || 8; usedDays = balance.marriage_used || 0; balanceField = "marriage";
     } else if (leaveTypeKey.includes("產假") || leaveTypeKey.includes("maternity")) {
-      totalDays = balance.maternity_total || 56;
-      usedDays = balance.maternity_used || 0;
-      balanceField = "maternity";
+      totalDays = balance.maternity_total || 56; usedDays = balance.maternity_used || 0; balanceField = "maternity";
     } else if (leaveTypeKey.includes("陪產") || leaveTypeKey.includes("paternity")) {
-      totalDays = balance.paternity_total || 7;
-      usedDays = balance.paternity_used || 0;
-      balanceField = "paternity";
+      totalDays = balance.paternity_total || 7; usedDays = balance.paternity_used || 0; balanceField = "paternity";
     } else if (leaveTypeKey.includes("喪假") || leaveTypeKey.includes("bereavement")) {
-      totalDays = balance.bereavement_total || 8;
-      usedDays = balance.bereavement_used || 0;
-      balanceField = "bereavement";
+      totalDays = balance.bereavement_total || 8; usedDays = balance.bereavement_used || 0; balanceField = "bereavement";
     }
 
     available = totalDays - usedDays;
 
+    // 1. Leave balance check
     if (numDays > available) {
       result.checks.push({
         check_type: "leave_balance",
@@ -226,16 +197,69 @@ async function checkLeaveCompliance(
       });
     }
 
-    // 3. Full Attendance Bonus protection check
-    const protectedTypes = ["family_care", "marriage", "bereavement"];
-    if (protectedTypes.includes(balanceField)) {
+    // 3. Full Attendance Bonus — Fully Protected Leave Types
+    const fullyProtectedTypes = ["family_care", "marriage", "bereavement", "maternity", "paternity"];
+    if (fullyProtectedTypes.includes(balanceField)) {
       result.checks.push({
         check_type: "attendance_bonus_protection",
         status: "pass",
-        rule_reference: "MOL 2025 Amendment - Full Attendance Bonus",
-        message: `${leave_type} is protected: Full Attendance Bonus cannot be deducted for this leave type.`,
-        message_zh: `${leave_type}受保護：此假別不得扣發全勤獎金。`,
-        details: { protected: true, leave_type: balanceField },
+        rule_reference: "LSA Art. 9-1 — Full Attendance Bonus Protection",
+        message: `${leave_type} is fully protected: Attendance bonus CANNOT be deducted for this leave type under any circumstances.`,
+        message_zh: `${leave_type}受法律完全保護：依勞基法第9-1條，此假別不得以任何方式扣發全勤獎金。`,
+        details: { protected: true, deduction: 0, leave_type: balanceField },
+      });
+    }
+
+    // ═══ NEW: 4. Sick Leave — Pro-Rata Bonus Calculator (2026) ═══
+    if (balanceField === "sick") {
+      const sickDaysThisYear = usedDays + numDays;
+      // 2026 rule: sick leave cannot lose FULL bonus — must use pro-rata deduction
+      // Default: NT$3,000 monthly bonus (organizations can configure this later)
+      const monthlyBonus = 3000;
+      const dailyRate = Math.round(monthlyBonus / 30);
+      const deduction = dailyRate * numDays;
+      const remainingBonus = Math.max(monthlyBonus - deduction, 0);
+
+      result.checks.push({
+        check_type: "sick_leave_bonus_prorata",
+        status: "pass",
+        rule_reference: "LSA Art. 9-1 — 2026 Pro-Rata Bonus Protection",
+        message: `2026 Protection: Attendance bonus adjusted by pro-rata only. Deduction: NT$${deduction} (NT$${dailyRate}/day × ${numDays} days). You keep NT$${remainingBonus} of your NT$${monthlyBonus} monthly bonus. Full deduction is ILLEGAL.`,
+        message_zh: `💰 2026 合規保護：全勤獎金僅按比例扣減，全額扣發屬違法行為。扣除金額：NT$${deduction}（NT$${dailyRate}/天 × ${numDays}天）。您仍可領取 NT$${remainingBonus} / NT$${monthlyBonus} 的全勤獎金。`,
+        details: {
+          monthly_bonus: monthlyBonus,
+          daily_rate: dailyRate,
+          days_requested: numDays,
+          deduction,
+          remaining_bonus: remainingBonus,
+          sick_days_this_year: sickDaysThisYear,
+          prorata_protected: true,
+          full_deduction_illegal: true,
+        },
+      });
+    }
+
+    // ═══ NEW: 5. Family Care Leave — 2026 Hourly Tracking ═══
+    if (balanceField === "family_care") {
+      const hoursTotal = balance.family_care_hours_total || 56;
+      const hoursUsed = balance.family_care_hours_used || 0;
+      const hoursRemaining = hoursTotal - hoursUsed;
+      const requestedHours = numDays * 8;
+
+      result.checks.push({
+        check_type: "family_care_hourly_2026",
+        status: requestedHours > hoursRemaining ? "warning" : "pass",
+        rule_reference: "2026 Amendment — Hourly Family Care Leave",
+        message: `2026 Rule: Family Care Leave can be taken by the hour (${hoursTotal}hr/year). Used: ${hoursUsed}hr, Remaining: ${hoursRemaining}hr. This request: ${requestedHours}hr. Attendance bonus fully protected.`,
+        message_zh: `⏰ 2026 新規：家庭照顧假可按小時請假（每年${hoursTotal}小時）。已使用：${hoursUsed}小時，剩餘：${hoursRemaining}小時。本次申請：${requestedHours}小時。全勤獎金完全受保護。`,
+        details: {
+          hours_total: hoursTotal,
+          hours_used: hoursUsed,
+          hours_remaining: hoursRemaining,
+          hours_requested: requestedHours,
+          hourly_enabled: true,
+          bonus_protected: true,
+        },
       });
     }
   }
@@ -250,7 +274,7 @@ async function checkOvertimeCompliance(
   user_id: string,
   org_id: string
 ) {
-  const { date, start_time, end_time, hours } = form_data;
+  const { date, hours } = form_data;
   const numHours = parseFloat(hours) || 0;
 
   // 1. Daily hours limit (max 4 hours overtime = 12 total)
@@ -258,9 +282,9 @@ async function checkOvertimeCompliance(
     result.checks.push({
       check_type: "daily_overtime_limit",
       status: "blocked",
-      rule_reference: "LSA Art. 32 - Daily Overtime Limit",
-      message: `Overtime exceeds 4-hour daily limit. Requested: ${numHours} hours. Total work day would exceed the 12-hour maximum.`,
-      message_zh: `加班時數超過每日上限4小時。申請 ${numHours} 小時，工作日總時數將超過12小時上限。`,
+      rule_reference: "LSA Art. 32 — Daily Overtime Limit",
+      message: `Overtime exceeds 4-hour daily limit. Requested: ${numHours} hours. Total work day would exceed 12-hour maximum.`,
+      message_zh: `🚫 加班時數超過每日上限4小時。申請 ${numHours} 小時，工作日總時數將超過12小時上限。`,
       details: { requested_hours: numHours, max_daily_overtime: 4, max_daily_total: 12 },
     });
   } else {
@@ -274,7 +298,8 @@ async function checkOvertimeCompliance(
     });
   }
 
-  // 2. Monthly overtime cap check
+  // 2. Monthly overtime cap
+  let totalMonthHours = 0;
   if (date) {
     const monthStart = date.substring(0, 7) + "-01";
     const monthEnd = date.substring(0, 7) + "-31";
@@ -289,34 +314,96 @@ async function checkOvertimeCompliance(
       .gte("created_at", monthStart)
       .lte("created_at", monthEnd);
 
-    const totalMonthHours = (monthOT || []).reduce((sum: number, s: any) => {
+    totalMonthHours = (monthOT || []).reduce((sum: number, s: any) => {
       return sum + (parseFloat(s.form_data?.hours) || 0);
     }, 0);
 
     const projectedTotal = totalMonthHours + numHours;
 
-    if (projectedTotal > 46) {
+    if (projectedTotal > 54) {
       result.checks.push({
         check_type: "monthly_overtime_cap",
-        status: projectedTotal > 54 ? "blocked" : "warning",
-        rule_reference: "LSA Art. 32 - Monthly Overtime Cap",
-        message: `Monthly overtime will reach ${projectedTotal} hours (existing: ${totalMonthHours}h + new: ${numHours}h). Standard limit: 46h/month. Extended limit (with consent): 54h/month.`,
-        message_zh: `本月加班將達 ${projectedTotal} 小時（已有 ${totalMonthHours}h + 新增 ${numHours}h）。標準上限：46小時/月。經同意延長上限：54小時/月。`,
-        details: { existing_hours: totalMonthHours, requested: numHours, projected: projectedTotal, limit_standard: 46, limit_extended: 54 },
+        status: "blocked",
+        rule_reference: "LSA Art. 32 — Monthly Overtime Hard Cap",
+        message: `BLOCKED: Monthly overtime will reach ${projectedTotal}h, exceeding absolute maximum 54h/month. Fine: NT$20,000 ~ NT$1,000,000.`,
+        message_zh: `🚫 禁止：本月加班將達 ${projectedTotal} 小時，超過絕對上限54小時/月。罰款風險：NT$20,000 ~ NT$1,000,000。`,
+        details: { existing_hours: totalMonthHours, requested: numHours, projected: projectedTotal, limit_standard: 46, limit_extended: 54, fine_risk: "NT$20,000-1,000,000" },
+      });
+    } else if (projectedTotal > 46) {
+      result.checks.push({
+        check_type: "monthly_overtime_cap",
+        status: "warning",
+        rule_reference: "LSA Art. 32 — Extended Monthly Cap",
+        message: `Monthly overtime will reach ${projectedTotal}h (standard: 46h). Extended to 54h requires written consent + labor-management meeting record.`,
+        message_zh: `⚠️ 本月加班將達 ${projectedTotal} 小時（標準上限：46小時）。延長至54小時需勞工書面同意及勞資會議紀錄。`,
+        details: { existing_hours: totalMonthHours, requested: numHours, projected: projectedTotal, consent_required: true },
       });
     } else {
       result.checks.push({
         check_type: "monthly_overtime_cap",
         status: "pass",
         rule_reference: "LSA Art. 32",
-        message: `Monthly overtime within limit. Projected: ${projectedTotal}/46 hours.`,
-        message_zh: `本月加班時數符合規定。預計：${projectedTotal}/46 小時。`,
+        message: `Monthly overtime within limit: ${projectedTotal}/46 hours.`,
+        message_zh: `本月加班時數符合規定：${projectedTotal}/46 小時。`,
         details: { existing_hours: totalMonthHours, requested: numHours, projected: projectedTotal },
+      });
+    }
+
+    // ═══ NEW: 3. Quarterly 138-Hour Cap (Rolling 3-Month Window) ═══
+    const requestDate = new Date(date);
+    const threeMonthsAgo = new Date(requestDate);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 2);
+    threeMonthsAgo.setDate(1);
+    const quarterStart = threeMonthsAgo.toISOString().split("T")[0];
+    const quarterEnd = new Date(requestDate.getFullYear(), requestDate.getMonth() + 1, 0).toISOString().split("T")[0];
+
+    const { data: quarterOT } = await supabase
+      .from("workflow_submissions")
+      .select("form_data")
+      .eq("organization_id", org_id)
+      .eq("submitted_by", user_id)
+      .eq("form_type", "overtime")
+      .in("status", ["approved", "pending"])
+      .gte("created_at", quarterStart)
+      .lte("created_at", quarterEnd);
+
+    const totalQuarterHours = (quarterOT || []).reduce((sum: number, s: any) => {
+      return sum + (parseFloat(s.form_data?.hours) || 0);
+    }, 0);
+
+    const projectedQuarter = totalQuarterHours + numHours;
+
+    if (projectedQuarter > 138) {
+      result.checks.push({
+        check_type: "quarterly_overtime_cap",
+        status: "blocked",
+        rule_reference: "LSA Art. 32 — Quarterly 138-Hour Hard Cap",
+        message: `BLOCKED: 3-month overtime will reach ${projectedQuarter}h, exceeding 138h quarterly cap. This is an absolute legal limit with no exceptions. Fine: NT$20,000 ~ NT$1,000,000.`,
+        message_zh: `🚫 禁止：近3個月加班將達 ${projectedQuarter} 小時，超過任3個月138小時絕對上限。此上限無法延長或例外。罰款：NT$20,000 ~ NT$1,000,000。`,
+        details: { quarter_start: quarterStart, quarter_end: quarterEnd, existing_quarter_hours: totalQuarterHours, requested: numHours, projected_quarter: projectedQuarter, limit: 138, fine_risk: "NT$20,000-1,000,000" },
+      });
+    } else if (projectedQuarter > 120) {
+      result.checks.push({
+        check_type: "quarterly_overtime_cap",
+        status: "warning",
+        rule_reference: "LSA Art. 32 — Quarterly Cap Warning",
+        message: `Approaching quarterly limit: ${projectedQuarter}/138h in 3-month window. Only ${138 - projectedQuarter}h remaining.`,
+        message_zh: `⚠️ 接近季度上限：近3個月 ${projectedQuarter}/138 小時。僅剩 ${138 - projectedQuarter} 小時。`,
+        details: { existing_quarter_hours: totalQuarterHours, projected_quarter: projectedQuarter, remaining: 138 - projectedQuarter },
+      });
+    } else {
+      result.checks.push({
+        check_type: "quarterly_overtime_cap",
+        status: "pass",
+        rule_reference: "LSA Art. 32 — Quarterly Cap",
+        message: `Quarterly overtime within limit: ${projectedQuarter}/138 hours.`,
+        message_zh: `近3個月加班符合規定：${projectedQuarter}/138 小時。`,
+        details: { existing_quarter_hours: totalQuarterHours, projected_quarter: projectedQuarter },
       });
     }
   }
 
-  // 3. Check if overtime is on a national holiday
+  // 4. National holiday check
   if (date) {
     const { data: holidays } = await supabase
       .from("compliance_knowledge")
@@ -331,39 +418,61 @@ async function checkOvertimeCompliance(
         result.checks.push({
           check_type: "holiday_overtime",
           status: "warning",
-          rule_reference: "LSA Art. 39 - Holiday Overtime",
-          message: `${date} is a national holiday. Overtime requires employee consent and must be paid at double rate (200%).`,
-          message_zh: `${date} 為國定假日。加班需經勞工同意，且須加倍發給工資（200%）。`,
+          rule_reference: "LSA Art. 39 — Holiday Overtime",
+          message: `${date} is a national holiday. Requires written consent. Must pay double rate (200%).`,
+          message_zh: `⚠️ ${date} 為國定假日。加班需經勞工書面同意，須加倍發給工資（200%）。`,
           details: { date, is_holiday: true, required_rate: 2.0 },
         });
       }
     }
   }
 
-  // 4. Overtime pay rate info (always show as informational pass)
+  // ═══ NEW: 5. Overtime Pay Estimation with NT$ Amount ═══
   if (numHours > 0) {
     const overtimeType = (form_data.overtime_type || "").toLowerCase();
-    let rateInfo = "";
-    let rateInfoZh = "";
+    const baseMonthlySalary = 50000; // Sample salary for estimation
+    const baseHourlyRate = Math.round(baseMonthlySalary / 30 / 8);
+    let estimatedPay = 0;
+    let rateBreakdown = "";
+    let rateBreakdownZh = "";
 
-    if (overtimeType.includes("假日") || overtimeType.includes("holiday")) {
-      rateInfo = `Holiday overtime: First 2h at 1.34x, remaining at 1.67x base rate.`;
-      rateInfoZh = `假日加班：前2小時按1.34倍、第3小時起按1.67倍計算。`;
-    } else if (overtimeType.includes("國定") || overtimeType.includes("national")) {
-      rateInfo = `National holiday overtime: All hours at 2x base rate.`;
-      rateInfoZh = `國定假日加班：全部時數按2倍計算。`;
+    if (overtimeType.includes("國定") || overtimeType.includes("national")) {
+      estimatedPay = Math.round(baseHourlyRate * 2.0 * numHours);
+      rateBreakdown = `All ${numHours}h × 2.0 = NT$${estimatedPay}`;
+      rateBreakdownZh = `全部 ${numHours}小時 × 2.0倍 = NT$${estimatedPay.toLocaleString()}`;
+    } else if (overtimeType.includes("假日") || overtimeType.includes("holiday") || overtimeType.includes("休息")) {
+      const h1 = Math.min(numHours, 2);
+      const h2 = Math.min(Math.max(numHours - 2, 0), 6);
+      const h3 = Math.max(numHours - 8, 0);
+      const pay1 = Math.round(baseHourlyRate * h1 * 1.34);
+      const pay2 = Math.round(baseHourlyRate * h2 * 1.67);
+      const pay3 = Math.round(baseHourlyRate * h3 * 2.67);
+      estimatedPay = pay1 + pay2 + pay3;
+      rateBreakdown = `${h1}h×1.34 + ${h2}h×1.67 = NT$${estimatedPay}`;
+      rateBreakdownZh = `前${h1}小時×1.34倍 + ${h2}小時×1.67倍 = NT$${estimatedPay.toLocaleString()}`;
     } else {
-      rateInfo = `Weekday overtime: First 2h at 1.34x, hours 3-4 at 1.67x base rate.`;
-      rateInfoZh = `平日加班：前2小時按1.34倍、第3-4小時按1.67倍計算。`;
+      const h1 = Math.min(numHours, 2);
+      const h2 = Math.max(numHours - 2, 0);
+      const pay1 = Math.round(baseHourlyRate * h1 * 1.34);
+      const pay2 = Math.round(baseHourlyRate * h2 * 1.67);
+      estimatedPay = pay1 + pay2;
+      rateBreakdown = `${h1}h×1.34 + ${h2}h×1.67 = NT$${estimatedPay}`;
+      rateBreakdownZh = `前${h1}小時×1.34倍${h2 > 0 ? ` + ${h2}小時×1.67倍` : ""} = NT$${estimatedPay.toLocaleString()}`;
     }
 
     result.checks.push({
-      check_type: "overtime_pay_rate",
+      check_type: "overtime_pay_estimate",
       status: "pass",
-      rule_reference: "LSA Art. 24 - Overtime Pay",
-      message: rateInfo,
-      message_zh: rateInfoZh,
-      details: { overtime_type: form_data.overtime_type, hours: numHours },
+      rule_reference: "LSA Art. 24 — Overtime Pay",
+      message: `Estimated OT pay: NT$${estimatedPay.toLocaleString()} (${rateBreakdown}). Based on NT$${baseMonthlySalary.toLocaleString()}/mo sample. Actual amount per your salary.`,
+      message_zh: `💰 預估加班費：NT$${estimatedPay.toLocaleString()}（${rateBreakdownZh}）。以月薪NT$${baseMonthlySalary.toLocaleString()}估算，實際依個人薪資計算。`,
+      details: {
+        base_monthly_salary: baseMonthlySalary,
+        base_hourly_rate: baseHourlyRate,
+        hours: numHours,
+        estimated_pay: estimatedPay,
+        overtime_type: form_data.overtime_type,
+      },
     });
   }
 }
@@ -450,7 +559,6 @@ CRITICAL: Only flag real legal compliance issues. Do not flag normal valid reque
 
 // ══════════════════════════════════════════════════════════════
 // GET /api/compliance/check
-// Retrieve compliance check history for a submission or user
 // ══════════════════════════════════════════════════════════════
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
