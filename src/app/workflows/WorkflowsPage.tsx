@@ -258,22 +258,52 @@ export default function WorkflowsPage() {
       {/* ═══ LEAVE BALANCE ═══ */}
       {leaveBalance && (
         <div style={{ padding: 16, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 10 }}>🏖️ 假期餘額 {new Date().getFullYear()}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>🏖️ 假期餘額 {new Date().getFullYear()}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
             {[
-              { label: "特休", used: leaveBalance.annual_used, total: leaveBalance.annual_total, color: "#7C3AED" },
-              { label: "病假", used: leaveBalance.sick_used, total: leaveBalance.sick_total, color: "#2563EB" },
-              { label: "事假", used: leaveBalance.personal_used, total: leaveBalance.personal_total, color: "#D97706" },
-              { label: "家庭照顧", used: leaveBalance.family_care_used || 0, total: leaveBalance.family_care_total || 7, color: "#059669" },
-            ].map(b => (
-              <div key={b.label} style={{ padding: "8px 10px", background: "#F9FAFB", borderRadius: 8 }}>
-                <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 600, marginBottom: 4 }}>{b.label}</div>
-                <div style={{ height: 4, background: "#E5E7EB", borderRadius: 2, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${Math.min((b.used / b.total) * 100, 100)}%`, background: b.used / b.total > 0.8 ? "#DC2626" : b.color, borderRadius: 2, transition: "width 0.3s" }} />
+              { label: "特休 Annual", used: leaveBalance.annual_used, total: leaveBalance.annual_total, color: "#7C3AED", tag: "有薪 Paid", tagColor: "#059669" },
+              { label: "病假 Sick", used: leaveBalance.sick_used, total: leaveBalance.sick_total, color: "#2563EB", tag: "半薪 Half-Pay", tagColor: "#D97706" },
+              { label: "事假 Personal", used: leaveBalance.personal_used, total: leaveBalance.personal_total, color: "#D97706", tag: "無薪 Unpaid", tagColor: "#DC2626" },
+              { label: "家庭照顧 Family Care", used: leaveBalance.family_care_used || 0, total: leaveBalance.family_care_total || 7, color: "#059669", tag: "有薪 Paid", tagColor: "#059669" },
+              ...(leaveBalance.comp_time_total > 0 ? [{ label: "補休 Comp Time", used: leaveBalance.comp_time_used || 0, total: leaveBalance.comp_time_total, color: "#6366F1", tag: "有薪 Paid", tagColor: "#059669" }] : []),
+              ...(leaveBalance.marriage_total > 0 ? [{ label: "婚假 Marriage", used: leaveBalance.marriage_used || 0, total: leaveBalance.marriage_total, color: "#EC4899", tag: "有薪 Paid", tagColor: "#059669" }] : []),
+              ...(leaveBalance.maternity_total > 0 ? [{ label: "產假 Maternity", used: leaveBalance.maternity_used || 0, total: leaveBalance.maternity_total, color: "#F43F5E", tag: "有薪 Paid", tagColor: "#059669" }] : []),
+              ...(leaveBalance.paternity_total > 0 ? [{ label: "陪產假 Paternity", used: leaveBalance.paternity_used || 0, total: leaveBalance.paternity_total, color: "#0EA5E9", tag: "有薪 Paid", tagColor: "#059669" }] : []),
+            ].map(b => {
+              const remaining = b.total - b.used;
+              const usedPct = b.total > 0 ? Math.min((b.used / b.total) * 100, 100) : 0;
+              const isLow = b.total > 0 && remaining / b.total <= 0.2;
+              const isEmpty = remaining <= 0;
+              return (
+                <div key={b.label} style={{ padding: "10px 12px", background: isEmpty ? "#FEF2F2" : "#F9FAFB", borderRadius: 10, border: `1px solid ${isEmpty ? "#FECACA" : "#F3F4F6"}` }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 600 }}>{b.label}</div>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                      background: b.tagColor === "#059669" ? "#D1FAE5" : b.tagColor === "#D97706" ? "#FEF3C7" : "#FEE2E2",
+                      color: b.tagColor,
+                    }}>{b.tag}</span>
+                  </div>
+                  <div style={{ height: 6, background: "#E5E7EB", borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+                    <div style={{
+                      height: "100%",
+                      width: `${usedPct}%`,
+                      background: isEmpty ? "#DC2626" : isLow ? "#F59E0B" : b.color,
+                      borderRadius: 3,
+                      transition: "width 0.4s ease",
+                    }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: isEmpty ? "#DC2626" : "#111827" }}>
+                      {remaining}<span style={{ fontSize: 11, fontWeight: 400, color: "#9CA3AF" }}>/{b.total} 天</span>
+                    </div>
+                    {b.used > 0 && (
+                      <div style={{ fontSize: 10, color: "#9CA3AF" }}>已用 {b.used} 天</div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginTop: 3 }}>{b.total - b.used}<span style={{ fontWeight: 400, color: "#9CA3AF" }}>/{b.total}</span></div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
