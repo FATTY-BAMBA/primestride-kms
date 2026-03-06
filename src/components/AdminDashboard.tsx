@@ -254,9 +254,9 @@ export default function AdminDashboard() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
             {[
               { label: "待審核", val: pendingCount, icon: "📋", color: "#D97706", bg: "#FEF3C7", onClick: () => setTab("pending") },
-              { label: "今日請假", val: onLeaveToday.length, icon: "🏖️", color: "#7C3AED", bg: "#EDE9FE", onClick: () => {} },
-              { label: "本月核准", val: thisMonthApproved, icon: "✅", color: "#059669", bg: "#D1FAE5", onClick: () => {} },
-              { label: "本月加班時數", val: thisMonthOvertime, icon: "🕐", color: "#2563EB", bg: "#DBEAFE", onClick: () => {} },
+              { label: "今日請假", val: onLeaveToday.length, icon: "🏖️", color: "#7C3AED", bg: "#EDE9FE", onClick: undefined  },
+              { label: "本月核准", val: thisMonthApproved, icon: "✅", color: "#059669", bg: "#D1FAE5", onClick: undefined  },
+              { label: "本月加班時數", val: thisMonthOvertime, icon: "🕐", color: "#2563EB", bg: "#DBEAFE", onClick: undefined  },
             ].map(s => (
               <div key={s.label} onClick={s.onClick}
                 style={{ padding: "18px 16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: s.onClick ? "pointer" : "default", transition: "transform 0.15s" }}
