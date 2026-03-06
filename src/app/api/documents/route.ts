@@ -103,7 +103,6 @@ ${existingTagsList ? `Existing tags in use: ${existingTagsList}` : ""}`,
       tags = tags
         .map((t) => {
           const s = String(t).trim();
-          // Only lowercase Latin characters, preserve Chinese/CJK as-is
           return s.replace(/[A-Z]/g, c => c.toLowerCase())
             .replace(/[^a-z0-9\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\uff00-\uffef-]/g, "");
         })
@@ -128,19 +127,16 @@ async function autoGenerateMetadata(
   organizationId: string
 ): Promise<{ docId: string; title: string; docType: string; tags: string[]; summary: string }> {
   
-  // Clean title from filename
   const nameWithoutExt = originalFileName.replace(/\.[^/.]+$/, "");
   const cleanTitle = nameWithoutExt
     .replace(/[-_]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  // Auto-generate unique doc ID using timestamp + random suffix
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
   const timestamp = Date.now().toString(36).toUpperCase();
   const docId = `PS-DOC-${timestamp}-${rand}`;
 
-  // If no content, return basic metadata
   if (!content || content.trim().length < 10) {
     return {
       docId,
@@ -151,7 +147,6 @@ async function autoGenerateMetadata(
     };
   }
 
-  // Use AI to generate doc type, better title, and summary in one call
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -178,7 +173,6 @@ Return ONLY valid JSON, no markdown, no backticks.`
     const cleaned = raw.replace(/```json\s*|```\s*/g, "").trim();
     const parsed = JSON.parse(cleaned);
 
-    // Generate tags separately (reuses existing org tags)
     const tags = await generateTags(
       parsed.title || cleanTitle,
       content,
@@ -186,7 +180,6 @@ Return ONLY valid JSON, no markdown, no backticks.`
       organizationId
     );
 
-    // If AI didn't return a summary, generate one separately
     let summary = parsed.summary || "";
     if (!summary && content.trim().length > 50) {
       summary = await generateSummary(parsed.title || cleanTitle, content);
@@ -201,7 +194,6 @@ Return ONLY valid JSON, no markdown, no backticks.`
     };
   } catch (error) {
     console.error("Auto-generate metadata failed:", error);
-    // Fallback: generate tags and summary separately
     const tags = await generateTags(cleanTitle, content, "document", organizationId);
     const summary = await generateSummary(cleanTitle, content);
     return {
@@ -211,6 +203,37 @@ Return ONLY valid JSON, no markdown, no backticks.`
       tags,
       summary,
     };
+  }
+}
+
+// Auto-generate embedding for a single document (instant searchability)
+async function generateDocumentEmbedding(docId: string, title: string, content: string, organizationId: string) {
+  try {
+    if (!content || content.trim().length < 10) return;
+
+    const text = `${title}\n\n${content}`;
+
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text.slice(0, 8000),
+    });
+
+    const embedding = embeddingResponse.data[0].embedding;
+
+    await supabase
+      .from("document_embeddings")
+      .upsert({
+        doc_id: docId,
+        organization_id: organizationId,
+        embedding: JSON.stringify(embedding),
+        last_generated_at: new Date().toISOString(),
+      }, {
+        onConflict: "doc_id,organization_id"
+      });
+
+    console.log(`✅ Auto-generated embedding for ${docId}`);
+  } catch (error) {
+    console.error(`⚠️ Failed to auto-generate embedding for ${docId}:`, error);
   }
 }
 
@@ -234,7 +257,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      // Legacy fields (still supported for backward compatibility)
       docId: manualDocId,
       title: manualTitle,
       content,
@@ -245,12 +267,11 @@ export async function POST(request: NextRequest) {
       fileType,
       teamId,
       folderId,
-      // New auto-generate mode
       autoGenerate,
       originalFileName,
     } = body;
 
-    // ── Auto-generate mode (Eden-style) ──
+    // ── Auto-generate mode ──
     if (autoGenerate) {
       const fname = originalFileName || fileName || "Untitled";
       console.log(`📂 Auto-processing: ${fname}`);
@@ -261,10 +282,8 @@ export async function POST(request: NextRequest) {
         membership.organization_id
       );
 
-      // Use the generated doc ID directly (timestamp+random ensures uniqueness)
       const finalDocId = metadata.docId;
 
-      // If teamId provided, verify it belongs to the org
       if (teamId) {
         const { data: team } = await supabase
           .from("teams")
@@ -309,6 +328,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Auto-generate embedding for instant searchability
+      await generateDocumentEmbedding(document.doc_id, document.title, content || "", membership.organization_id);
+
       return NextResponse.json({
         message: "Document created successfully",
         docId: document.doc_id,
@@ -324,7 +346,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If teamId provided, verify it belongs to the org
     if (teamId) {
       const { data: team } = await supabase
         .from("teams")
@@ -338,7 +359,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if doc_id already exists
     const { data: existingDoc } = await supabase
       .from("documents")
       .select("doc_id")
@@ -353,11 +373,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate AI summary
     console.log("🤖 Generating AI summary...");
     const summary = await generateSummary(manualTitle, content);
 
-    // Auto-generate tags if user didn't provide any
     let finalTags = manualTags || [];
     if (!manualTags || manualTags.length === 0) {
       console.log("🏷️ Auto-generating tags...");
@@ -393,6 +411,9 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Auto-generate embedding for instant searchability
+    await generateDocumentEmbedding(document.doc_id, manualTitle, content, membership.organization_id);
 
     return NextResponse.json({
       message: "Document created successfully",
