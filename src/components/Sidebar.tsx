@@ -176,9 +176,9 @@ export default function Sidebar({ children }: SidebarProps) {
         {!collapsed && (
           <div>
             <h1 className="font-semibold text-slate-900 text-sm">
-              {branding?.org_name || "PS Atlas"}
+              {branding?.org_name || "Atlas EIP"}
             </h1>
-            <p className="text-xs text-slate-400">{branding?.tagline || "Knowledge System"}</p>
+            <p className="text-xs text-slate-400">{branding?.tagline || "Enterprise Intelligence"}</p>
           </div>
         )}
       </div>
@@ -263,7 +263,7 @@ export default function Sidebar({ children }: SidebarProps) {
         </button>
         <div className="flex items-center gap-2">
           <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
-          <span className="font-semibold text-sm">{branding?.org_name || "PS Atlas"}</span>
+          <span className="font-semibold text-sm">{branding?.org_name || "Atlas EIP"}</span>
         </div>
         <UserMenu />
       </div>
