@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
-// Define public routes that don't require authentication
+// Public routes - no auth required
 const isPublicRoute = createRouteMatcher([
   '/',
   '/login(.*)',
@@ -18,18 +19,32 @@ const isPublicRoute = createRouteMatcher([
   '/api/documents/parse(.*)',
 ]);
 
+// Routes that authenticated users can access WITHOUT an org
+const isOnboardingRoute = createRouteMatcher([
+  '/onboarding(.*)',
+  '/api/onboarding(.*)',
+]);
+
 export default clerkMiddleware(async (auth, req) => {
-  // Protect all routes except public ones
-  if (!isPublicRoute(req)) {
-    await auth.protect();
+  // Public routes — anyone can access
+  if (isPublicRoute(req)) {
+    return;
+  }
+
+  // All other routes require authentication
+  const { userId, orgId } = await auth.protect();
+
+  // If user is authenticated but has no active organization
+  // and is NOT on the onboarding page, redirect them there
+  if (userId && !orgId && !isOnboardingRoute(req)) {
+    const onboardingUrl = new URL('/onboarding', req.url);
+    return NextResponse.redirect(onboardingUrl);
   }
 });
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
     '/(api|trpc)(.*)',
   ],
 };
