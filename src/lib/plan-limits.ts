@@ -41,7 +41,6 @@ const EXPLORER_DEFAULTS: PlanLimits = {
 
 export async function getOrgPlanLimits(organizationId: string): Promise<PlanLimits> {
   try {
-    // Get subscription with plan
     const { data: subscription } = await supabase
       .from("organization_subscriptions")
       .select("*, subscription_plans(*)")
@@ -52,13 +51,12 @@ export async function getOrgPlanLimits(organizationId: string): Promise<PlanLimi
       return EXPLORER_DEFAULTS;
     }
 
-    const plan = subscription.subscription_plans;
-    let status = subscription.status;
+    const plan = subscription.subscription_plans as Record<string, any>;
+    let status = subscription.status as string;
     let trialDaysRemaining = 0;
 
-    // Check trial expiry
-    if (subscription.status === "trial" && subscription.trial_end) {
-      const trialEnd = new Date(subscription.trial_end);
+    if (status === "trial" && subscription.trial_end) {
+      const trialEnd = new Date(subscription.trial_end as string);
       const now = new Date();
       if (now > trialEnd) {
         status = "expired";
@@ -67,12 +65,10 @@ export async function getOrgPlanLimits(organizationId: string): Promise<PlanLimi
       }
     }
 
-    // If expired or cancelled, return explorer defaults
     if (status === "expired" || status === "cancelled") {
       return EXPLORER_DEFAULTS;
     }
 
-    // Get current month usage
     const currentMonth = new Date().toISOString().slice(0, 7);
     const { data: usage } = await supabase
       .from("subscription_usage")
@@ -80,6 +76,8 @@ export async function getOrgPlanLimits(organizationId: string): Promise<PlanLimi
       .eq("organization_id", organizationId)
       .eq("month", currentMonth)
       .single();
+
+    const usageRecord = usage as Record<string, any> | null;
 
     return {
       plan_id: plan.id,
@@ -93,10 +91,10 @@ export async function getOrgPlanLimits(organizationId: string): Promise<PlanLimi
       max_workflow_submissions_monthly: plan.max_workflow_submissions_monthly,
       features: plan.features || [],
       usage: {
-        ai_scans_used: usage?.ai_scans_used || 0,
-        workflow_submissions_used: usage?.workflow_submissions_used || 0,
-        documents_count: usage?.documents_count || 0,
-        active_users: usage?.active_users || 0,
+        ai_scans_used: usageRecord?.ai_scans_used || 0,
+        workflow_submissions_used: usageRecord?.workflow_submissions_used || 0,
+        documents_count: usageRecord?.documents_count || 0,
+        active_users: usageRecord?.active_users || 0,
       },
     };
   } catch (err) {
@@ -136,22 +134,30 @@ export async function hasFeature(organizationId: string, feature: string): Promi
 }
 
 // Increment usage counter
-export async function incrementUsage(organizationId: string, field: "ai_scans_used" | "workflow_submissions_used" | "documents_count" | "active_users") {
+type UsageField = "ai_scans_used" | "workflow_submissions_used" | "documents_count" | "active_users";
+
+export async function incrementUsage(organizationId: string, field: UsageField): Promise<void> {
   const currentMonth = new Date().toISOString().slice(0, 7);
-  
-  // Upsert usage record
-  const { data: existing } = await supabase
+
+  const { data, error } = await supabase
     .from("subscription_usage")
-    .select("id, " + field)
+    .select("*")
     .eq("organization_id", organizationId)
     .eq("month", currentMonth)
-    .single();
+    .maybeSingle();
 
-  if (existing) {
+  if (error) {
+    console.error("Error checking usage:", error);
+    return;
+  }
+
+  if (data) {
+    const record = data as Record<string, any>;
+    const currentVal = Number(record[field] || 0);
     await supabase
       .from("subscription_usage")
-      .update({ [field]: (existing[field] || 0) + 1, updated_at: new Date().toISOString() })
-      .eq("id", existing.id);
+      .update({ [field]: currentVal + 1, updated_at: new Date().toISOString() })
+      .eq("id", record.id);
   } else {
     await supabase
       .from("subscription_usage")
