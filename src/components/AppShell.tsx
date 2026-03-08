@@ -7,7 +7,7 @@ import Sidebar from "@/components/Sidebar";
 const noSidebarPaths = [
   "/", "/login", "/sign-in", "/sign-up", "/signup",
   "/auth", "/invite", "/sso-callback", "/reset-password",
-  "/update-password", "/contact",
+  "/update-password", "/contact", "/audit", "/onboarding",
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
