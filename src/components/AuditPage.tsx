@@ -291,6 +291,17 @@ export default function AuditPage() {
                 </div>
                 <div style={{ marginTop: 12, fontSize: 12, color: "#64748b" }}>3個月免費試用 · 最多5位使用者 · 不需信用卡</div>
               </div>
+
+              {/* Disclaimer */}
+              <div style={{ marginTop: 20, padding: "14px 18px", borderRadius: 10, background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.15)" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#D97706", marginBottom: 4 }}>⚠️ 免責聲明 Disclaimer</div>
+                <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6 }}>
+                  本掃描結果僅供參考，不構成法律建議。最終法律及人事決策應由貴公司授權之人資人員及/或法律顧問做出。
+                </div>
+                <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6, marginTop: 4 }}>
+                  This audit is for reference only and does not constitute legal advice. Final HR and legal decisions remain with your company&apos;s authorized personnel and/or legal counsel.
+                </div>
+              </div>
             </>
           )}
         </div>
