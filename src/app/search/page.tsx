@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, ReactNode } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
@@ -16,6 +16,79 @@ interface ChatSource {
   title: string;
   doc_type: string | null;
   relevance: number;
+}
+
+// ══════════════════════════════════════════════════════════════
+// Simple Markdown Renderer for AI Responses
+// Handles: **bold**, numbered lists, bullet points, line breaks
+// ══════════════════════════════════════════════════════════════
+function renderMarkdown(text: string): ReactNode {
+  const lines = text.split("\n");
+  const elements: ReactNode[] = [];
+  let key = 0;
+
+  const processBold = (line: string): ReactNode[] => {
+    const parts = line.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i} style={{ color: "#111827" }}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+
+    // Empty line → spacer
+    if (trimmed === "") {
+      elements.push(<div key={key++} style={{ height: 8 }} />);
+      return;
+    }
+
+    // Numbered list: "1. ", "2. ", etc.
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (numMatch) {
+      elements.push(
+        <div key={key++} style={{ display: "flex", gap: 10, marginBottom: 4, marginTop: 8, paddingLeft: 4 }}>
+          <span style={{ color: "#10B981", fontWeight: 700, minWidth: 22, flexShrink: 0 }}>{numMatch[1]}.</span>
+          <div style={{ flex: 1 }}>{processBold(numMatch[2])}</div>
+        </div>
+      );
+      return;
+    }
+
+    // Sub-item bullet: "   - text" or "  * text"
+    const subBulletMatch = trimmed.match(/^[\-\*]\s+(.*)/);
+    const leadingSpaces = line.length - line.trimStart().length;
+    if (subBulletMatch && leadingSpaces >= 2) {
+      elements.push(
+        <div key={key++} style={{ display: "flex", gap: 8, marginBottom: 2, paddingLeft: 36 }}>
+          <span style={{ color: "#6B7280", flexShrink: 0 }}>•</span>
+          <div style={{ flex: 1 }}>{processBold(subBulletMatch[1])}</div>
+        </div>
+      );
+      return;
+    }
+
+    // Top-level bullet: "- text" or "* text"
+    if (subBulletMatch) {
+      elements.push(
+        <div key={key++} style={{ display: "flex", gap: 8, marginBottom: 3, paddingLeft: 12 }}>
+          <span style={{ color: "#10B981", flexShrink: 0 }}>•</span>
+          <div style={{ flex: 1 }}>{processBold(subBulletMatch[1])}</div>
+        </div>
+      );
+      return;
+    }
+
+    // Regular text
+    elements.push(
+      <div key={key++} style={{ marginBottom: 4 }}>{processBold(trimmed)}</div>
+    );
+  });
+
+  return <div>{elements}</div>;
 }
 
 export default function SearchPage() {
@@ -201,7 +274,7 @@ export default function SearchPage() {
 
                 <div style={{ marginTop: 32, padding: "12px 20px", background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
                   <div style={{ fontSize: 12, color: "#065F46", lineHeight: 1.5 }}>
-                    💡 <strong>Tip:</strong> I only answer from your company's documents — no hallucinations.
+                    💡 <strong>Tip:</strong> I only answer from your company&apos;s documents — no hallucinations.
                     <br />
                     所有回答皆來自公司文件，不會產生幻覺。
                   </div>
@@ -232,9 +305,10 @@ export default function SearchPage() {
                     color: msg.role === "user" ? "white" : "#111827",
                     border: msg.role === "assistant" ? "1px solid #E5E7EB" : "none",
                     boxShadow: msg.role === "assistant" ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-                    fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap",
+                    fontSize: 14, lineHeight: 1.7,
+                    whiteSpace: msg.role === "user" ? "pre-wrap" : "normal",
                   }}>
-                    {msg.content}
+                    {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
 
                     {/* Sources */}
                     {msg.sources && msg.sources.length > 0 && (
