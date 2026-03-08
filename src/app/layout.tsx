@@ -8,8 +8,8 @@ import AppShell from "@/components/AppShell";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PrimeStride Atlas",
-  description: "Knowledge Management System",
+  title: "Atlas EIP — Enterprise Intelligence Platform",
+  description: "AI-powered Enterprise Intelligence Platform for Taiwan businesses. 2026 Labor Standards compliance, knowledge management, and workflow automation.",
 };
 
 export default function RootLayout({
