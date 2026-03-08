@@ -79,8 +79,10 @@ const examples = [
   "週六加班4小時處理緊急訂單",
 ];
 
+// Key compliance check types to show even when "pass"
+const SHOW_PASS_TYPES = ["sick_leave_bonus_prorata", "family_care_hourly_2026", "overtime_pay_estimate", "attendance_bonus_protection", "quarterly_overtime_cap"];
+
 export default function WorkflowsPage() {
-  // ── Core State ──
   const [nlpInput, setNlpInput] = useState("");
   const [parsing, setParsing] = useState(false);
   const [parsedType, setParsedType] = useState<string | null>(null);
@@ -88,12 +90,8 @@ export default function WorkflowsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [showEditMode, setShowEditMode] = useState(false);
-
-  // ── Compliance ──
   const [compliance, setCompliance] = useState<ComplianceResult | null>(null);
   const [checkingCompliance, setCheckingCompliance] = useState(false);
-
-  // ── Submissions ──
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -105,7 +103,6 @@ export default function WorkflowsPage() {
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // ── Fetch ──
   const fetchSubmissions = async () => {
     try {
       let url = `/api/workflows?view=${viewMode}`;
@@ -125,7 +122,6 @@ export default function WorkflowsPage() {
 
   useEffect(() => { fetchSubmissions(); }, [viewMode, statusFilter]);
 
-  // ── Universal NLP Parse (auto-detects form type) ──
   const handleParse = async () => {
     if (!nlpInput.trim()) return;
     setParsing(true); setFormData(null); setParsedType(null); setCompliance(null); setShowEditMode(false);
@@ -152,7 +148,6 @@ export default function WorkflowsPage() {
     } finally { setParsing(false); }
   };
 
-  // ── Compliance Check (auto-runs when form parsed) ──
   const runComplianceCheck = async () => {
     if (!formData || !parsedType) return;
     setCheckingCompliance(true); setCompliance(null);
@@ -176,7 +171,6 @@ export default function WorkflowsPage() {
     }
   }, [formData, parsedType]);
 
-  // ── Submit ──
   const handleSubmit = async () => {
     if (!formData || !parsedType) return;
     if (compliance?.status === "blocked") {
@@ -208,45 +202,25 @@ export default function WorkflowsPage() {
     } finally { setSubmitting(false); }
   };
 
-  // ── Admin Actions ──
   const handleReview = async (id: string, action: string) => {
     try {
-      await fetch("/api/workflows", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action, review_note: reviewNote }),
-      });
+      await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action, review_note: reviewNote }) });
       setReviewingId(null); setReviewNote(""); fetchSubmissions();
-    } catch (err) {
-      console.error("Review error:", err);
-      setMessage("⚠️ 審核操作失敗，請再試一次。Review action failed.");
-      setTimeout(() => setMessage(""), 4000);
-    }
+    } catch (err) { console.error("Review error:", err); setMessage("⚠️ 審核操作失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
   const handleCancel = async (id: string) => {
     try {
       await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "cancelled" }) });
       fetchSubmissions();
-    } catch (err) {
-      console.error("Cancel error:", err);
-      setMessage("⚠️ 取消失敗，請再試一次。Cancel failed.");
-      setTimeout(() => setMessage(""), 4000);
-    }
+    } catch (err) { console.error("Cancel error:", err); setMessage("⚠️ 取消失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
   const handleBatchApproval = async (action: string) => {
     try {
-      await fetch("/api/workflows", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds), action, review_note: reviewNote }),
-      });
+      await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: Array.from(selectedIds), action, review_note: reviewNote }) });
       setSelectedIds(new Set()); setReviewNote(""); fetchSubmissions();
-    } catch (err) {
-      console.error("Batch action error:", err);
-      setMessage("⚠️ 批次操作失敗，請再試一次。Batch action failed.");
-      setTimeout(() => setMessage(""), 4000);
-    }
+    } catch (err) { console.error("Batch error:", err); setMessage("⚠️ 批次操作失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
   const toggleSelect = (id: string) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
@@ -261,7 +235,7 @@ export default function WorkflowsPage() {
     Object.entries(s.form_data).forEach(([k, v]) => w.document.write(`<div class="field"><div class="field-label">${fieldLabels[k] || k}</div><div class="field-val">${v || "—"}</div></div>`));
     w.document.write(`<div class="status">${statusConfig[s.status]?.label}</div>`);
     if (s.original_text) w.document.write(`<p style="margin-top:16px;font-size:12px;color:#9CA3AF">💬 ${s.original_text}</p>`);
-    w.document.write(`<p style="margin-top:32px;font-size:11px;color:#D1D5DB;text-align:center">PrimeStride Atlas · ${new Date().toLocaleDateString()}</p></body></html>`);
+    w.document.write(`<p style="margin-top:32px;font-size:11px;color:#D1D5DB;text-align:center">Atlas EIP · ${new Date().toLocaleDateString()}</p></body></html>`);
     w.document.close(); w.print();
   };
 
@@ -310,22 +284,16 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════
-           THE ONE INPUT BOX — Zero Forms
-           ═══════════════════════════════════════════ */}
+      {/* ═══ THE ONE INPUT BOX ═══ */}
       <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden", marginBottom: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
-        {/* Header */}
         <div style={{ padding: "16px 20px", background: "linear-gradient(135deg, #7C3AED08, #7C3AED03)", borderBottom: "1px solid #F1F5F9" }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>💬 用一句話完成申請</div>
           <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>請假、加班、出差 — 直接說，AI 幫你搞定</div>
         </div>
 
-        {/* Input */}
         <div style={{ padding: 20 }}>
           <div style={{ position: "relative" }}>
-            <textarea
-              value={nlpInput}
-              onChange={(e) => setNlpInput(e.target.value)}
+            <textarea value={nlpInput} onChange={(e) => setNlpInput(e.target.value)}
               placeholder="例如：我下週一到週三要請特休，因為要回南部探親..."
               rows={3}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleParse(); } }}
@@ -333,30 +301,19 @@ export default function WorkflowsPage() {
               onFocus={(e) => e.currentTarget.style.borderColor = "#7C3AED"}
               onBlur={(e) => e.currentTarget.style.borderColor = "#E5E7EB"}
             />
-            <button
-              onClick={handleParse}
-              disabled={parsing || !nlpInput.trim()}
-              style={{
-                position: "absolute", right: 10, bottom: 10,
-                padding: "10px 18px", borderRadius: 10, border: "none",
-                background: parsing || !nlpInput.trim() ? "#D1D5DB" : "#7C3AED",
-                color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-            >
+            <button onClick={handleParse} disabled={parsing || !nlpInput.trim()}
+              style={{ position: "absolute", right: 10, bottom: 10, padding: "10px 18px", borderRadius: 10, border: "none", background: parsing || !nlpInput.trim() ? "#D1D5DB" : "#7C3AED", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>
               {parsing ? "⏳" : "送出 →"}
             </button>
           </div>
 
-          {/* Quick Examples */}
           {!formData && !parsing && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
               {examples.map((ex) => (
-                <button key={ex} onClick={() => { setNlpInput(ex); }}
+                <button key={ex} onClick={() => setNlpInput(ex)}
                   style={{ padding: "5px 12px", borderRadius: 100, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 12, color: "#6B7280", cursor: "pointer", transition: "all 0.15s" }}
                   onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#7C3AED"; e.currentTarget.style.color = "#7C3AED"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.color = "#6B7280"; }}
-                >
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.color = "#6B7280"; }}>
                   {ex.length > 20 ? ex.slice(0, 20) + "..." : ex}
                 </button>
               ))}
@@ -367,7 +324,6 @@ export default function WorkflowsPage() {
         {/* ═══ AI SUMMARY CARD ═══ */}
         {formData && meta && (
           <div style={{ borderTop: "1px solid #E5E7EB" }}>
-            {/* Type Badge */}
             <div style={{ padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", background: `${meta.color}08` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: `${meta.color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{meta.icon}</div>
@@ -376,18 +332,14 @@ export default function WorkflowsPage() {
                   <div style={{ fontSize: 12, color: "#9CA3AF" }}>{meta.name_en} · AI 自動辨識</div>
                 </div>
               </div>
-              <div style={{ fontSize: 11, color: "#9CA3AF", display: "flex", gap: 6 }}>
-                <button onClick={() => setShowEditMode(!showEditMode)}
-                  style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: showEditMode ? "#F3F4F6" : "white", fontSize: 11, cursor: "pointer", color: "#6B7280" }}>
-                  {showEditMode ? "收起" : "✏️ 編輯"}
-                </button>
-              </div>
+              <button onClick={() => setShowEditMode(!showEditMode)}
+                style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #E5E7EB", background: showEditMode ? "#F3F4F6" : "white", fontSize: 11, cursor: "pointer", color: "#6B7280" }}>
+                {showEditMode ? "收起" : "✏️ 編輯"}
+              </button>
             </div>
 
-            {/* Summary Fields — clean read-only view */}
             <div style={{ padding: "12px 20px" }}>
               {!showEditMode ? (
-                /* ── READ-ONLY SUMMARY ── */
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
                   {Object.entries(formData).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
                     <div key={key} style={{ padding: "8px 12px", background: "#F9FAFB", borderRadius: 8 }}>
@@ -402,7 +354,6 @@ export default function WorkflowsPage() {
                   ))}
                 </div>
               ) : (
-                /* ── EDIT MODE (hidden by default) ── */
                 <div style={{ display: "grid", gap: 12 }}>
                   {Object.entries(formData).filter(([key]) => !key.startsWith("_")).map(([key, value]) => {
                     const selectOptions: Record<string, string[]> = {
@@ -448,10 +399,12 @@ export default function WorkflowsPage() {
                     : compliance?.status === "warning" ? "⚠️ 合規提醒"
                     : "✅ 合規通過"}
                 </div>
-                {compliance && compliance.checks.filter(c => c.status !== "pass").length > 0 && (
+
+                {compliance && compliance.checks.length > 0 && (
                   <div style={{ padding: 12, background: "white" }}>
+                    {/* Warnings and blocked checks */}
                     {compliance.checks.filter(c => c.status !== "pass").map((check, i) => (
-                      <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+                      <div key={`warn-${i}`} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
                         <div style={{
                           width: 20, height: 20, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10,
                           background: check.status === "blocked" ? "#FEE2E2" : "#FEF3C7",
@@ -463,8 +416,22 @@ export default function WorkflowsPage() {
                         </div>
                       </div>
                     ))}
+                    {/* Key informational pass checks (bonus, hourly, OT pay) */}
+                    {compliance.checks.filter(c => c.status === "pass" && SHOW_PASS_TYPES.includes(c.check_type)).map((check, i) => (
+                      <div key={`info-${i}`} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8, padding: "8px 10px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0" }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10,
+                          background: "#D1FAE5", color: "#059669",
+                        }}>✓</div>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#065F46" }}>{check.message_zh}</div>
+                          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>📖 {check.rule_reference}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
+
                 {compliance?.ai_analysis_zh && (
                   <div style={{ padding: "8px 14px", borderTop: "1px solid #E5E7EB", background: "#F8FAFC", fontSize: 12, color: "#374151" }}>
                     🤖 {compliance.ai_analysis_zh}
@@ -516,7 +483,6 @@ export default function WorkflowsPage() {
           </div>
         </div>
 
-        {/* Batch Actions */}
         {isAdmin && selectedIds.size > 0 && (
           <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10, padding: "8px 14px", background: "#EDE9FE", borderRadius: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#5B21B6" }}>已選 {selectedIds.size} 筆</span>
@@ -550,11 +516,7 @@ export default function WorkflowsPage() {
             const st = statusConfig[s.status] || statusConfig.pending;
             const isSelected = selectedIds.has(s.id);
             return (
-              <div key={s.id} style={{
-                background: isSelected ? "#F5F3FF" : "white", borderRadius: 12,
-                border: isSelected ? "2px solid #7C3AED" : "1px solid #E5E7EB",
-                padding: 16, borderLeft: `4px solid ${ft?.color || "#6B7280"}`,
-              }}>
+              <div key={s.id} style={{ background: isSelected ? "#F5F3FF" : "white", borderRadius: 12, border: isSelected ? "2px solid #7C3AED" : "1px solid #E5E7EB", padding: 16, borderLeft: `4px solid ${ft?.color || "#6B7280"}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {isAdmin && s.status === "pending" && (
@@ -585,9 +547,7 @@ export default function WorkflowsPage() {
                 </div>
 
                 {s.original_text && (
-                  <div style={{ fontSize: 11, color: "#6B7280", padding: "5px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>
-                    💬 {s.original_text}
-                  </div>
+                  <div style={{ fontSize: 11, color: "#6B7280", padding: "5px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
                 )}
 
                 {s.reviewed_at && (

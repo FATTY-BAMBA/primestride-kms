@@ -443,7 +443,8 @@ export default function LandingPage() {
       <section className="cta"><h2>讓 AI 守護你的每一筆流程</h2><p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p><div className="cta-acts"><a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a><a href="/contact" className="btn btn-w btn-lg">預約 Demo</a><a href="/audit" className="btn btn-o btn-lg">🔍 免費合規掃描</a>
 </div><div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 五分鐘完成設定</div></section>
 
-      <footer className="foot"><div className="foot-in"><div className="foot-l">&copy; 2026 Atlas EIP — Enterprise Intelligence Platform</div><div className="foot-links"><a href="/contact">聯繫我們</a><a href="#">Privacy</a><a href="#">Terms</a></div></div></footer>
+      <footer className="foot"><div className="foot-in"><div className="foot-l">&copy; 2026 Atlas EIP — Enterprise Intelligence Platform</div><div className="foot-links"><a href="/contact">聯繫我們</a><a href="/privacy">Privacy</a>
+<a href="/terms">Terms</a></div></div></footer>
     </>
   );
 }
