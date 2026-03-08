@@ -597,6 +597,7 @@ export default function TeamPage() {
                     fontSize: 13,
                     marginBottom: 16,
                     fontFamily: "monospace",
+                    color: "#111827",
                   }}
                 >
                   {inviteUrl}
