@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserOrganization } from "@/lib/get-user-organization";
 import { notifyAdminsNewSubmission, notifySubmitterStatus } from "@/lib/workflow-notifications";
+import { logUsage } from "@/lib/usage-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -206,6 +207,8 @@ export async function POST(request: NextRequest) {
     } catch (notifyErr) {
       console.error("Failed to send admin notifications:", notifyErr);
     }
+
+    logUsage({ organization_id: membership.organization_id, user_id: userId, action: "workflow.submit", resource_type: "workflow", metadata: { form_type } });
 
     return NextResponse.json({ submission: data }, { status: 201 });
   } catch {

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import { logUsage } from "@/lib/usage-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -331,6 +332,8 @@ export async function POST(request: NextRequest) {
       // Auto-generate embedding for instant searchability
       await generateDocumentEmbedding(document.doc_id, document.title, content || "", membership.organization_id);
 
+      logUsage({ organization_id: membership.organization_id, user_id: userId, action: "document.upload", resource_type: "document", resource_id: document.doc_id, metadata: { title: document.title, mode: "auto" } });
+
       return NextResponse.json({
         message: "Document created successfully",
         docId: document.doc_id,
@@ -414,6 +417,8 @@ export async function POST(request: NextRequest) {
 
     // Auto-generate embedding for instant searchability
     await generateDocumentEmbedding(document.doc_id, manualTitle, content, membership.organization_id);
+
+    logUsage({ organization_id: membership.organization_id, user_id: userId, action: "document.upload", resource_type: "document", resource_id: document.doc_id, metadata: { title: manualTitle, mode: "manual" } });
 
     return NextResponse.json({
       message: "Document created successfully",

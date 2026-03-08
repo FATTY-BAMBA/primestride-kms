@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import { logUsage } from "@/lib/usage-logger";
+
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +147,8 @@ ${context}`;
       };
     }).sort((a, b) => b.relevance - a.relevance);
 
+    logUsage({ organization_id: membership.organization_id, user_id: userId, action: "chat.query", resource_type: "chat", metadata: { message_length: message.length, sources_count: sources.length } });
+    
     return NextResponse.json({
       answer,
       sources,

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { getUserOrganization } from "@/lib/get-user-organization";
 import OpenAI from "openai";
+import { logUsage } from "@/lib/usage-logger";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -109,6 +110,8 @@ export async function POST(req: NextRequest) {
         details: check.details,
       });
     }
+
+    logUsage({ organization_id, user_id, action: "compliance.check", resource_type: "compliance", metadata: { form_type, status: result.status } });
 
     return NextResponse.json({ data: result });
   } catch (err: any) {
