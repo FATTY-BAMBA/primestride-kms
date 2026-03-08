@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useOrganizationList, useUser } from "@clerk/nextjs";
+import { useOrganizationList, useUser, useOrganization } from "@clerk/nextjs";
 
 const industries = [
   { value: "technology", label: "科技業 Technology" },
@@ -33,7 +33,8 @@ const companySizes = [
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { createOrganization, setActive, isLoaded } = useOrganizationList();
+  const { organization } = useOrganization();
+  const { createOrganization, setActive, isLoaded, userMemberships } = useOrganizationList({ userMemberships: true });
 
   const [step, setStep] = useState(1);
   const [companyName, setCompanyName] = useState("");
@@ -42,6 +43,25 @@ export default function OnboardingPage() {
   const [role, setRole] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+
+  // If user already has an active org, redirect to library
+  useEffect(() => {
+    if (organization) {
+      router.replace("/library");
+    }
+  }, [organization, router]);
+
+  // If user has org memberships but no active org, set the first one active
+  useEffect(() => {
+    if (isLoaded && userMemberships?.data && userMemberships.data.length > 0 && !organization) {
+      const firstOrg = userMemberships.data[0].organization;
+      if (setActive) {
+        setActive({ organization: firstOrg.id }).then(() => {
+          router.replace("/library");
+        });
+      }
+    }
+  }, [isLoaded, userMemberships, organization, setActive, router]);
 
   const handleCreateOrg = async () => {
     if (!companyName.trim()) { setError("請輸入公司名稱 Company name is required"); return; }
@@ -55,7 +75,7 @@ export default function OnboardingPage() {
       // Create the organization in Clerk
       const org = await createOrganization({ name: companyName.trim() });
 
-      // Set it as the active organization
+      // Set it as the active organization using both methods for reliability
       if (setActive) {
         await setActive({ organization: org.id });
       }
@@ -73,8 +93,9 @@ export default function OnboardingPage() {
         }),
       });
 
-      // Redirect to library
-      router.push("/library");
+      // Small delay to let Clerk session update, then hard redirect
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      window.location.href = "/library";
     } catch (err: any) {
       console.error("Failed to create organization:", err);
       setError(err.message || "建立組織失敗，請重試 Failed to create organization");
