@@ -40,6 +40,7 @@ export default function OnboardingPage() {
   const [companyName, setCompanyName] = useState("");
   const [companySize, setCompanySize] = useState("");
   const [industry, setIndustry] = useState("");
+  const [taxId, setTaxId] = useState("");
   const [role, setRole] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -66,6 +67,7 @@ export default function OnboardingPage() {
   const handleCreateOrg = async () => {
     if (!companyName.trim()) { setError("請輸入公司名稱 Company name is required"); return; }
     if (!companySize) { setError("請選擇公司規模 Please select company size"); return; }
+    if (!taxId || taxId.length !== 8) { setError("請輸入 8 位統一編號 Tax ID is required (8 digits)"); return; }
     if (!isLoaded || !createOrganization) { setError("系統載入中，請稍候 Loading..."); return; }
 
     setCreating(true);
@@ -75,7 +77,7 @@ export default function OnboardingPage() {
       // Create the organization in Clerk
       const org = await createOrganization({ name: companyName.trim() });
 
-      // Set it as the active organization using both methods for reliability
+      // Set it as the active organization
       if (setActive) {
         await setActive({ organization: org.id });
       }
@@ -90,6 +92,7 @@ export default function OnboardingPage() {
           company_size: companySize,
           industry,
           admin_role: role,
+          tax_id: taxId,
         }),
       });
 
@@ -155,6 +158,38 @@ export default function OnboardingPage() {
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
+                統一編號 Tax ID (統編) *
+              </label>
+              <input
+                type="text"
+                value={taxId}
+                onChange={(e) => setTaxId(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                placeholder="8 位數字 e.g. 12345678"
+                maxLength={8}
+                style={{
+                  width: "100%", padding: "12px 16px", borderRadius: 10,
+                  border: `1.5px solid ${taxId && taxId.length === 8 ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.1)"}`,
+                  background: "rgba(255,255,255,0.03)",
+                  color: "#e8e6e1", fontSize: 15, outline: "none", boxSizing: "border-box",
+                  fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em",
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = "#2563eb"}
+                onBlur={(e) => e.currentTarget.style.borderColor = taxId && taxId.length === 8 ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.1)"}
+              />
+              {taxId && taxId.length > 0 && taxId.length < 8 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: "#FCA5A5" }}>
+                  統編必須為 8 位數字 ({taxId.length}/8)
+                </div>
+              )}
+              {taxId && taxId.length === 8 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: "#10b981" }}>
+                  ✓ 格式正確
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
                 公司規模 Company Size *
               </label>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -196,6 +231,7 @@ export default function OnboardingPage() {
             <button
               onClick={() => {
                 if (!companyName.trim()) { setError("請輸入公司名稱"); return; }
+                if (!taxId || taxId.length !== 8) { setError("請輸入 8 位統一編號 Tax ID is required (8 digits)"); return; }
                 if (!companySize) { setError("請選擇公司規模"); return; }
                 setError("");
                 setStep(2);
@@ -222,7 +258,7 @@ export default function OnboardingPage() {
             <div style={{ padding: "16px 20px", background: "rgba(37,99,235,0.06)", borderRadius: 12, border: "1px solid rgba(37,99,235,0.12)", marginBottom: 20 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#e8e6e1" }}>{companyName}</div>
               <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                {companySizes.find(s => s.value === companySize)?.label} · {industries.find(i => i.value === industry)?.label || "未選擇產業"}
+                {companySizes.find(s => s.value === companySize)?.label} · {industries.find(i => i.value === industry)?.label || "未選擇產業"} · 統編: {taxId}
               </div>
             </div>
 

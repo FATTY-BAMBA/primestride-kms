@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { organization_id, company_name, company_size, industry, admin_role } = body;
+    const { organization_id, company_name, company_size, industry, admin_role, tax_id } = body;
 
     if (!organization_id || !company_name) {
       return NextResponse.json({ error: "organization_id and company_name required" }, { status: 400 });
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         company_size: company_size || null,
         industry: industry || null,
         admin_role: admin_role || null,
+        tax_id: tax_id || null,
         onboarded_by: userId,
         onboarded_at: new Date().toISOString(),
       }, {
