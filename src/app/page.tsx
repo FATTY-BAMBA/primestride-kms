@@ -223,10 +223,13 @@ export default function LandingPage() {
         .why-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; color: var(--light-text); font-family: 'Noto Sans TC', sans-serif; }
         .why-card p { font-size: 14px; color: var(--light-text2); line-height: 1.5; font-family: 'Noto Sans TC', sans-serif; }
 
-        .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-        .price-card { padding: 32px; border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); }
-        .price-card.pop { border: 2px solid var(--blue); position: relative; box-shadow: 0 8px 40px rgba(37,99,235,0.12); }
+        /* CHANGE 1: 4 columns, position: relative on all cards */
+        .price-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+        .price-card { padding: 32px; border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); position: relative; }
+        .price-card.pop { border: 2px solid var(--blue); box-shadow: 0 8px 40px rgba(37,99,235,0.12); }
+        .price-card.biz { border: 1.5px solid rgba(245,158,11,0.4); background: linear-gradient(135deg, var(--surface2) 0%, rgba(245,158,11,0.04) 100%); }
         .price-pop { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 4px 16px; border-radius: 100px; background: var(--blue); color: white; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .price-biz-badge { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); padding: 4px 16px; border-radius: 100px; background: var(--amber); color: #000; font-size: 12px; font-weight: 700; white-space: nowrap; }
         .price-tier { font-size: 16px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
         .price-val { font-family: 'DM Serif Display', serif; font-size: 42px; color: var(--text); margin-bottom: 4px; }
         .price-val span { font-size: 16px; font-weight: 400; color: var(--text3); font-family: 'Instrument Sans', sans-serif; }
@@ -234,6 +237,7 @@ export default function LandingPage() {
         .price-list { list-style: none; padding: 0; margin-bottom: 24px; }
         .price-list li { padding: 5px 0; font-size: 15px; color: var(--text2); }
         .price-list li::before { content: '✓ '; color: var(--green); font-weight: 700; }
+        .price-subnote { margin-top: 10px; font-size: 12px; color: var(--text3); text-align: center; line-height: 1.5; }
 
         .cta { padding: 100px 24px; text-align: center; position: relative; overflow: hidden; }
         .cta::before { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 800px; height: 400px; background: radial-gradient(ellipse, rgba(37,99,235,0.1), transparent); pointer-events: none; }
@@ -327,6 +331,7 @@ export default function LandingPage() {
           .why-icon { font-size: 24px; margin-bottom: 0; flex-shrink: 0; }
           .why-card h3 { font-size: 14px; }
           .why-card p { font-size: 12px; }
+          /* CHANGE 2: mobile stays 1 column */
           .price-grid { grid-template-columns: 1fr; gap: 16px; }
           .price-card { padding: 24px; }
           .price-val { font-size: 36px; }
@@ -438,7 +443,83 @@ export default function LandingPage() {
 
       <section className="sec sec-light"><div className="con"><div className="sec-hd ctr"><div className="sec-label sec-label-dark">為什麼選擇 Atlas</div><div className="sec-title" style={{color:'var(--light-text)'}}>從第一天就為台灣企業設計</div></div><div className="why-grid">{[{icon:'🛡️',title:'2026 法規內建',desc:'不是外掛模組，而是從核心邏輯就內建勞基法合規檢查。'},{icon:'💬',title:'自然語言驅動',desc:'用一句話取代十個欄位。AI 理解你的需求，自動填寫表單。'},{icon:'🔗',title:'知識 + 流程融合',desc:'SOP 不再是獨立文件。AI 讀取政策後直接執行合規流程。'},{icon:'📊',title:'一鍵 ESG 報告',desc:'勞動數據自動追蹤，隨時產出符合國際標準的 ESG 報告。'}].map((w)=>(<div className="why-card fi" key={w.title}><div className="why-icon">{w.icon}</div><div><h3>{w.title}</h3><p>{w.desc}</p></div></div>))}</div></div></section>
 
-      <section className="sec sec-dark2" id="pricing"><div className="con"><div className="sec-hd ctr"><div className="sec-label sec-label-blue">方案價格</div><div className="sec-title">Enterprise Intelligence，合理價格</div><p className="sec-desc">免費探索，團隊成長時升級。合規功能每個方案都有。</p></div><div className="price-grid"><div className="price-card fi"><div className="price-tier">Explorer 探索版</div><div className="price-val">$0<span>/月</span></div><div className="price-note">單人或小型試用</div><ul className="price-list"><li>最多 50 份文件</li><li>語意搜尋 + AI 對話</li><li>NLP 表單 + 基礎合規檢查</li><li>1 位使用者</li></ul><a href="/signup" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>免費開始</a></div><div className="price-card pop fi"><div className="price-pop">Recommended</div><div className="price-tier">Team 團隊版</div><div className="price-val">$49<span>/月</span></div><div className="price-note">每個工作空間</div><ul className="price-list"><li>無限文件</li><li>AI Agent + 寫作助手</li><li>最多 15 位成員</li><li>完整 2026 合規引擎</li><li>Agentic Auditor 預審</li><li>ESG 社會面報告</li><li>五格式匯出 + API</li><li>稽核日誌 + 品牌設定</li></ul><a href="/signup" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a></div><div className="price-card fi"><div className="price-tier">Enterprise 企業版</div><div className="price-val">客製</div><div className="price-note">適合大型組織</div><ul className="price-list"><li>團隊版所有功能</li><li>無限成員數</li><li>SSO 單一登入</li><li>自訂表單類型 + 審核流程</li><li>Predictive 容量規劃</li><li>LINE 語音整合</li><li>專屬客戶成功經理</li></ul><a href="/contact" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>聯繫我們</a></div></div></div></section>
+      {/* CHANGE 3: PRICING SECTION — 4 cards including 商務版 */}
+      <section className="sec sec-dark2" id="pricing"><div className="con"><div className="sec-hd ctr"><div className="sec-label sec-label-blue">方案價格</div><div className="sec-title">Enterprise Intelligence，合理價格</div><p className="sec-desc">免費探索，團隊成長時升級。合規功能每個方案都有。</p></div><div className="price-grid">
+
+        {/* Card 1: Explorer */}
+        <div className="price-card fi">
+          <div className="price-tier">Explorer 探索版</div>
+          <div className="price-val">$0<span>/月</span></div>
+          <div className="price-note">單人或小型試用</div>
+          <ul className="price-list">
+            <li>最多 50 份文件</li>
+            <li>語意搜尋 + AI 對話</li>
+            <li>NLP 表單 + 基礎合規檢查</li>
+            <li>1 位使用者</li>
+          </ul>
+          <a href="/signup" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>免費開始</a>
+        </div>
+
+        {/* Card 2: Team */}
+        <div className="price-card pop fi">
+          <div className="price-pop">Recommended</div>
+          <div className="price-tier">Team 團隊版</div>
+          <div className="price-val">$49<span>/月</span></div>
+          <div className="price-note">每個工作空間</div>
+          <ul className="price-list">
+            <li>無限文件</li>
+            <li>AI Agent + 寫作助手</li>
+            <li>最多 15 位成員</li>
+            <li>完整 2026 合規引擎</li>
+            <li>Agentic Auditor 預審</li>
+            <li>ESG 社會面報告</li>
+            <li>五格式匯出 + API</li>
+            <li>稽核日誌 + 品牌設定</li>
+          </ul>
+          <a href="/signup" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a>
+        </div>
+
+        {/* Card 3: 商務版 — NEW */}
+        <div className="price-card biz fi">
+          <div className="price-biz-badge">🏛️ 政府補助適用</div>
+          <div className="price-tier" style={{color:'var(--amber)'}}>商務版 Business</div>
+          <div className="price-val" style={{color:'var(--amber)'}}>NT$3,000<span>/月</span></div>
+          <div className="price-note">年繳 NT$36,000（含稅）· 最多 30 位成員</div>
+          <ul className="price-list">
+            <li>無限文件上傳</li>
+            <li>AI Agent + Atlas 知識問答</li>
+            <li>NLP 工作流程（13種假別）</li>
+            <li>完整 2026 勞基法合規引擎</li>
+            <li>500次/月 AI 掃描</li>
+            <li>ESG 社會面報告</li>
+            <li>勞動成本自動試算與警示</li>
+            <li>CSV / Excel 完整匯出</li>
+            <li>稽核日誌 + 品牌設定</li>
+            <li>台北在地導入支援</li>
+            <li>優先技術支援</li>
+          </ul>
+          <a href="/signup" className="btn btn-p" style={{width:'100%',justifyContent:'center',background:'var(--amber)',color:'#000',boxShadow:'0 2px 16px rgba(245,158,11,0.3)'}}>立即開始 →</a>
+          <div className="price-subnote">符合商業服務業智慧轉型專區補助資格<br/>續約9折 · 超過30人每+10人加收NT$5,000/年</div>
+        </div>
+
+        {/* Card 4: Enterprise */}
+        <div className="price-card fi">
+          <div className="price-tier">Enterprise 企業版</div>
+          <div className="price-val">客製</div>
+          <div className="price-note">適合大型組織</div>
+          <ul className="price-list">
+            <li>團隊版所有功能</li>
+            <li>無限成員數</li>
+            <li>SSO 單一登入</li>
+            <li>自訂表單類型 + 審核流程</li>
+            <li>Predictive 容量規劃</li>
+            <li>LINE 語音整合</li>
+            <li>專屬客戶成功經理</li>
+          </ul>
+          <a href="/contact" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>聯繫我們</a>
+        </div>
+
+      </div></div></section>
 
       <section className="cta"><h2>讓 AI 守護你的每一筆流程</h2><p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p><div className="cta-acts"><a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a><a href="/contact" className="btn btn-w btn-lg">預約 Demo</a><a href="/audit" className="btn btn-o btn-lg">🔍 免費合規掃描</a>
 </div><div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 五分鐘完成設定</div></section>
