@@ -380,24 +380,80 @@ export default function LandingPage() {
       {/* ═══ PRICING ═══ */}
       <section className="sec sec-alt" id="pricing">
         <div className="con">
-          <div className="sec-hd ctr"><div className="sec-label">方案價格</div><h2 className="sec-title">簡單透明的價格</h2><p className="sec-desc">免費開始，團隊成長時再升級。</p></div>
+          <div className="sec-hd ctr">
+            <div className="sec-label">方案價格</div>
+            <h2 className="sec-title">Enterprise Intelligence，合理價格</h2>
+            <p className="sec-desc">免費探索，團隊成長時升級。合規功能每個方案都有。</p>
+          </div>
           <div className="price-grid">
+
+            {/* Explorer */}
             <div className="price-card fi">
-              <div className="price-tier">入門方案</div><div className="price-val">$0<span>/月</span></div><div className="price-note">小型團隊永久免費</div>
-              <ul className="price-list"><li>最多 50 份文件</li><li>語意搜尋</li><li>AI 對話（每月 100 則）</li><li>1 位使用者</li><li>NLP 表單申請</li></ul>
-              <a href="/signup" className="btn btn-o" style={{ width: '100%', justifyContent: 'center' }}>免費開始</a>
+              <div className="price-tier">Explorer 探索版</div>
+              <div className="price-val">$0<span>/月</span></div>
+              <div className="price-note">單人或小型試用</div>
+              <ul className="price-list">
+                <li>最多 50 份文件</li>
+                <li>語意搜尋 + AI 對話</li>
+                <li>NLP 表單 + 基礎合規檢查</li>
+                <li>1 位使用者</li>
+              </ul>
+              <a href="/signup" className="btn btn-o" style={{ width: '100%', justifyContent: 'center' }}>
+                免費開始
+              </a>
             </div>
+
+            {/* Standard — RECOMMENDED */}
             <div className="price-card pop fi">
-              <div className="price-pop">最受歡迎</div>
-              <div className="price-tier">團隊方案</div><div className="price-val">$29<span>/月</span></div><div className="price-note">每個工作空間</div>
-              <ul className="price-list"><li>無限文件數量</li><li>混合搜尋 + AI 對話</li><li>最多 10 位成員</li><li>AI Agent + 寫作助手</li><li>NLP 表單 + 審核流程</li><li>匯出 + API 存取</li><li>稽核日誌 + 品牌設定</li></ul>
-              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>免費試用 →</a>
+              <div className="price-pop">Recommended</div>
+              <div className="price-tier">Standard 標準版</div>
+              <div className="price-val">NT$3,000<span>/月</span></div>
+              <div className="price-note">
+                或 NT$36,000/年
+                <span style={{ marginLeft: 6, color: '#059669', fontWeight: 700, fontSize: 12 }}>
+                  （年繳九折）
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: '#7C3AED', fontWeight: 700, marginBottom: 24 }}>
+                30人團隊，完整功能
+              </div>
+              <ul className="price-list">
+                <li>無限文件上傳</li>
+                <li>500次/月 AI掃描</li>
+                <li>完整 2026 合規引擎</li>
+                <li>ESG 社會面報告</li>
+                <li>CSV / Excel 資料匯出</li>
+                <li>最多 30 位成員</li>
+                <li>台北在地導入支援</li>
+                <li>優先技術支援</li>
+              </ul>
+              <a href="/signup" className="btn btn-p" style={{ width: '100%', justifyContent: 'center' }}>
+                申請免費試用 →
+              </a>
+              <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 12, textAlign: 'center', lineHeight: 1.6 }}>
+                新客戶提供90天免費試用期，試用期間資料完整保留。
+              </p>
             </div>
+
+            {/* Enterprise */}
             <div className="price-card fi">
-              <div className="price-tier">企業方案</div><div className="price-val">客製</div><div className="price-note">適合大型組織</div>
-              <ul className="price-list"><li>團隊方案所有功能</li><li>無限成員數</li><li>SSO / SAML 單一登入</li><li>自訂表單類型</li><li>優先支援</li><li>客製化整合</li></ul>
-              <a href="/contact" className="btn btn-o" style={{ width: '100%', justifyContent: 'center' }}>聯繫我們</a>
+              <div className="price-tier">Enterprise 企業版</div>
+              <div className="price-val">客製</div>
+              <div className="price-note">適合大型組織</div>
+              <ul className="price-list">
+                <li>團隊版所有功能</li>
+                <li>無限成員數</li>
+                <li>SSO 單一登入</li>
+                <li>自訂表單類型 + 審核流程</li>
+                <li>Predictive 容量規劃</li>
+                <li>LINE 語音整合</li>
+                <li>專屬客戶成功經理</li>
+              </ul>
+              <a href="/contact" className="btn btn-o" style={{ width: '100%', justifyContent: 'center' }}>
+                聯繫我們
+              </a>
             </div>
+
           </div>
         </div>
       </section>
