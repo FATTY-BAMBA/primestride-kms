@@ -233,7 +233,7 @@ export default function TeamDetailPage() {
         <main className="container">
           <div className="card" style={{ textAlign: "center", padding: 40 }}>
             <h2>Team not found</h2>
-            <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>{error}</p>
+            <p style={{ color: "#6B7280", marginBottom: 20 }}>{error}</p>
             <Link href="/teams" className="btn btn-primary">Back to Teams</Link>
           </div>
         </main>
@@ -259,7 +259,7 @@ export default function TeamDetailPage() {
               <div>
                 <h1 style={{ fontSize: 22, margin: 0 }}>{team.name}</h1>
                 {team.description && (
-                  <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+                  <p style={{ fontSize: 13, color: "#6B7280", margin: 0 }}>
                     {team.description}
                   </p>
                 )}
@@ -288,11 +288,11 @@ export default function TeamDetailPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 32 }}>
           <div className="card" style={{ textAlign: "center", padding: 20 }}>
             <div style={{ fontSize: 28, fontWeight: 700 }}>{members.length}</div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Members</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Members</div>
           </div>
           <div className="card" style={{ textAlign: "center", padding: 20 }}>
             <div style={{ fontSize: 28, fontWeight: 700, color: "var(--accent-blue)" }}>{documents.length}</div>
-            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Documents</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Documents</div>
           </div>
         </div>
 
@@ -313,7 +313,7 @@ export default function TeamDetailPage() {
 
           <div className="card" style={{ padding: 0, overflow: "hidden" }}>
             {members.length === 0 ? (
-              <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>
+              <div style={{ padding: 32, textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
                 No members yet
               </div>
             ) : (
@@ -322,7 +322,7 @@ export default function TeamDetailPage() {
                   key={member.user_id}
                   style={{
                     padding: "16px 20px",
-                    borderBottom: i < members.length - 1 ? "1px solid var(--border)" : "none",
+                    borderBottom: i < members.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -332,7 +332,7 @@ export default function TeamDetailPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: "50%",
-                      background: "var(--bg-secondary)",
+                      background: "rgba(255,255,255,0.08)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 14, fontWeight: 600,
                     }}>
@@ -342,7 +342,7 @@ export default function TeamDetailPage() {
                       <div style={{ fontWeight: 500 }}>
                         {member.full_name || member.email}
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
                         {member.email}
                       </div>
                     </div>
@@ -356,9 +356,11 @@ export default function TeamDetailPage() {
                         style={{
                           padding: "6px 12px",
                           borderRadius: 6,
-                          border: "1px solid var(--border)",
+                          border: "1px solid #E5E7EB",
                           fontSize: 13,
-                          background: member.role === "lead" ? "#FEF3C7" : "white",
+                          color: "#111827",
+                          background: member.role === "lead" ? "#FEF3C7" : "#F9FAFB",
+                          cursor: "pointer",
                         }}
                       >
                         <option value="member">Member</option>
@@ -415,7 +417,7 @@ export default function TeamDetailPage() {
 
           <div className="card">
             {documents.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 24, color: "var(--text-muted)" }}>
+              <div style={{ textAlign: "center", padding: 24, color: "rgba(255,255,255,0.5)" }}>
                 No documents assigned to this team yet
               </div>
             ) : (
@@ -429,14 +431,14 @@ export default function TeamDetailPage() {
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "12px 16px",
-                      background: "var(--bg-secondary)",
+                      background: "rgba(255,255,255,0.06)",
                       borderRadius: 8,
                       textDecoration: "none",
-                      color: "inherit",
+                      color: "white",
                     }}
                   >
                     <span style={{ fontWeight: 500 }}>{doc.title}</span>
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
                       {new Date(doc.updated_at).toLocaleDateString()}
                     </span>
                   </Link>
@@ -457,10 +459,10 @@ export default function TeamDetailPage() {
               background: "white", borderRadius: 16, padding: 32,
               width: "100%", maxWidth: 480, maxHeight: "80vh", overflow: "auto",
             }}>
-              <h2 style={{ marginBottom: 20 }}>Add Members to {team.name}</h2>
+              <h2 style={{ marginBottom: 20, color: "#111827" }}>Add Members to {team.name}</h2>
 
               {availableMembers.length === 0 ? (
-                <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
+                <p style={{ color: "#6B7280", marginBottom: 20 }}>
                   All organization members are already in this team.
                 </p>
               ) : (
@@ -492,10 +494,10 @@ export default function TeamDetailPage() {
                         style={{ width: 18, height: 18 }}
                       />
                       <div>
-                        <div style={{ fontWeight: 500 }}>
+                        <div style={{ fontWeight: 500, color: "#111827" }}>
                           {member.full_name || member.email}
                         </div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        <div style={{ fontSize: 12, color: "#6B7280" }}>
                           {member.email} • {member.role}
                         </div>
                       </div>
