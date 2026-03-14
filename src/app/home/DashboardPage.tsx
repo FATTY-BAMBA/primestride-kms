@@ -55,7 +55,12 @@ export default function DashboardPage() {
       fetch("/api/workflows?status=pending").then(r => r.json()),
       fetch("/api/org-members").then(r => r.json()),
       fetch("/api/branding").then(r => r.json()),
-    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding]) => {
+      fetch("/api/organizations").then(r => r.json()),
+    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs]) => {
+      // org name priority: branding custom name → actual org name → fallback
+      const actualOrgName = orgs.organizations?.[0]?.name || "";
+      const orgName = branding.branding?.org_name || actualOrgName || (profile.language === "zh" ? "貴公司" : "your organization");
+
       setData({
         pendingFormsOrg: orgWorkflows.submissions?.length || 0,
         pendingFormsMine: myWorkflows.submissions?.length || 0,
@@ -66,7 +71,7 @@ export default function DashboardPage() {
         memberCount: members.members?.length || 0,
         role: profile.role || "member",
         full_name: profile.full_name || profile.email?.split("@")[0] || "there",
-        org_name: branding.branding?.org_name || "your organization",
+        org_name: orgName,
         language: profile.language || "en",
       });
     }).catch(() => {}).finally(() => setLoading(false));
