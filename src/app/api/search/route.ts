@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,15 @@ export async function GET(req: Request) {
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limit: 60 searches per minute per user
+    const rl = rateLimit(`search:${userId}`, { limit: 60, windowSeconds: 60 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Please wait ${rl.resetInSeconds}s before trying again.` },
+        { status: 429 }
+      );
     }
 
     // Get user's organization

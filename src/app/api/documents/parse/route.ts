@@ -1,15 +1,32 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// Increase body size limit for file uploads (default is 4.5MB on Vercel)
-export const maxDuration = 60; // Allow up to 60s for large file processing
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB hard limit
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth check — no anonymous file parsing
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    // File size check before processing
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: `File too large. Maximum size is 10MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.` },
+        { status: 413 }
+      );
     }
 
     const fileName = file.name;

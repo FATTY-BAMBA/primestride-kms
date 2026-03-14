@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,6 +24,15 @@ export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Rate limit: 20 agent requests per minute per user (most expensive endpoint)
+    const rl = rateLimit(`agent:${userId}`, { limit: 20, windowSeconds: 60 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Please wait ${rl.resetInSeconds}s before trying again.` },
+        { status: 429 }
+      );
+    }
 
     const membership = await getUserOrganization(userId);
     if (!membership) return NextResponse.json({ error: "No organization found" }, { status: 404 });

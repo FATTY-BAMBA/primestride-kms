@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { getUserOrganization } from "@/lib/get-user-organization";
 import { logUsage } from "@/lib/usage-logger";
+import { rateLimit } from "@/lib/rate-limit";
 
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,15 @@ export async function POST(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limit: 30 AI chat requests per minute per user
+    const rl = rateLimit(`chat:${userId}`, { limit: 30, windowSeconds: 60 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Please wait ${rl.resetInSeconds}s before trying again.` },
+        { status: 429 }
+      );
     }
 
     const { message, conversationHistory = [] } = await request.json();
