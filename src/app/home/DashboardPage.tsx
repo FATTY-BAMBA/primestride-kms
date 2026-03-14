@@ -7,7 +7,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   FileText, Clock, CheckCircle2, AlertTriangle,
   Upload, Link as LinkIcon, PenLine, ArrowRight,
-  Users, Library, Bot, Zap, TrendingUp
+  Users, Library, Bot, Zap
 } from "lucide-react";
 
 type RecentDoc = {
@@ -18,7 +18,8 @@ type RecentDoc = {
 };
 
 type DashboardData = {
-  pendingForms: number;
+  pendingFormsOrg: number;   // admin: org-wide pending
+  pendingFormsMine: number;  // member: my own pending
   totalDocs: number;
   recentDocs: RecentDoc[];
   memberCount: number;
@@ -35,7 +36,7 @@ function timeAgo(dateStr: string) {
   if (mins < 60) return `${mins}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (days === 1) return "Yesterday";
-  if (days < 7) return `${days} days ago`;
+  if (days < 7) return `${days}d ago`;
   return new Date(dateStr).toLocaleDateString();
 }
 
@@ -49,12 +50,14 @@ export default function DashboardPage() {
     Promise.all([
       fetch("/api/profile").then(r => r.json()),
       fetch("/api/learning-summary").then(r => r.json()),
-      fetch("/api/workflows?view=all&status=pending").then(r => r.json()),
+      fetch("/api/workflows?view=all&status=pending").then(r => r.json()),  // org-wide (admin sees all)
+      fetch("/api/workflows?status=pending").then(r => r.json()),           // my own pending
       fetch("/api/org-members").then(r => r.json()),
       fetch("/api/branding").then(r => r.json()),
-    ]).then(([profile, docs, workflows, members, branding]) => {
+    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding]) => {
       setData({
-        pendingForms: workflows.submissions?.length || 0,
+        pendingFormsOrg: orgWorkflows.submissions?.length || 0,
+        pendingFormsMine: myWorkflows.submissions?.length || 0,
         totalDocs: docs.documents?.length || 0,
         recentDocs: (docs.documents || [])
           .sort((a: any, b: any) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime())
@@ -70,6 +73,10 @@ export default function DashboardPage() {
   const isAdmin = data && ["owner", "admin"].includes(data.role);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  // What to show in the Pending Forms stat card depends on role
+  const pendingCount = isAdmin ? data?.pendingFormsOrg : data?.pendingFormsMine;
+  const pendingLabel = isAdmin ? "Pending Reviews" : "My Pending Forms";
 
   return (
     <ProtectedRoute>
@@ -94,10 +101,38 @@ export default function DashboardPage() {
             {/* Stats row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {[
-                { label: "Documents", value: data?.totalDocs, icon: FileText, color: "text-violet-600", bg: "bg-violet-50", href: "/library" },
-                { label: "Pending Forms", value: data?.pendingForms, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", href: "/workflows" },
-                { label: "Team Members", value: data?.memberCount, icon: Users, color: "text-blue-600", bg: "bg-blue-50", href: isAdmin ? "/team" : undefined },
-                { label: "AI Ready", value: "On", icon: Zap, color: "text-emerald-600", bg: "bg-emerald-50", href: "/search" },
+                {
+                  label: "Documents",
+                  value: data?.totalDocs,
+                  icon: FileText,
+                  color: "text-violet-600",
+                  bg: "bg-violet-50",
+                  href: "/library"
+                },
+                {
+                  label: pendingLabel,
+                  value: pendingCount,
+                  icon: Clock,
+                  color: "text-amber-600",
+                  bg: "bg-amber-50",
+                  href: isAdmin ? "/admin" : "/workflows"
+                },
+                {
+                  label: "Team Members",
+                  value: data?.memberCount,
+                  icon: Users,
+                  color: "text-blue-600",
+                  bg: "bg-blue-50",
+                  href: isAdmin ? "/team" : undefined
+                },
+                {
+                  label: "AI Ready",
+                  value: "On",
+                  icon: Zap,
+                  color: "text-emerald-600",
+                  bg: "bg-emerald-50",
+                  href: "/search"
+                },
               ].map(stat => (
                 <div
                   key={stat.label}
@@ -115,23 +150,28 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-              {/* Quick Actions */}
+              {/* Quick Actions — different for admin vs member */}
               <div className="bg-white border border-slate-200 rounded-xl p-5">
                 <h2 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-violet-500" />
                   Quick Actions
                 </h2>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {[
-                    { label: "Upload a document", icon: Upload, href: "/library/new", color: "text-violet-600", bg: "bg-violet-50" },
-                    { label: "Import from URL", icon: LinkIcon, href: "/library/new?mode=url", color: "text-blue-600", bg: "bg-blue-50" },
-                    { label: "Write a note", icon: PenLine, href: "/library/note/new", color: "text-emerald-600", bg: "bg-emerald-50" },
+                    // Common actions for everyone
                     { label: "Ask Atlas", icon: Bot, href: "/search", color: "text-pink-600", bg: "bg-pink-50" },
                     { label: "Submit a form", icon: FileText, href: "/workflows", color: "text-amber-600", bg: "bg-amber-50" },
-                    ...(isAdmin ? [{ label: "Review pending forms", icon: CheckCircle2, href: "/admin", color: "text-slate-600", bg: "bg-slate-100" }] : []),
+                    { label: "Browse library", icon: Library, href: "/library", color: "text-violet-600", bg: "bg-violet-50" },
+                    // Admin-only actions
+                    ...(isAdmin ? [
+                      { label: "Upload a document", icon: Upload, href: "/library/new", color: "text-blue-600", bg: "bg-blue-50" },
+                      { label: "Import from URL", icon: LinkIcon, href: "/library/new?mode=url", color: "text-blue-600", bg: "bg-blue-50" },
+                      { label: "Write a note", icon: PenLine, href: "/library/note/new", color: "text-emerald-600", bg: "bg-emerald-50" },
+                      { label: "Review pending forms", icon: CheckCircle2, href: "/admin", color: "text-slate-600", bg: "bg-slate-100" },
+                    ] : []),
                   ].map(action => (
                     <Link
-                      key={action.href}
+                      key={action.href + action.label}
                       href={action.href}
                       className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors group"
                     >
@@ -139,7 +179,7 @@ export default function DashboardPage() {
                         <action.icon className={`w-3.5 h-3.5 ${action.color}`} />
                       </span>
                       <span className="text-sm text-slate-700 group-hover:text-slate-900">{action.label}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 ml-auto group-hover:text-slate-500" />
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 ml-auto group-hover:text-slate-500 transition-colors" />
                     </Link>
                   ))}
                 </div>
@@ -161,12 +201,14 @@ export default function DashboardPage() {
                   <div className="text-center py-8">
                     <FileText className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                     <p className="text-sm text-slate-400">No documents yet</p>
-                    <Link href="/library/new" className="text-xs text-violet-600 hover:underline mt-1 inline-block">
-                      Upload your first document →
-                    </Link>
+                    {isAdmin && (
+                      <Link href="/library/new" className="text-xs text-violet-600 hover:underline mt-1 inline-block">
+                        Upload your first document →
+                      </Link>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {data?.recentDocs.map(doc => (
                       <Link
                         key={doc.doc_id}
@@ -174,7 +216,7 @@ export default function DashboardPage() {
                         className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors group"
                       >
                         <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-4 h-4 text-violet-600" />
+                          <FileText className="w-4 h-4 text-violet-500" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-800 truncate group-hover:text-violet-700">
@@ -194,14 +236,14 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Pending forms alert — admin only */}
-            {isAdmin && data && data.pendingForms > 0 && (
-              <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between">
+            {/* Admin alert — pending forms */}
+            {isAdmin && data && data.pendingFormsOrg > 0 && (
+              <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-amber-800">
-                      {data.pendingForms} form{data.pendingForms > 1 ? "s" : ""} waiting for review
+                      {data.pendingFormsOrg} form{data.pendingFormsOrg > 1 ? "s" : ""} waiting for review
                     </p>
                     <p className="text-xs text-amber-600 mt-0.5">
                       Employees are waiting for approval on their requests
@@ -213,6 +255,29 @@ export default function DashboardPage() {
                   className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
                   Review now
+                </Link>
+              </div>
+            )}
+
+            {/* Member alert — their own pending forms */}
+            {!isAdmin && data && data.pendingFormsMine > 0 && (
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">
+                      {data.pendingFormsMine} of your form{data.pendingFormsMine > 1 ? "s are" : " is"} pending approval
+                    </p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      Your manager will review them soon
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/workflows"
+                  className="flex-shrink-0 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  View forms
                 </Link>
               </div>
             )}
