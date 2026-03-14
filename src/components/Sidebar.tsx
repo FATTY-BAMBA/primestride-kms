@@ -14,7 +14,7 @@ import {
   Settings, 
   Users, 
   UserCircle,
-  MoreVertical,
+  LayoutDashboard,
   Key,
   Clock,
   Tag,
@@ -74,6 +74,7 @@ export default function Sidebar({ children }: SidebarProps) {
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const mainLinks: LinkItem[] = [
+    { href: "/home", icon: LayoutDashboard, label: "首頁", labelEn: "Home" },
     { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
     { href: "/projects", icon: FolderKanban, label: "專案", labelEn: "Projects" },
     { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent" },
@@ -212,28 +213,23 @@ export default function Sidebar({ children }: SidebarProps) {
       </div>
 
       {/* Bottom */}
-      <div className="p-3 border-t border-slate-100">
+      <div className="p-4 border-t border-slate-100 relative z-50">
         {!collapsed && <OrgSwitcher />}
         <div className={cn(
           "flex items-center mt-2",
-          collapsed ? "justify-center" : "justify-between gap-2"
+          collapsed ? "justify-center" : "justify-between"
         )}>
-          <div className={cn("min-w-0", collapsed ? "" : "flex-1")}>
-            <UserMenu />
-          </div>
-          <button
-            onClick={() => setCollapsed(prev => !prev)}
-            className="flex-shrink-0 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+          <UserMenu />
+          {!collapsed && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              title="收合側邊欄 Collapse"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        {!collapsed && (
-          <p className="text-[10px] text-slate-300 text-center mt-2 tracking-wide">
-            Powered by PrimeStride
-          </p>
-        )}
       </div>
     </>
   );
@@ -247,6 +243,14 @@ export default function Sidebar({ children }: SidebarProps) {
           collapsed ? "w-[60px]" : "w-60"
         )}
       >
+        {collapsed && (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="absolute top-5 -right-3 w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:bg-slate-50 text-slate-500"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        )}
         <SidebarContent />
       </aside>
 

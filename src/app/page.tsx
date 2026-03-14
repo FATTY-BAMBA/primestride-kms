@@ -11,7 +11,7 @@ export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && user) { router.replace('/library'); }
+    if (!isLoading && user) { router.replace('/home'); }
   }, [user, isLoading, router]);
 
   useEffect(() => {

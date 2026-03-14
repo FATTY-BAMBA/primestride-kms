@@ -1,6 +1,5 @@
 "use client";
 
-// Note: page-level title is set via document.title in useEffect since this is a client component
 import QuickCreate from "@/components/QuickCreate";
 import Link from "next/link";
 import { useEffect, useState, Suspense, useCallback } from "react";
@@ -565,10 +564,7 @@ function LibraryContent() {
   const [filterDocType, setFilterDocType] = useState("");
   const [filterDomain, setFilterDomain] = useState("");
   const [filterTag, setFilterTag] = useState("");
-
-  useEffect(() => {
-    document.title = "Library — Atlas EIP";
-  }, []);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -748,8 +744,8 @@ function LibraryContent() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder={
-                  searchMode === "semantic" 
-                    ? "Search by meaning... e.g. 'how to handle overtime'" 
+                  searchMode === "semantic"
+                    ? "Search by meaning... e.g. 'how to handle overtime'"
                     : searchMode === "hybrid"
                     ? "Search by keyword + meaning..."
                     : searchMode === "keyword"
@@ -758,24 +754,94 @@ function LibraryContent() {
                 }
                 className="pl-10 pr-10"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setShowSuggestions(false); }}
+                onFocus={() => { if (!searchQuery) setShowSuggestions(true); }}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 onKeyDown={(e) => {
+                  if (e.key === "Escape") { setShowSuggestions(false); return; }
                   if (e.key === "Enter") {
-                    if (searchMode === "browse") {
-                      // Basic title filter — no API call needed
-                    } else {
-                      handleAdvancedSearch();
-                    }
+                    setShowSuggestions(false);
+                    if (searchMode !== "browse") handleAdvancedSearch();
                   }
                 }}
               />
               {searchQuery && (
-                <button 
+                <button
                   onClick={clearSearch}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-4 h-4" />
                 </button>
+              )}
+
+              {/* ── Suggestions dropdown ── */}
+              {showSuggestions && !searchQuery && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  {/* Top documents */}
+                  {docs.slice(0, 4).length > 0 && (
+                    <>
+                      <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                        Recent Documents
+                      </div>
+                      {docs.slice(0, 4).map(doc => (
+                        <button
+                          key={doc.doc_id}
+                          onMouseDown={() => {
+                            setShowSuggestions(false);
+                            window.location.href = `/library/${encodeURIComponent(doc.doc_id)}`;
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-50 text-left transition-colors"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="text-sm text-slate-700 truncate">{doc.title}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Top tags */}
+                  {facets?.top_tags && facets.top_tags.length > 0 && (
+                    <>
+                      <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-t border-slate-100">
+                        Popular Tags
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 px-3 pb-3 pt-1">
+                        {facets.top_tags.slice(0, 8).map(t => (
+                          <button
+                            key={t.tag}
+                            onMouseDown={() => {
+                              setSearchQuery(t.tag);
+                              setSearchMode("keyword");
+                              setShowSuggestions(false);
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-medium hover:bg-violet-100 transition-colors"
+                          >
+                            {t.tag}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Search mode hints */}
+                  <div className="border-t border-slate-100 px-3 py-2.5 flex items-center gap-4">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Search by</span>
+                    {[
+                      { mode: "hybrid" as const, label: "⚡ Hybrid", desc: "Best results" },
+                      { mode: "semantic" as const, label: "🧠 Meaning", desc: "Concept search" },
+                      { mode: "keyword" as const, label: "T Keyword", desc: "Exact match" },
+                    ].map(item => (
+                      <button
+                        key={item.mode}
+                        onMouseDown={() => { setSearchMode(item.mode); setShowSuggestions(false); }}
+                        className="text-xs text-slate-500 hover:text-violet-600 transition-colors"
+                        title={item.desc}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -1053,15 +1119,6 @@ function LibraryContent() {
           <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
             <FolderKanban className="w-4 h-4 text-slate-400" />
             Folders
-            {isAdmin && (
-              <button
-                onClick={() => setShowCreateFolder(true)}
-                className="ml-auto p-1 rounded-md text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
-                title="New folder"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {folders.map((f) => {
