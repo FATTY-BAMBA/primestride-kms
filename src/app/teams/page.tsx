@@ -23,6 +23,9 @@ export default function GroupsPage() {
   const [userOrgRole, setUserOrgRole] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lang, setLang] = useState<"zh" | "en">("zh");
+
+  const t = (zh: string, en: string) => lang === "zh" ? zh : en;
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -37,6 +40,9 @@ export default function GroupsPage() {
 
   useEffect(() => {
     fetchTeams();
+    fetch("/api/profile").then(r => r.json()).then(d => {
+      if (d.language) setLang(d.language);
+    }).catch(() => {});
   }, []);
 
   const fetchTeams = async () => {
@@ -129,7 +135,7 @@ export default function GroupsPage() {
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <Link href="/library" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-                ← Back to Library
+                {t("← 返回文件庫", "← Back to Library")}
               </Link>
               {isAdmin && (
                 <button
@@ -137,7 +143,7 @@ export default function GroupsPage() {
                   className="btn btn-primary"
                   style={{ padding: "8px 14px", fontSize: 13 }}
                 >
-                  ➕ Create Group
+                  {t("➕ 新增群組", "➕ Create Group")}
                 </button>
               )}
               <OrgSwitcher />
@@ -285,7 +291,7 @@ export default function GroupsPage() {
                     type="text"
                     value={newTeamName}
                     onChange={(e) => setNewTeamName(e.target.value)}
-                    placeholder="e.g., Engineering, Sales, HR"
+                    placeholder={t("例如：工程、業務、人事", "e.g., Engineering, Sales, HR")}
                     required
                     style={{
                       width: "100%", padding: "12px 14px",
@@ -302,7 +308,7 @@ export default function GroupsPage() {
                   <textarea
                     value={newTeamDescription}
                     onChange={(e) => setNewTeamDescription(e.target.value)}
-                    placeholder="What does this group work on?"
+                    placeholder={t("此群組負責什麼業務？", "What does this group work on?")}
                     rows={3}
                     style={{
                       width: "100%", padding: "12px 14px",
@@ -351,7 +357,7 @@ export default function GroupsPage() {
                     className="btn btn-primary"
                     style={{ padding: "12px 24px", opacity: creating ? 0.7 : 1 }}
                   >
-                    {creating ? "Creating..." : "Create Group"}
+                    {creating ? t("建立中...", "Creating...") : t("建立群組", "Create Group")}
                   </button>
                 </div>
               </form>

@@ -62,11 +62,15 @@ export default function TeamDetailPage() {
   const [editColor, setEditColor] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [lang, setLang] = useState<"zh" | "en">("zh");
+  const t = (zh: string, en: string) => lang === "zh" ? zh : en;
+
   const canManage = ["owner", "admin"].includes(userOrgRole) || userRole === "lead";
 
   useEffect(() => {
     fetchTeamDetails();
     fetchOrgMembers();
+    fetch("/api/profile").then(r => r.json()).then(d => { if (d.language) setLang(d.language); }).catch(() => {});
   }, [teamId]);
 
   const fetchTeamDetails = async () => {
@@ -268,7 +272,7 @@ export default function TeamDetailPage() {
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <Link href="/teams" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
-                ← Back
+                {t("← 返回", "← Back")}
               </Link>
               {canManage && (
                 <button
@@ -276,7 +280,7 @@ export default function TeamDetailPage() {
                   className="btn"
                   style={{ padding: "8px 14px", fontSize: 13 }}
                 >
-                  ✏️ Edit
+                  {t("✏️ 編輯", "✏️ Edit")}
                 </button>
               )}
               <UserMenu />
@@ -306,7 +310,7 @@ export default function TeamDetailPage() {
                 className="btn btn-primary"
                 style={{ padding: "8px 14px", fontSize: 13 }}
               >
-                + Add Member
+                {t("+ 新增成員", "+ Add Member")}
               </button>
             )}
           </div>
@@ -523,7 +527,7 @@ export default function TeamDetailPage() {
                   className="btn btn-primary"
                   style={{ padding: "12px 24px", opacity: adding || selectedMembers.length === 0 ? 0.7 : 1 }}
                 >
-                  {adding ? "Adding..." : `Add ${selectedMembers.length} Member(s)`}
+                  {adding ? t("新增中...", "Adding...") : `${t("新增", "Add")} ${selectedMembers.length} ${t("位成員", "Member(s)")}`}
                 </button>
               </div>
             </div>
@@ -612,7 +616,7 @@ export default function TeamDetailPage() {
                     className="btn btn-primary"
                     style={{ padding: "12px 24px", opacity: saving ? 0.7 : 1 }}
                   >
-                    {saving ? "Saving..." : "Save Changes"}
+                    {saving ? t("儲存中...", "Saving...") : t("儲存", "Save Changes")}
                   </button>
                 </div>
               </form>
