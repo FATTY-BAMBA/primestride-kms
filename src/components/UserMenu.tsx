@@ -34,7 +34,6 @@ export default function UserMenu() {
         body: JSON.stringify({ language: lang }),
       });
       setLanguage(lang);
-      // Short delay so user sees the toggle flip before reload
       setTimeout(() => window.location.reload(), 300);
     } catch {
       // silently fail
@@ -44,6 +43,7 @@ export default function UserMenu() {
   };
 
   return (
+    // No overflow:hidden here — dropdown needs to escape upward
     <div style={{ position: "relative" }}>
       <button
         onClick={() => setOpen(!open)}
@@ -51,27 +51,26 @@ export default function UserMenu() {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "6px 10px",
+          padding: "6px 12px",
           borderRadius: "var(--radius-md)",
           border: "1px solid var(--border-color)",
           background: "var(--bg-secondary)",
           cursor: "pointer",
           color: "var(--text-primary)",
           maxWidth: "100%",
-          overflow: "hidden",
         }}
       >
         {profile?.avatar_url ? (
-          <img src={profile.avatar_url} alt={displayName} style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0 }} />
+          <img src={profile.avatar_url} alt={displayName} style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0 }} />
         ) : (
-          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "white", flexShrink: 0 }}>
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: "white", flexShrink: 0 }}>
             {initials}
           </div>
         )}
-        <span style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {displayName}
         </span>
-        <span style={{ fontSize: 11, opacity: 0.5, flexShrink: 0 }}>▼</span>
+        <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0 }}>▼</span>
       </button>
 
       {open && (
@@ -85,13 +84,13 @@ export default function UserMenu() {
             background: "var(--bg-secondary)",
             border: "1px solid var(--border-color)",
             borderRadius: "var(--radius-md)",
-            boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
-            zIndex: 50,
+            boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+            zIndex: 9999,
             overflow: "hidden",
           }}>
             {/* User info */}
             <div style={{ padding: 12, borderBottom: "1px solid var(--border-color)" }}>
-              <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {displayName}
               </div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -104,7 +103,7 @@ export default function UserMenu() {
               )}
             </div>
 
-            {/* Language toggle — visible to ALL users */}
+            {/* Language toggle — all users */}
             <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-color)" }}>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Language / 語言
@@ -137,11 +136,7 @@ export default function UserMenu() {
             {/* Actions */}
             <div style={{ padding: 8 }}>
               {isAdmin && (
-                <Link
-                  href="/admin"
-                  onClick={() => setOpen(false)}
-                  style={{ display: "block", padding: "8px 12px", fontSize: 14, borderRadius: "var(--radius-sm)", color: "var(--text-primary)", textDecoration: "none" }}
-                >
+                <Link href="/admin" onClick={() => setOpen(false)} style={{ display: "block", padding: "8px 12px", fontSize: 14, borderRadius: "var(--radius-sm)", color: "var(--text-primary)", textDecoration: "none" }}>
                   Admin Dashboard
                 </Link>
               )}

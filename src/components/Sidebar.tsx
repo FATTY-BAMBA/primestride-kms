@@ -4,30 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Library, 
-  FolderKanban, 
-  Bot, 
-  FileText, 
-  BarChart3, 
-  Share2, 
-  Settings, 
-  Users, 
-  UserCircle,
-  Key,
-  Clock,
-  Tag,
-  ChevronRight,
-  ChevronLeft,
-  Menu,
-  X
+  Library, FolderKanban, Bot, Search, FileText,
+  BarChart3, Share2, Settings, Users, UserCircle,
+  Key, Clock, Tag, ChevronRight, ChevronLeft, Menu, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import UserMenu from "./UserMenu";
 import OrgSwitcher from "./OrgSwitcher";
 
-interface SidebarProps {
-  children: React.ReactNode;
-}
+interface SidebarProps { children: React.ReactNode; }
 
 interface LinkItem {
   href: string;
@@ -47,11 +32,8 @@ export default function Sidebar({ children }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [language, setLanguage] = useState<Language>("zh");
   const [branding, setBranding] = useState<{
-    org_name?: string;
-    logo_emoji?: string;
-    primary_color?: string;
-    accent_color?: string;
-    tagline?: string;
+    org_name?: string; logo_emoji?: string;
+    primary_color?: string; accent_color?: string; tagline?: string;
   } | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -78,9 +60,10 @@ export default function Sidebar({ children }: SidebarProps) {
   const t = (zh: string, en: string) => language === "zh" ? zh : en;
 
   const mainLinks: LinkItem[] = [
-    { href: "/library",   icon: Library,      labelZh: "文件庫", labelEn: "Library" },
-    { href: "/projects",  icon: FolderKanban, labelZh: "專案",   labelEn: "Projects" },
+    { href: "/library",   icon: Library,      labelZh: "文件庫",  labelEn: "Library" },
+    { href: "/projects",  icon: FolderKanban, labelZh: "專案",    labelEn: "Projects" },
     { href: "/agent",     icon: Bot,          labelZh: "AI 助手", labelEn: "AI Agent" },
+    { href: "/search",    icon: Search,       labelZh: "搜尋",    labelEn: "Search" },
     { href: "/workflows", icon: FileText,     labelZh: "表單申請", labelEn: "Forms", badge: true },
   ];
 
@@ -90,12 +73,12 @@ export default function Sidebar({ children }: SidebarProps) {
   ];
 
   const adminLinks: LinkItem[] = [
-    { href: "/admin",      icon: Settings,    labelZh: "管理",   labelEn: "Admin" },
-    { href: "/team",       icon: Users,       labelZh: "成員",   labelEn: "Members" },
-    { href: "/teams",      icon: UserCircle,  labelZh: "群組",   labelEn: "Groups" },
-    { href: "/developer",  icon: Key,         labelZh: "API",    labelEn: "API" },
-    { href: "/audit-logs", icon: Clock,       labelZh: "操作紀錄", labelEn: "Audit Logs" },
-    { href: "/branding",   icon: Tag,         labelZh: "品牌設定", labelEn: "Branding" },
+    { href: "/admin",      icon: Settings,   labelZh: "管理",    labelEn: "Admin" },
+    { href: "/team",       icon: Users,      labelZh: "成員",    labelEn: "Members" },
+    { href: "/teams",      icon: UserCircle, labelZh: "群組",    labelEn: "Groups" },
+    { href: "/developer",  icon: Key,        labelZh: "API",     labelEn: "API" },
+    { href: "/audit-logs", icon: Clock,      labelZh: "操作紀錄", labelEn: "Audit Logs" },
+    { href: "/branding",   icon: Tag,        labelZh: "品牌設定", labelEn: "Branding" },
   ];
 
   const isActive = (href: string) => {
@@ -135,7 +118,6 @@ export default function Sidebar({ children }: SidebarProps) {
             </span>
           )}
         </span>
-
         {!collapsed && (
           <span className="flex-1 flex items-center justify-between min-w-0">
             <span className="truncate">{label}</span>
@@ -168,9 +150,7 @@ export default function Sidebar({ children }: SidebarProps) {
       )}>
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
-          style={{
-            background: `linear-gradient(135deg, ${primaryColor} 0%, ${branding?.accent_color || "#A78BFA"} 100%)`
-          }}
+          style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${branding?.accent_color || "#A78BFA"} 100%)` }}
         >
           <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
         </div>
@@ -188,43 +168,38 @@ export default function Sidebar({ children }: SidebarProps) {
       <div className="flex-1 overflow-y-auto py-4 px-3">
         <SectionHeader zh="主要功能" en="Main" />
         <div className="space-y-0.5 mb-4">
-          {mainLinks.map((link) => <NavLink key={link.href} link={link} />)}
+          {mainLinks.map(link => <NavLink key={link.href} link={link} />)}
         </div>
 
         <SectionHeader zh="分析" en="Analytics" />
         <div className="space-y-0.5 mb-4">
-          {analyticsLinks.map((link) => <NavLink key={link.href} link={link} />)}
+          {analyticsLinks.map(link => <NavLink key={link.href} link={link} />)}
         </div>
 
         {isAdmin && (
           <>
             <SectionHeader zh="管理" en="Admin" />
             <div className="space-y-0.5">
-              {adminLinks.map((link) => <NavLink key={link.href} link={link} />)}
+              {adminLinks.map(link => <NavLink key={link.href} link={link} />)}
             </div>
           </>
         )}
       </div>
 
-      {/* Bottom */}
-      <div className="border-t border-slate-100 p-3 space-y-2">
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <OrgSwitcher />
-          </div>
-        )}
-
+      {/* Bottom — NO overflow:hidden here so UserMenu dropdown can escape upward */}
+      <div className="border-t border-slate-100 p-3">
+        {!collapsed && <OrgSwitcher />}
         <div className={cn(
-          "flex items-center",
+          "flex items-center mt-2",
           collapsed ? "justify-center" : "justify-between gap-2"
         )}>
-          <div className={cn("min-w-0", collapsed ? "" : "flex-1 overflow-hidden")}>
+          <div className={cn("min-w-0", collapsed ? "" : "flex-1")}>
             <UserMenu />
           </div>
           <button
             onClick={() => setCollapsed(prev => !prev)}
             className="flex-shrink-0 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            title={collapsed ? t("展開側邊欄", "Expand sidebar") : t("收合側邊欄", "Collapse sidebar")}
+            title={collapsed ? t("展開", "Expand") : t("收合", "Collapse")}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
