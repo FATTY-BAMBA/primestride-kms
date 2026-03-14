@@ -144,7 +144,7 @@ export default function GroupsPage() {
               <UserMenu />
             </div>
           </div>
-          <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+          <p style={{ color: "#6B7280", fontSize: 14 }}>
             Organize members into groups and control document access
           </p>
         </header>
@@ -181,7 +181,7 @@ export default function GroupsPage() {
               <div className="card" style={{ textAlign: "center", padding: 40 }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>🏷️</div>
                 <h3 style={{ marginBottom: 8 }}>No groups yet</h3>
-                <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
+                <p style={{ color: "#6B7280", marginBottom: 20 }}>
                   Create groups to organize members and control document access
                 </p>
                 {isAdmin && (
@@ -222,11 +222,11 @@ export default function GroupsPage() {
                       )}
                     </div>
                     {team.description && (
-                      <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>
+                      <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 8 }}>
                         {team.description}
                       </p>
                     )}
-                    <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--text-secondary)" }}>
+                    <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#6B7280" }}>
                       <span>👥 {team.member_count} members</span>
                       <span>📄 {team.document_count} documents</span>
                     </div>
@@ -274,11 +274,11 @@ export default function GroupsPage() {
               background: "white", borderRadius: 16, padding: 32,
               width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto",
             }}>
-              <h2 style={{ marginBottom: 24 }}>Create New Group</h2>
+              <h2 style={{ marginBottom: 24, color: "#111827" }}>Create New Group</h2>
 
               <form onSubmit={handleCreateTeam}>
                 <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 500 }}>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 500, color: "#111827" }}>
                     Group Name *
                   </label>
                   <input
@@ -290,12 +290,13 @@ export default function GroupsPage() {
                     style={{
                       width: "100%", padding: "12px 14px",
                       border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 15,
+                      background: "white", color: "#111827", outline: "none",
                     }}
                   />
                 </div>
 
                 <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: "block", marginBottom: 6, fontWeight: 500 }}>
+                  <label style={{ display: "block", marginBottom: 6, fontWeight: 500, color: "#111827" }}>
                     Description
                   </label>
                   <textarea
@@ -306,13 +307,13 @@ export default function GroupsPage() {
                     style={{
                       width: "100%", padding: "12px 14px",
                       border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 15,
-                      resize: "vertical",
+                      resize: "vertical", background: "white", color: "#111827", outline: "none",
                     }}
                   />
                 </div>
 
                 <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: "block", marginBottom: 8, fontWeight: 500 }}>
+                  <label style={{ display: "block", marginBottom: 8, fontWeight: 500, color: "#111827" }}>
                     Group Color
                   </label>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
