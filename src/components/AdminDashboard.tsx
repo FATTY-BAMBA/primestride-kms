@@ -63,6 +63,74 @@ const fieldLabels: Record<string, string> = {
   destination: "地點", purpose: "目的", transport: "交通", budget: "預算", accommodation: "住宿",
 };
 
+// ── CSV export helper ──
+function exportEmployeesCSV(employees: EmployeeSummary[], allSubmissions: Submission[]) {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
+
+  const rows = employees.map(emp => {
+    const subs = allSubmissions.filter(s => s.submitted_by === emp.user_id);
+    const thisMonthOT = subs
+      .filter(s => s.form_type === "overtime" && s.status === "approved" && s.created_at >= monthStart)
+      .reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
+    const lastMonthOT = subs
+      .filter(s => s.form_type === "overtime" && s.status === "approved" && s.created_at >= lastMonthStart && s.created_at <= lastMonthEnd)
+      .reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
+    const tripCount = subs.filter(s => s.form_type === "business_trip" && s.status === "approved").length;
+    const lb = emp.leave_balance;
+
+    return [
+      emp.name,
+      emp.email,
+      emp.pending,
+      emp.approved,
+      emp.rejected,
+      lb?.annual_total ?? "",
+      lb?.annual_used ?? "",
+      (lb ? lb.annual_total - lb.annual_used : ""),
+      lb?.sick_total ?? "",
+      lb?.sick_used ?? "",
+      lb?.personal_total ?? "",
+      lb?.personal_used ?? "",
+      lb?.family_care_hours_total ?? "",
+      lb?.family_care_hours_used ?? "",
+      emp.leave_days_taken,
+      emp.overtime_hours,
+      thisMonthOT,
+      lastMonthOT,
+      tripCount,
+    ];
+  });
+
+  const headers = [
+    "姓名", "Email",
+    "待審件數", "已核准", "已駁回",
+    "特休總天數", "特休已用", "特休剩餘",
+    "病假總天數", "病假已用",
+    "事假總天數", "事假已用",
+    "家庭照顧假總時數", "家庭照顧假已用",
+    "請假天數(累計)", "加班時數(累計)",
+    `加班時數(${now.getMonth() + 1}月)`,
+    `加班時數(${now.getMonth() === 0 ? 12 : now.getMonth()}月)`,
+    "出差次數(核准)",
+  ];
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const BOM = "\uFEFF"; // UTF-8 BOM for Excel Chinese support
+  const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `員工人事報表_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminDashboard() {
   const [tab, setTab] = useState<"overview" | "pending" | "employees" | "compliance">("overview");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -445,8 +513,8 @@ export default function AdminDashboard() {
       {/* ═══ TAB: EMPLOYEES ═══ */}
       {!loading && tab === "employees" && (
         <div>
-          {/* Search & Sort */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          {/* Search, Sort & Export */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
             <input
               type="text" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)}
               placeholder="🔍 搜尋員工姓名或 email..."
@@ -471,6 +539,12 @@ export default function AdminDashboard() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => exportEmployeesCSV(filteredEmployees, allSubmissions)}
+              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #059669", fontSize: 12, fontWeight: 700, cursor: "pointer", background: "#D1FAE5", color: "#065F46", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              📥 匯出 Excel / CSV
+            </button>
           </div>
 
           <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 10 }}>
@@ -551,6 +625,60 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       )}
+
+                      {/* Monthly overtime breakdown */}
+                      {(() => {
+                        const now = new Date();
+                        const months = [0, 1, 2].map(offset => {
+                          const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+                          const start = d.toISOString();
+                          const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 0).toISOString();
+                          const hrs = employeeSubmissions
+                            .filter(s => s.form_type === "overtime" && s.status === "approved" && s.created_at >= start && s.created_at <= end)
+                            .reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
+                          return { label: `${d.getMonth() + 1}月`, hours: hrs, over46: hrs > 46 };
+                        });
+                        const trips = employeeSubmissions.filter(s => s.form_type === "business_trip");
+                        return (
+                          <div style={{ padding: "14px 18px", background: "#F0F9FF", borderTop: "1px solid #E5E7EB" }}>
+                            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                              {/* Monthly OT */}
+                              <div style={{ flex: 1, minWidth: 200 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 8 }}>🕐 加班時數（近3個月）</div>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  {months.map(m => (
+                                    <div key={m.label} style={{ flex: 1, padding: "8px 10px", background: "white", borderRadius: 8, border: `1px solid ${m.over46 ? "#FECACA" : "#E5E7EB"}`, textAlign: "center" }}>
+                                      <div style={{ fontSize: 10, color: "#6B7280", fontWeight: 600, marginBottom: 4 }}>{m.label}</div>
+                                      <div style={{ fontSize: 18, fontWeight: 800, color: m.over46 ? "#DC2626" : m.hours > 0 ? "#2563EB" : "#9CA3AF" }}>{m.hours}</div>
+                                      <div style={{ fontSize: 9, color: m.over46 ? "#DC2626" : "#9CA3AF" }}>{m.over46 ? "⚠️ 超過46hr" : "小時"}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              {/* Business trips */}
+                              <div style={{ flex: 1, minWidth: 180 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 8 }}>✈️ 出差紀錄（{trips.length} 次）</div>
+                                {trips.length === 0 ? (
+                                  <div style={{ fontSize: 12, color: "#9CA3AF" }}>無出差紀錄</div>
+                                ) : (
+                                  <div style={{ display: "grid", gap: 4 }}>
+                                    {trips.slice(0, 3).map(s => {
+                                      const st = statusConfig[s.status] || statusConfig.pending;
+                                      return (
+                                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "white", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 12 }}>
+                                          <span style={{ color: "#111827" }}>📍 {s.form_data.destination || "目的地未填"}</span>
+                                          <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: st.bg, color: st.color }}>{st.label}</span>
+                                        </div>
+                                      );
+                                    })}
+                                    {trips.length > 3 && <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center" }}>+{trips.length - 3} 筆更多</div>}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       <div style={{ padding: "14px 18px" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 10 }}>📜 近期申請</div>
