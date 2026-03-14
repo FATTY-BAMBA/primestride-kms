@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { invitationEmail } from "@/lib/email-templates";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import { logAudit } from "@/lib/audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,24 @@ export async function POST(request: NextRequest) {
     } catch (emailError) {
       console.error("⚠️ Failed to send email:", emailError);
       // Don't fail - invitation is still created
+    }
+
+    // ✅ Audit log
+    const { data: inviterMembership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .single();
+    if (inviterMembership) {
+      logAudit({
+        organizationId: inviterMembership.organization_id,
+        userId,
+        action: "member.invite",
+        targetType: "user",
+        targetTitle: email,
+        details: `Invited ${email} as ${role}`,
+      }).catch(() => {});
     }
 
     return NextResponse.json({

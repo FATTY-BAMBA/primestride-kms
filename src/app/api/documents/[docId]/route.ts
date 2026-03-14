@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { logAudit } from "@/lib/audit-log";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -331,6 +332,16 @@ export async function DELETE(
         { status: 500 }
       );
     }
+
+    // ✅ Audit log
+    logAudit({
+      organizationId: membership.organization_id,
+      userId,
+      action: "document.delete",
+      targetType: "document",
+      targetId: docId,
+      details: `Deleted document ${docId}`,
+    }).catch(() => {});
 
     return NextResponse.json({ message: "Document deleted successfully" });
   } catch (error) {

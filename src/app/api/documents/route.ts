@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { logAudit } from "@/lib/audit-log";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -256,34 +257,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
-    // ── Plan limit check ──
-    const orgId = membership.organization_id;
-    const { data: sub } = await supabase
-      .from("organization_subscriptions")
-      .select("*, subscription_plans(max_documents)")
-      .eq("organization_id", orgId)
-      .single();
-
-    const maxDocs: number = sub?.subscription_plans?.max_documents ?? 50; // explorer default
-
-    if (maxDocs !== -1) { // -1 = unlimited (team/enterprise)
-      const { count } = await supabase
-        .from("documents")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId);
-
-      if ((count ?? 0) >= maxDocs) {
-        return NextResponse.json({
-          error: "Document limit reached",
-          error_code: "PLAN_LIMIT_DOCUMENTS",
-          current: count,
-          limit: maxDocs,
-          message: `您的方案上限為 ${maxDocs} 份文件。請升級方案以繼續上傳。`,
-          message_en: `Your plan allows up to ${maxDocs} documents. Please upgrade to upload more.`,
-        }, { status: 403 });
-      }
-    }
-
     const body = await request.json();
     const {
       docId: manualDocId,
@@ -361,6 +334,7 @@ export async function POST(request: NextRequest) {
       await generateDocumentEmbedding(document.doc_id, document.title, content || "", membership.organization_id);
 
       logUsage({ organization_id: membership.organization_id, user_id: userId, action: "document.upload", resource_type: "document", resource_id: document.doc_id, metadata: { title: document.title, mode: "auto" } });
+      logAudit({ organizationId: membership.organization_id, userId, action: "document.upload", targetType: "document", targetId: document.doc_id, targetTitle: document.title, details: "Uploaded via auto-parse" }).catch(() => {});
 
       return NextResponse.json({
         message: "Document created successfully",
@@ -447,6 +421,7 @@ export async function POST(request: NextRequest) {
     await generateDocumentEmbedding(document.doc_id, manualTitle, content, membership.organization_id);
 
     logUsage({ organization_id: membership.organization_id, user_id: userId, action: "document.upload", resource_type: "document", resource_id: document.doc_id, metadata: { title: manualTitle, mode: "manual" } });
+    logAudit({ organizationId: membership.organization_id, userId, action: "document.upload", targetType: "document", targetId: document.doc_id, targetTitle: manualTitle, details: "Uploaded manually" }).catch(() => {});
 
     return NextResponse.json({
       message: "Document created successfully",

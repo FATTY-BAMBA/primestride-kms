@@ -17,6 +17,24 @@ interface AuditLog {
 }
 
 const actionLabels: Record<string, { label: string; icon: string; color: string }> = {
+  // Audit log actions (explicit admin/user actions)
+  "document.upload":   { label: "上傳文件 Uploaded document",    icon: "📤", color: "#7C3AED" },
+  "document.delete":   { label: "刪除文件 Deleted document",     icon: "🗑️", color: "#DC2626" },
+  "document.view":     { label: "查看文件 Viewed document",      icon: "👁️", color: "#6B7280" },
+  "workflow.submit":   { label: "提交申請 Submitted request",    icon: "📝", color: "#2563EB" },
+  "workflow.approved": { label: "核准申請 Approved request",     icon: "✅", color: "#059669" },
+  "workflow.rejected": { label: "駁回申請 Rejected request",     icon: "❌", color: "#DC2626" },
+  "member.invite":     { label: "邀請成員 Invited member",       icon: "📧", color: "#D97706" },
+  "member.remove":     { label: "移除成員 Removed member",       icon: "👤", color: "#DC2626" },
+  "member.role_change":{ label: "變更角色 Changed role",         icon: "🔄", color: "#D97706" },
+  "team.member.add":   { label: "加入群組 Added to group",       icon: "👥", color: "#059669" },
+  "team.member.remove":{ label: "移出群組 Removed from group",   icon: "👥", color: "#DC2626" },
+  // Usage log actions (AI/system events)
+  "chat.query":        { label: "AI 查詢 AI query",             icon: "💬", color: "#EC4899" },
+  "document.search":   { label: "搜尋文件 Searched documents",   icon: "🔍", color: "#6366F1" },
+  "compliance.check":  { label: "合規檢查 Compliance check",     icon: "🛡️", color: "#059669" },
+  "export.download":   { label: "匯出資料 Exported data",        icon: "📥", color: "#D97706" },
+  "login":             { label: "登入 Login",                    icon: "🔐", color: "#6B7280" },
   "doc.create": { label: "建立文件 Created doc", icon: "📄", color: "#059669" },
   "doc.update": { label: "更新文件 Updated doc", icon: "✏️", color: "#2563EB" },
   "doc.delete": { label: "刪除文件 Deleted doc", icon: "🗑️", color: "#DC2626" },
@@ -26,14 +44,11 @@ const actionLabels: Record<string, { label: string; icon: string; color: string 
   "folder.delete": { label: "刪除資料夾 Deleted folder", icon: "🗑️", color: "#DC2626" },
   "project.create": { label: "建立專案 Created project", icon: "🎯", color: "#059669" },
   "project.delete": { label: "刪除專案 Deleted project", icon: "🗑️", color: "#DC2626" },
-  "member.invite": { label: "邀請成員 Invited member", icon: "👤", color: "#7C3AED" },
-  "member.remove": { label: "移除成員 Removed member", icon: "👤", color: "#DC2626" },
   "api_key.create": { label: "建立 API 金鑰 Created API key", icon: "🔑", color: "#D97706" },
   "api_key.revoke": { label: "撤銷 API 金鑰 Revoked API key", icon: "🔑", color: "#DC2626" },
   "comment.create": { label: "新增留言 Added comment", icon: "💬", color: "#2563EB" },
   "template.create": { label: "建立範本 Created template", icon: "📋", color: "#059669" },
   "agent.action": { label: "AI 代理操作 Agent action", icon: "🤖", color: "#EC4899" },
-  "login": { label: "登入 Logged in", icon: "🔓", color: "#059669" },
   "logout": { label: "登出 Logged out", icon: "🔒", color: "#6B7280" },
 };
 

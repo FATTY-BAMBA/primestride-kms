@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { logAudit } from "@/lib/audit-log";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserOrganization } from "@/lib/get-user-organization";
@@ -209,6 +210,13 @@ export async function POST(request: NextRequest) {
     }
 
     logUsage({ organization_id: membership.organization_id, user_id: userId, action: "workflow.submit", resource_type: "workflow", metadata: { form_type } });
+    logAudit({
+      organizationId: membership.organization_id,
+      userId,
+      action: "workflow.submit",
+      targetType: "workflow",
+      details: `Submitted ${form_type} request`,
+    }).catch(() => {});
 
     return NextResponse.json({ submission: data }, { status: 201 });
   } catch {

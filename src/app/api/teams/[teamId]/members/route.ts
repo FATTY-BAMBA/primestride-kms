@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { logAudit } from "@/lib/audit-log";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -116,6 +117,16 @@ export async function POST(
       console.error("Error adding team members:", error);
       return NextResponse.json({ error: "Failed to add members" }, { status: 500 });
     }
+
+    // ✅ Audit log
+    logAudit({
+      organizationId: membership.organization_id,
+      userId,
+      action: "team.member.add",
+      targetType: "team",
+      targetId: teamId,
+      details: `Added ${validUserIds.length} member(s) to team`,
+    }).catch(() => {});
 
     return NextResponse.json({ 
       message: `${validUserIds.length} member(s) added to team`,
