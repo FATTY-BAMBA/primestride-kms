@@ -117,13 +117,13 @@ export async function POST(req: NextRequest) {
     }
 
     const membership = await getUserOrganization(userId);
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    if (!membership || membership.role !== "owner") {
+      return NextResponse.json({ error: "Owner access required" }, { status: 403 });
     }
 
     const body = await req.json();
     const {
-      organization_id,        // target org (admin can set for any org if owner)
+      organization_id,        // target org (owner can set for any org)
       plan_id,                // 'explorer', 'team', 'pilot', 'enterprise'
       trial_days,             // number of trial days (e.g., 90 for pilot)
       tax_id,                 // 統一編號
@@ -207,8 +207,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     const membership = await getUserOrganization(userId);
-    if (!membership || !["owner", "admin"].includes(membership.role)) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    if (!membership || membership.role !== "owner") {
+      return NextResponse.json({ error: "Owner access required" }, { status: 403 });
     }
 
     const body = await req.json();

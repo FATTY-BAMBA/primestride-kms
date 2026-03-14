@@ -256,6 +256,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
+    // ── Plan limit check ──
+    const orgId = membership.organization_id;
+    const { data: sub } = await supabase
+      .from("organization_subscriptions")
+      .select("*, subscription_plans(max_documents)")
+      .eq("organization_id", orgId)
+      .single();
+
+    const maxDocs: number = sub?.subscription_plans?.max_documents ?? 50; // explorer default
+
+    if (maxDocs !== -1) { // -1 = unlimited (team/enterprise)
+      const { count } = await supabase
+        .from("documents")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId);
+
+      if ((count ?? 0) >= maxDocs) {
+        return NextResponse.json({
+          error: "Document limit reached",
+          error_code: "PLAN_LIMIT_DOCUMENTS",
+          current: count,
+          limit: maxDocs,
+          message: `您的方案上限為 ${maxDocs} 份文件。請升級方案以繼續上傳。`,
+          message_en: `Your plan allows up to ${maxDocs} documents. Please upgrade to upload more.`,
+        }, { status: 403 });
+      }
+    }
+
     const body = await request.json();
     const {
       docId: manualDocId,

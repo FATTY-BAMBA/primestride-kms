@@ -48,7 +48,7 @@ export default function OnboardingPage() {
   // If user already has an active org, redirect to library
   useEffect(() => {
     if (organization) {
-      router.replace("/library");
+      router.replace("/home");
     }
   }, [organization, router]);
 
@@ -58,7 +58,7 @@ export default function OnboardingPage() {
       const firstOrg = userMemberships.data[0].organization;
       if (setActive) {
         setActive({ organization: firstOrg.id }).then(() => {
-          router.replace("/library");
+          router.replace("/home");
         });
       }
     }
@@ -98,13 +98,25 @@ export default function OnboardingPage() {
 
       // Small delay to let Clerk session update, then hard redirect
       await new Promise(resolve => setTimeout(resolve, 1000));
-      window.location.href = "/library";
+      window.location.href = "/home";
     } catch (err: any) {
       console.error("Failed to create organization:", err);
       setError(err.message || "建立組織失敗，請重試 Failed to create organization");
       setCreating(false);
     }
   };
+
+  // Show minimal loading while Clerk initializes
+  if (!isLoaded) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0e17", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #2563eb, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 auto 16px" }}>P</div>
+          <div style={{ color: "#64748b", fontSize: 14 }}>載入中 Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0e17", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>

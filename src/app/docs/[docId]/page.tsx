@@ -105,7 +105,7 @@ export default function DocPage() {
     <ProtectedRoute>
       <main className="container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 14 }}>
+          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#6B7280", fontSize: 14 }}>
             <span>←</span>
             <span>Back to Library</span>
           </Link>
@@ -117,7 +117,7 @@ export default function DocPage() {
         {!loading && !doc && (
           <div className="card">
             <h1 style={{ marginBottom: 12 }}>Document not found</h1>
-            <p style={{ color: "var(--text-secondary)" }}>
+            <p style={{ color: "#6B7280" }}>
               The document ID &quot;{docId}&quot; doesn&apos;t exist.
             </p>
             <Link href="/" className="btn" style={{ marginTop: 16 }}>Return to Library</Link>
@@ -146,7 +146,7 @@ export default function DocPage() {
                 )}
                 <div>
                   <div style={{ fontWeight: 500, fontSize: 14 }}>{profile?.full_name || "User"}</div>
-                  <div style={{ fontSize: 13, color: "var(--text-muted)" }}>{user?.email}</div>
+                  <div style={{ fontSize: 13, color: "#9CA3AF" }}>{user?.email}</div>
                 </div>
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function DocPage() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                 <div>
                   <h3 style={{ fontSize: 16, marginBottom: 4 }}>📄 View Document</h3>
-                  <p style={{ color: "var(--text-secondary)", fontSize: 14, margin: 0 }}>
+                  <p style={{ color: "#6B7280", fontSize: 14, margin: 0 }}>
                     Opens in a new tab. Return here to provide feedback.
                   </p>
                 </div>
@@ -169,8 +169,8 @@ export default function DocPage() {
               <h3 style={{ fontSize: 16, marginBottom: 16 }}>💡 How did this document help you?</h3>
 
               {feedbackSubmitted ? (
-                <div style={{ background: "var(--accent-green-soft)", border: "1px solid var(--accent-green)", borderRadius: "var(--radius-md)", padding: 16, textAlign: "center" }}>
-                  <p style={{ color: "var(--accent-green)", fontWeight: 500 }}>✓ Feedback recorded — thank you!</p>
+                <div style={{ background: "#D1FAE5", border: "1px solid #059669", borderRadius: "8px", padding: 16, textAlign: "center" }}>
+                  <p style={{ color: "#059669", fontWeight: 500 }}>✓ Feedback recorded — thank you!</p>
                   <button onClick={() => setFeedbackSubmitted(false)} className="btn" style={{ marginTop: 12 }}>
                     Submit More Feedback
                   </button>
@@ -189,7 +189,7 @@ export default function DocPage() {
                     </button>
                   </div>
                   <div>
-                    <label style={{ display: "block", marginBottom: 8, fontSize: 14, color: "var(--text-secondary)" }}>
+                    <label style={{ display: "block", marginBottom: 8, fontSize: 14, color: "#6B7280" }}>
                       Optional: What was unclear or could be improved?
                     </label>
                     <textarea
@@ -207,9 +207,9 @@ export default function DocPage() {
                 <div style={{
                   marginTop: 16,
                   padding: 12,
-                  borderRadius: "var(--radius-md)",
-                  background: statusType === "success" ? "var(--accent-green-soft)" : statusType === "error" ? "var(--accent-red-soft)" : "var(--bg-secondary)",
-                  color: statusType === "success" ? "var(--accent-green)" : statusType === "error" ? "var(--accent-red)" : "var(--text-secondary)",
+                  borderRadius: "8px",
+                  background: statusType === "success" ? "#D1FAE5" : statusType === "error" ? "#FEE2E2" : "#F3F4F6",
+                  color: statusType === "success" ? "#059669" : statusType === "error" ? "#DC2626" : "#6B7280",
                   fontSize: 14,
                 }}>
                   {statusMsg}
@@ -217,7 +217,7 @@ export default function DocPage() {
               )}
             </div>
 
-            <p style={{ marginTop: 24, fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
+            <p style={{ marginTop: 24, fontSize: 13, color: "#9CA3AF", textAlign: "center" }}>
               Feedback is logged per document version. Weekly updates will bump the version based on patterns.
             </p>
           </div>

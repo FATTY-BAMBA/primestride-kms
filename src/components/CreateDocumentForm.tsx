@@ -269,6 +269,10 @@ export default function UploadPage() {
       const createData = await createRes.json();
 
       if (!createRes.ok) {
+        // Special handling for plan limit
+        if (createData.error_code === "PLAN_LIMIT_DOCUMENTS") {
+          throw new Error(`📦 文件上限已達 (${createData.current}/${createData.limit})。請升級方案以繼續上傳。`);
+        }
         throw new Error(createData.error || "Failed to create document");
       }
 
