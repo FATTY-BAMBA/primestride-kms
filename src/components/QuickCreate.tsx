@@ -77,15 +77,9 @@ export default function QuickCreate({ onCreateFolder, isAdmin }: QuickCreateProp
           <div style={{
             position: "absolute", top: "calc(100% + 6px)", right: 0,
             background: "white", borderRadius: 12, border: "1px solid #E5E7EB",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 240,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)", minWidth: 220,
             zIndex: 50, overflow: "hidden", animation: "fadeIn 0.15s ease-out",
           }}>
-
-            {/* ── IMPORT section ── */}
-            <div style={{ padding: "10px 16px 4px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Import
-            </div>
-
             <Link href="/library/new" onClick={() => setOpen(false)} style={itemStyle}
               onMouseEnter={(e) => hover(e, true)} onMouseLeave={(e) => hover(e, false)}>
               {iconBubble("linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)", "📂")}
@@ -95,8 +89,7 @@ export default function QuickCreate({ onCreateFolder, isAdmin }: QuickCreateProp
               </div>
             </Link>
 
-            <button onClick={() => { setOpen(false); setShowUrlModal(true); }}
-              style={{ ...itemStyle, borderBottom: "none" }}
+            <button onClick={() => { setOpen(false); setShowUrlModal(true); }} style={itemStyle}
               onMouseEnter={(e) => hover(e, true)} onMouseLeave={(e) => hover(e, false)}>
               {iconBubble("linear-gradient(135deg, #2563EB 0%, #60A5FA 100%)", "🔗")}
               <div>
@@ -105,19 +98,11 @@ export default function QuickCreate({ onCreateFolder, isAdmin }: QuickCreateProp
               </div>
             </button>
 
-            {/* ── Divider ── */}
-            <div style={{ height: 1, background: "#F3F4F6", margin: "4px 0" }} />
-
-            {/* ── CREATE section ── */}
-            <div style={{ padding: "4px 16px 4px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Create
-            </div>
-
             <Link href="/library/note/new" onClick={() => setOpen(false)} style={itemStyle}
               onMouseEnter={(e) => hover(e, true)} onMouseLeave={(e) => hover(e, false)}>
               {iconBubble("linear-gradient(135deg, #10B981 0%, #34D399 100%)", "📝")}
               <div>
-                <div style={{ fontWeight: 600 }}>Blank Document</div>
+                <div style={{ fontWeight: 600 }}>New Note</div>
                 <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Write freely, auto-saved</div>
               </div>
             </Link>
@@ -128,7 +113,7 @@ export default function QuickCreate({ onCreateFolder, isAdmin }: QuickCreateProp
               {iconBubble("linear-gradient(135deg, #EC4899 0%, #F472B6 100%)", "📋")}
               <div>
                 <div style={{ fontWeight: 600 }}>From Template</div>
-                <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Pick a pre-built structure</div>
+                <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }}>Pre-built structures like SOPs, reports, meeting notes</div>
               </div>
             </button>
           </div>

@@ -1,5 +1,6 @@
 "use client";
 
+// Note: page-level title is set via document.title in useEffect since this is a client component
 import QuickCreate from "@/components/QuickCreate";
 import Link from "next/link";
 import { useEffect, useState, Suspense, useCallback } from "react";
@@ -565,6 +566,10 @@ function LibraryContent() {
   const [filterDomain, setFilterDomain] = useState("");
   const [filterTag, setFilterTag] = useState("");
 
+  useEffect(() => {
+    document.title = "Library — Atlas EIP";
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -646,6 +651,12 @@ function LibraryContent() {
 
   const isAdvancedSearchActive = searchMode !== "browse" || searchResults.length > 0;
 
+  const totalFeedback = docs.reduce(
+    (sum, d) =>
+      sum + d.feedback_counts.helped + d.feedback_counts.not_confident + d.feedback_counts.didnt_help,
+    0
+  );
+
   // Filter docs by folder and basic search (browse mode)
   const filteredDocs = docs
     .filter(d => !folderFilter || d.folder_id === folderFilter)
@@ -708,6 +719,10 @@ function LibraryContent() {
               <span className="text-2xl font-semibold text-slate-900">{docs.length}</span>
               <span className="text-sm text-slate-500">Documents</span>
             </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-semibold text-blue-600">{totalFeedback}</span>
+              <span className="text-sm text-slate-500">Feedback</span>
+            </div>
             {folders.length > 0 && (
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-semibold text-amber-500">{folders.length}</span>
@@ -733,8 +748,8 @@ function LibraryContent() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder={
-                  searchMode === "semantic"
-                    ? "Search by meaning... e.g. 'how to handle overtime'"
+                  searchMode === "semantic" 
+                    ? "Search by meaning... e.g. 'how to handle overtime'" 
                     : searchMode === "hybrid"
                     ? "Search by keyword + meaning..."
                     : searchMode === "keyword"
@@ -755,7 +770,7 @@ function LibraryContent() {
                 }}
               />
               {searchQuery && (
-                <button
+                <button 
                   onClick={clearSearch}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
@@ -764,14 +779,26 @@ function LibraryContent() {
               )}
             </div>
 
-            {/* Search mode toggle — Hybrid / Keyword / Semantic only */}
+            {/* Search mode toggle */}
             <div className="flex rounded-lg border border-slate-200 overflow-hidden flex-shrink-0">
+              <button
+                onClick={() => { setSearchMode("browse"); setSearchResults([]); }}
+                className={cn(
+                  "px-3 py-2 text-xs font-medium transition-all flex items-center gap-1.5",
+                  searchMode === "browse" 
+                    ? "bg-slate-900 text-white" 
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Browse
+              </button>
               <button
                 onClick={() => setSearchMode("hybrid")}
                 className={cn(
-                  "px-3 py-2 text-xs font-medium transition-all flex items-center gap-1.5",
-                  searchMode === "hybrid"
-                    ? "bg-violet-600 text-white"
+                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
+                  searchMode === "hybrid" 
+                    ? "bg-violet-600 text-white" 
                     : "bg-white text-slate-600 hover:bg-slate-50"
                 )}
               >
@@ -782,8 +809,8 @@ function LibraryContent() {
                 onClick={() => setSearchMode("keyword")}
                 className={cn(
                   "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
-                  searchMode === "keyword"
-                    ? "bg-blue-600 text-white"
+                  searchMode === "keyword" 
+                    ? "bg-blue-600 text-white" 
                     : "bg-white text-slate-600 hover:bg-slate-50"
                 )}
               >
@@ -794,8 +821,8 @@ function LibraryContent() {
                 onClick={() => setSearchMode("semantic")}
                 className={cn(
                   "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
-                  searchMode === "semantic"
-                    ? "bg-purple-600 text-white"
+                  searchMode === "semantic" 
+                    ? "bg-purple-600 text-white" 
                     : "bg-white text-slate-600 hover:bg-slate-50"
                 )}
               >
@@ -804,9 +831,9 @@ function LibraryContent() {
               </button>
             </div>
 
-            {/* Search button — shows when a mode is actively selected and query exists */}
+            {/* Search button (for AI modes) */}
             {searchMode !== "browse" && (
-              <Button
+              <Button 
                 onClick={handleAdvancedSearch}
                 disabled={searchLoading || !searchQuery.trim()}
                 className="bg-violet-600 hover:bg-violet-700 gap-2 flex-shrink-0"
@@ -1026,6 +1053,15 @@ function LibraryContent() {
           <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
             <FolderKanban className="w-4 h-4 text-slate-400" />
             Folders
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreateFolder(true)}
+                className="ml-auto p-1 rounded-md text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                title="New folder"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {folders.map((f) => {
