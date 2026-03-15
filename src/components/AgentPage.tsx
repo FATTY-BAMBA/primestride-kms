@@ -81,10 +81,10 @@ export default function AgentPage() {
             background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 20, boxShadow: "0 2px 8px rgba(124, 58, 237, 0.3)",
-          }}>🤖</div>
+          }}>⚡</div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: "#111827", lineHeight: 1.2 }}>Atlas Agent</div>
-            <div style={{ fontSize: 12, color: "#9CA3AF" }}>建立、整理、分析 · Create, organize, analyze</div>
+            <div style={{ fontSize: 12, color: "#9CA3AF" }}>管理員專用 · Admin Tool · 文件自動化</div>
           </div>
         </div>
 
@@ -111,12 +111,14 @@ export default function AgentPage() {
                 background: "linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 40, boxShadow: "0 4px 20px rgba(124, 58, 237, 0.25)",
-              }}>🤖</div>
+              }}>⚡</div>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
                 需要我幫你做什麼？
               </h2>
               <p style={{ fontSize: 15, color: "#6B7280", maxWidth: 480, margin: "0 auto 32px", lineHeight: 1.6 }}>
-                I can create documents, organize folders, auto-tag content, summarize, and analyze data — all through natural language.
+                管理員專用：建立範本、整理資料夾、批次標記、摘要分析。<br />
+                員工查詢公司政策請改用「搜尋」頁面。
+                <br /><span style={{ fontSize: 13, color: "#9CA3AF" }}>Admin tool: create templates, organize, tag &amp; summarize. Employees → use Ask Atlas.</span>
               </p>
 
               {/* Action-oriented suggestions */}
@@ -164,7 +166,7 @@ export default function AgentPage() {
                   : "linear-gradient(135deg, #7C3AED, #EC4899)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "white", fontSize: 14,
-              }}>{msg.role === "user" ? "👤" : "🤖"}</div>
+              }}>{msg.role === "user" ? "👤" : "⚡"}</div>
 
               <div style={{
                 maxWidth: "80%", padding: "14px 18px", borderRadius: 14,
@@ -226,7 +228,7 @@ export default function AgentPage() {
                 background: "linear-gradient(135deg, #7C3AED, #EC4899)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "white", fontSize: 14,
-              }}>🤖</div>
+              }}>⚡</div>
               <div style={{
                 padding: "14px 18px", borderRadius: 14, background: "white",
                 border: "1px solid #E5E7EB", fontSize: 14, color: "#9CA3AF",
