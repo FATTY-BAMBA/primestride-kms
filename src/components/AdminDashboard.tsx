@@ -63,76 +63,6 @@ const fieldLabels: Record<string, string> = {
   destination: "地點", purpose: "目的", transport: "交通", budget: "預算", accommodation: "住宿",
 };
 
-// ── Coverage Warning Component ──
-// Fetches and displays teammates also on leave during the same period
-function CoverageWarning({ submissionId, formType }: { submissionId: string; formType: string }) {
-  const [data, setData] = useState<{
-    teammates_off: { name: string; start_date: string; end_date: string; leave_type: string; days: number }[];
-    team_names: string[];
-    date_range?: { start: string; end: string };
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (formType !== "leave") { setLoading(false); return; }
-    fetch(`/api/workflows/coverage?submission_id=${submissionId}`)
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [submissionId, formType]);
-
-  if (loading || formType !== "leave") return null;
-  if (!data || data.teammates_off.length === 0) return null;
-
-  const count = data.teammates_off.length;
-  const teamLabel = data.team_names.length > 0 ? data.team_names.join("、") : "組織";
-
-  return (
-    <div style={{
-      margin: "8px 0",
-      padding: "10px 14px",
-      background: "#FFFBEB",
-      border: "1px solid #FCD34D",
-      borderLeft: "4px solid #F59E0B",
-      borderRadius: "0 8px 8px 0",
-      display: "flex",
-      flexDirection: "column",
-      gap: 6,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 16 }}>⚠️</span>
-        <div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>
-            人力覆蓋提醒
-          </span>
-          <span style={{ fontSize: 12, color: "#B45309", marginLeft: 6 }}>
-            同期 {teamLabel} 有 {count} 位同仁也在請假
-          </span>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {data.teammates_off.map((t, i) => (
-          <div key={i} style={{
-            padding: "3px 10px",
-            background: "white",
-            border: "1px solid #FCD34D",
-            borderRadius: 6,
-            fontSize: 11,
-            color: "#92400E",
-            fontWeight: 600,
-          }}>
-            {t.name}
-            <span style={{ fontWeight: 400, color: "#B45309", marginLeft: 4 }}>
-              {t.start_date}{t.end_date !== t.start_date ? `→${t.end_date}` : ""} · {t.days}天
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function AdminDashboard() {
   const [tab, setTab] = useState<"overview" | "pending" | "employees" | "compliance">("overview");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -149,15 +79,21 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState("");
   const [empSearch, setEmpSearch] = useState("");
   const [empSort, setEmpSort] = useState<"name" | "pending" | "leave" | "overtime">("name");
+  const [shadowRisks, setShadowRisks] = useState<any[]>([]);
+  const [subsidies, setSubsidies] = useState<any[]>([]);
+  const [subsidySummary, setSubsidySummary] = useState<any>(null);
+  const [showSubsidyDetail, setShowSubsidyDetail] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [subRes, allSubRes, empRes, compRes] = await Promise.all([
+      const [subRes, allSubRes, empRes, compRes, shadowRes, subsidyRes] = await Promise.all([
         fetch("/api/workflows?view=all&status=pending"),
         fetch("/api/workflows?view=all"),
         fetch("/api/admin/employees"),
         fetch("/api/compliance/sync"),
+        fetch("/api/shadow-audit"),
+        fetch("/api/subsidy-hunter"),
       ]);
       const subData = await subRes.json();
       setSubmissions(subData.submissions || []);
@@ -173,6 +109,17 @@ export default function AdminDashboard() {
       if (compRes.ok) {
         const compData = await compRes.json();
         setComplianceStatus(compData);
+      }
+
+      if (shadowRes.ok) {
+        const shadowData = await shadowRes.json();
+        setShadowRisks(shadowData.risks || []);
+      }
+
+      if (subsidyRes.ok) {
+        const subsidyData = await subsidyRes.json();
+        setSubsidies(subsidyData.subsidies || []);
+        setSubsidySummary(subsidyData.summary || null);
       }
     } catch {} finally { setLoading(false); }
   };
@@ -417,13 +364,158 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Overtime Alert (if high) */}
-          {thisMonthOvertime > 100 && (
-            <div style={{ background: "#FEF2F2", borderRadius: 12, border: "1px solid #FECACA", padding: 16, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 24 }}>🚨</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#991B1B" }}>加班時數偏高</div>
-                <div style={{ fontSize: 12, color: "#DC2626" }}>本月全公司加班 {thisMonthOvertime} 小時。請關注是否有員工超過46小時月上限。</div>
+          {/* ═══ SHADOW AUDIT — Overtime Risk Monitor ═══ */}
+          {shadowRisks.length > 0 && (
+            <div style={{ background: "white", borderRadius: 12, border: "1px solid #FECACA", marginBottom: 16, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", background: "#FEF2F2", borderBottom: "1px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>🔍</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#991B1B" }}>
+                      Shadow Audit — 加班風險預警
+                    </div>
+                    <div style={{ fontSize: 11, color: "#DC2626" }}>
+                      {shadowRisks.filter(r => r.risk_level === "critical").length} 名員工超標 · {shadowRisks.filter(r => r.risk_level === "warning").length} 名員工接近上限
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: "#9CA3AF", padding: "3px 8px", background: "white", borderRadius: 4, border: "1px solid #FECACA" }}>
+                  依 LSA Art. 32 即時監控
+                </div>
+              </div>
+              <div style={{ padding: "10px 16px", display: "grid", gap: 8 }}>
+                {shadowRisks.map(risk => (
+                  <div key={risk.user_id} style={{
+                    padding: "10px 14px", borderRadius: 8,
+                    background: risk.risk_level === "critical" ? "#FEF2F2" : "#FFFBEB",
+                    border: `1px solid ${risk.risk_level === "critical" ? "#FECACA" : "#FCD34D"}`,
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                      background: risk.risk_level === "critical" ? "#FEE2E2" : "#FEF3C7",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 14, fontWeight: 700,
+                      color: risk.risk_level === "critical" ? "#DC2626" : "#D97706",
+                    }}>
+                      {risk.name[0]?.toUpperCase() || "?"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+                        {risk.name}
+                        <span style={{
+                          marginLeft: 8, padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700,
+                          background: risk.risk_level === "critical" ? "#FEE2E2" : "#FEF3C7",
+                          color: risk.risk_level === "critical" ? "#DC2626" : "#D97706",
+                        }}>
+                          {risk.risk_level === "critical" ? "🚨 超標" : "⚠️ 接近上限"}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, color: "#6B7280" }}>
+                          本月 <strong style={{ color: risk.monthly_hours >= 46 ? "#DC2626" : "#111827" }}>{risk.monthly_hours}h</strong> / 46h
+                        </span>
+                        <span style={{ fontSize: 11, color: "#6B7280" }}>
+                          近3月 <strong style={{ color: risk.quarterly_hours >= 138 ? "#DC2626" : "#111827" }}>{risk.quarterly_hours}h</strong> / 138h
+                        </span>
+                        {risk.monthly_remaining > 0 && (
+                          <span style={{ fontSize: 11, color: "#6B7280" }}>
+                            本月剩餘 <strong>{risk.monthly_remaining}h</strong>
+                          </span>
+                        )}
+                      </div>
+                      {risk.alerts.map((alert: any, i: number) => (
+                        <div key={i} style={{ fontSize: 11, color: risk.risk_level === "critical" ? "#991B1B" : "#92400E", marginBottom: 2 }}>
+                          {alert.message_zh}
+                          <span style={{
+                            marginLeft: 6, padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 600,
+                            background: "white", border: `1px solid ${risk.risk_level === "critical" ? "#FECACA" : "#FCD34D"}`,
+                            color: risk.risk_level === "critical" ? "#DC2626" : "#D97706", cursor: "pointer",
+                          }}>
+                            📖 {alert.law}
+                            {alert.fine && ` · 罰款 ${alert.fine}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ═══ SUBSIDY HUNTER ═══ */}
+          {subsidies.length > 0 && (
+            <div style={{ background: "white", borderRadius: 12, border: "1px solid #BBF7D0", marginBottom: 16, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", background: "linear-gradient(135deg, #F0FDF4, #ECFDF5)", borderBottom: "1px solid #BBF7D0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>💰</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#065F46" }}>
+                      補助獵人 Subsidy Hunter — {subsidies.length} 項可申請補助
+                    </div>
+                    <div style={{ fontSize: 11, color: "#059669" }}>
+                      最高可申請 NT${subsidySummary?.total_potential_nt?.toLocaleString() || "—"} 政府補助
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 10, color: "#059669", padding: "3px 8px", background: "white", borderRadius: 4, border: "1px solid #BBF7D0" }}>
+                  自動掃描
+                </span>
+              </div>
+              <div style={{ padding: "10px 16px", display: "grid", gap: 8 }}>
+                {subsidies.map(sub => (
+                  <div key={sub.id} style={{
+                    padding: "12px 14px", borderRadius: 8,
+                    background: sub.urgency === "high" ? "#F0FDF4" : "#F9FAFB",
+                    border: `1px solid ${sub.urgency === "high" ? "#BBF7D0" : "#E5E7EB"}`,
+                    cursor: "pointer",
+                  }} onClick={() => setShowSubsidyDetail(showSubsidyDetail === sub.id ? null : sub.id)}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <span style={{ fontSize: 20, flexShrink: 0 }}>{sub.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 4 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>
+                            {sub.name_zh}
+                            {sub.urgency === "high" && (
+                              <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700, background: "#D1FAE5", color: "#065F46" }}>
+                                高優先
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: "#059669" }}>{sub.amount}</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>{sub.description_zh}</div>
+                        {showSubsidyDetail === sub.id && (
+                          <div style={{ marginTop: 8, padding: "8px 10px", background: "white", borderRadius: 6, border: "1px solid #E5E7EB" }}>
+                            <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>
+                              📅 <strong>截止：</strong>{sub.deadline}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>
+                              🏛️ <strong>主管機關：</strong>{sub.source}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#059669", marginBottom: 4 }}>
+                              ✅ <strong>行動：</strong>{sub.action_zh}
+                            </div>
+                            {sub.eligible_employees && sub.eligible_employees.length > 0 && (
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", marginBottom: 4 }}>符合資格員工：</div>
+                                {sub.eligible_employees.map((emp: any) => (
+                                  <div key={emp.user_id} style={{ fontSize: 11, color: "#6B7280", padding: "3px 6px", background: "#F9FAFB", borderRadius: 4, marginBottom: 2 }}>
+                                    👤 {emp.name} — {emp.reason}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: "#9CA3AF", marginTop: 4 }}>
+                          {showSubsidyDetail === sub.id ? "▲ 收合" : "▼ 查看詳情"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -491,8 +583,6 @@ export default function AdminDashboard() {
                       </div>
                     ))}
                   </div>
-                  {/* Coverage warning — only for leave requests */}
-                  <CoverageWarning submissionId={s.id} formType={s.form_type} />
                   {s.original_text && (
                     <div style={{ fontSize: 11, color: "#6B7280", padding: "4px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
                   )}
