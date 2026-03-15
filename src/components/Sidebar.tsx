@@ -45,6 +45,7 @@ export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [lang, setLang] = useState<"zh" | "en">("zh");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [branding, setBranding] = useState<{ 
     org_name?: string; 
@@ -60,6 +61,7 @@ export default function Sidebar({ children }: SidebarProps) {
       .then(r => r.json())
       .then(d => {
         if (d.role && ["owner", "admin"].includes(d.role)) setIsAdmin(true);
+        if (d.language) setLang(d.language);
       })
       .catch(() => {});
     fetch("/api/branding")
@@ -137,8 +139,7 @@ export default function Sidebar({ children }: SidebarProps) {
         {!collapsed && (
           <span className="flex-1 flex items-center justify-between">
             <span>
-              {link.label}
-              <span className="text-slate-400 font-normal ml-1.5 text-xs">{link.labelEn}</span>
+              {lang === "zh" ? link.label : link.labelEn}
             </span>
             {showBadge && (
               <span className="min-w-5 h-5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center px-1.5">
@@ -187,14 +188,14 @@ export default function Sidebar({ children }: SidebarProps) {
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-4 px-3">
-        <SectionHeader title="主要功能 Main" />
+        <SectionHeader title={lang === "zh" ? "主要功能" : "MAIN"} />
         <div className="space-y-0.5 mb-4">
           {mainLinks.map((link) => (
             <NavLink key={link.href} link={link} />
           ))}
         </div>
 
-        <SectionHeader title="分析 Analytics" />
+        <SectionHeader title={lang === "zh" ? "分析" : "ANALYTICS"} />
         <div className="space-y-0.5 mb-4">
           {analyticsLinks.map((link) => (
             <NavLink key={link.href} link={link} />
@@ -203,7 +204,7 @@ export default function Sidebar({ children }: SidebarProps) {
 
         {isAdmin && (
           <>
-            <SectionHeader title="管理 Admin" />
+            <SectionHeader title={lang === "zh" ? "管理" : "ADMIN"} />
             <div className="space-y-0.5">
               {adminLinks.map((link) => (
                 <NavLink key={link.href} link={link} />
