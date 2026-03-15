@@ -34,8 +34,8 @@ type RollupResponse = {
 function SummaryCard({ label, value, color }: { label: string; value: number | string; color?: string }) {
   return (
     <div className="card">
-      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: color || "var(--text-primary)" }}>{value}</div>
+      <div style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: color || "#111827" }}>{value}</div>
     </div>
   );
 }
@@ -99,7 +99,7 @@ export default function LearningPage() {
                 </div>
                 <h1 style={{ margin: 0 }}>Learning Dashboard</h1>
               </div>
-              <p style={{ color: "var(--text-secondary)", margin: 0 }}>
+              <p style={{ color: "#6B7280", margin: 0 }}>
                 Feedback analytics per document — identify what needs improvement
               </p>
             </div>
@@ -118,8 +118,8 @@ export default function LearningPage() {
         {loading && <div className="loading">Loading learning data...</div>}
 
         {err && (
-          <div className="card" style={{ borderColor: "var(--accent-red)", background: "var(--accent-red-soft)" }}>
-            <p style={{ color: "var(--accent-red)", margin: 0 }}>Error: {err}</p>
+          <div className="card" style={{ borderColor: "#DC2626", background: "#FEE2E2" }}>
+            <p style={{ color: "#DC2626", margin: 0 }}>Error: {err}</p>
             <button onClick={loadDashboard} className="btn" style={{ marginTop: 12 }}>
               Retry
             </button>
@@ -131,26 +131,26 @@ export default function LearningPage() {
             {/* Summary Cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 32 }}>
               <SummaryCard label="📄 Total Documents" value={data.summary.totalDocs} />
-              <SummaryCard label="💬 Total Feedback" value={data.summary.totalFeedback} color="var(--accent-blue)" />
-              <SummaryCard label="👍 Helpful" value={data.summary.helpful} color="var(--accent-green)" />
-              <SummaryCard label="👎 Not Helpful" value={data.summary.notHelpful} color="var(--accent-red)" />
+              <SummaryCard label="💬 Total Feedback" value={data.summary.totalFeedback} color="#2563EB" />
+              <SummaryCard label="👍 Helpful" value={data.summary.helpful} color="#059669" />
+              <SummaryCard label="👎 Not Helpful" value={data.summary.notHelpful} color="#DC2626" />
               <SummaryCard
                 label="📈 Helpfulness Rate"
                 value={overallRate !== null ? `${overallRate}%` : "—"}
                 color={
                   overallRate === null
-                    ? "var(--text-muted)"
+                    ? "#9CA3AF"
                     : overallRate >= 70
-                    ? "var(--accent-green)"
+                    ? "#059669"
                     : overallRate >= 40
-                    ? "var(--accent-yellow)"
-                    : "var(--accent-red)"
+                    ? "#D97706"
+                    : "#DC2626"
                 }
               />
             </div>
 
             <h2 style={{ fontSize: 18, marginBottom: 16 }}>Documents Ranked by Need for Improvement</h2>
-            <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: -12, marginBottom: 16 }}>
+            <p style={{ color: "#9CA3AF", fontSize: 13, marginTop: -12, marginBottom: 16 }}>
               Documents with the most negative feedback appear first
             </p>
 
@@ -202,18 +202,18 @@ export default function LearningPage() {
                   <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 14, marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span>💬</span>
-                      <span style={{ color: "var(--text-muted)" }}>Total:</span>
+                      <span style={{ color: "#9CA3AF" }}>Total:</span>
                       <span style={{ fontWeight: 600 }}>{d.counts.totalFeedback}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span>👍</span>
-                      <span style={{ color: "var(--text-muted)" }}>Helpful:</span>
-                      <span style={{ fontWeight: 600, color: "var(--accent-green)" }}>{d.counts.helpful}</span>
+                      <span style={{ color: "#9CA3AF" }}>Helpful:</span>
+                      <span style={{ fontWeight: 600, color: "#059669" }}>{d.counts.helpful}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span>👎</span>
-                      <span style={{ color: "var(--text-muted)" }}>Not helpful:</span>
-                      <span style={{ fontWeight: 600, color: "var(--accent-red)" }}>{d.counts.notHelpful}</span>
+                      <span style={{ color: "#9CA3AF" }}>Not helpful:</span>
+                      <span style={{ fontWeight: 600, color: "#DC2626" }}>{d.counts.notHelpful}</span>
                     </div>
                   </div>
 
@@ -225,7 +225,7 @@ export default function LearningPage() {
                           width: "100%",
                           height: 8,
                           borderRadius: 4,
-                          background: "var(--bg-secondary)",
+                          background: "#F9FAFB",
                           overflow: "hidden",
                           display: "flex",
                         }}
@@ -251,16 +251,16 @@ export default function LearningPage() {
                   )}
 
                   {/* Negative Comments */}
-                  <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 16 }}>
+                  <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 16 }}>
                     <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>💬 Negative Feedback Comments</div>
                     {d.topNotes.length === 0 ? (
-                      <p style={{ color: "var(--text-muted)", fontSize: 14, margin: 0 }}>
+                      <p style={{ color: "#9CA3AF", fontSize: 14, margin: 0 }}>
                         No negative comments yet — looking good!
                       </p>
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: 20 }}>
                         {d.topNotes.map((n, idx) => (
-                          <li key={idx} style={{ marginBottom: 8, color: "var(--text-secondary)", fontSize: 14 }}>
+                          <li key={idx} style={{ marginBottom: 8, color: "#6B7280", fontSize: 14 }}>
                             {n}
                           </li>
                         ))}
@@ -273,7 +273,7 @@ export default function LearningPage() {
 
             {data.documents.length === 0 && (
               <div className="card" style={{ textAlign: "center", padding: 40 }}>
-                <p style={{ color: "var(--text-muted)" }}>No documents found. Create documents and collect feedback to see analytics.</p>
+                <p style={{ color: "#9CA3AF" }}>No documents found. Create documents and collect feedback to see analytics.</p>
               </div>
             )}
           </div>

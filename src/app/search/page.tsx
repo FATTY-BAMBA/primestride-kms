@@ -96,6 +96,8 @@ export default function SearchPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [docCount, setDocCount] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -105,6 +107,14 @@ export default function SearchPage() {
 
   useEffect(() => {
     inputRef.current?.focus();
+    // Check if org has documents
+    Promise.all([
+      fetch("/api/learning-summary").then(r => r.json()),
+      fetch("/api/profile").then(r => r.json()),
+    ]).then(([docs, profile]) => {
+      setDocCount(docs.documents?.length ?? 0);
+      setIsAdmin(["owner", "admin"].includes(profile.role || ""));
+    }).catch(() => {});
   }, []);
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -232,6 +242,34 @@ export default function SearchPage() {
                 alignItems: "center", justifyContent: "center",
                 textAlign: "center", padding: "40px 20px",
               }}>
+                {/* No documents warning — shown to members when org has no docs */}
+                {docCount === 0 && (
+                  <div style={{
+                    width: "100%", maxWidth: 480, marginBottom: 32,
+                    padding: "16px 20px", background: "#FFFBEB",
+                    border: "1px solid #FCD34D", borderRadius: 12,
+                    textAlign: "left",
+                  }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#92400E", marginBottom: 6 }}>
+                      📭 {isAdmin ? "知識庫尚無文件" : "知識庫尚無文件"}
+                    </div>
+                    <div style={{ fontSize: 13, color: "#B45309", lineHeight: 1.6 }}>
+                      {isAdmin
+                        ? <>Atlas 需要文件才能回答問題。請先前往 <a href="/library" style={{ color: "#7C3AED", fontWeight: 600 }}>文件庫</a> 上傳員工手冊或公司規章。<br /><span style={{ color: "#9CA3AF" }}>Ask Atlas needs documents to answer questions. Upload your employee handbook to the Library first.</span></>
+                        : <>管理員尚未上傳任何文件。請聯絡您的管理員上傳員工手冊。<br /><span style={{ color: "#9CA3AF" }}>Your admin hasn&apos;t uploaded any documents yet. Ask your admin to upload the employee handbook.</span></>
+                      }
+                    </div>
+                    {isAdmin && (
+                      <a href="/library" style={{
+                        display: "inline-block", marginTop: 12, padding: "8px 16px",
+                        background: "#7C3AED", color: "white", borderRadius: 8,
+                        fontSize: 13, fontWeight: 600, textDecoration: "none",
+                      }}>
+                        前往上傳文件 →
+                      </a>
+                    )}
+                  </div>
+                )}
                 <div style={{
                   width: 80, height: 80, borderRadius: 20, marginBottom: 24,
                   background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",

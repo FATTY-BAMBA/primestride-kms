@@ -27,6 +27,8 @@ type DashboardData = {
   full_name: string;
   org_name: string;
   language: "zh" | "en";
+  trialDaysRemaining: number;
+  planId: string;
 };
 
 function timeAgo(dateStr: string) {
@@ -56,7 +58,8 @@ export default function DashboardPage() {
       fetch("/api/org-members").then(r => r.json()),
       fetch("/api/branding").then(r => r.json()),
       fetch("/api/organizations").then(r => r.json()),
-    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs]) => {
+      fetch("/api/subscription").then(r => r.json()),
+    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs, sub]) => {
       // org name priority: branding custom name → actual org name → fallback
       const actualOrgName = orgs.organizations?.[0]?.name || "";
       const orgName = branding.branding?.org_name || actualOrgName || (profile.language === "zh" ? "貴公司" : "your organization");
@@ -73,6 +76,8 @@ export default function DashboardPage() {
         full_name: profile.full_name || profile.email?.split("@")[0] || "there",
         org_name: orgName,
         language: profile.language || "en",
+        trialDaysRemaining: sub.trial_days_remaining || 0,
+        planId: sub.subscription?.plan_id || "explorer",
       });
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -137,6 +142,70 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* Getting Started — shown only when org has no docs yet */}
+              {isAdmin && data && data.totalDocs === 0 && (
+                <div className="lg:col-span-3 bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-xl p-5 mb-2">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-xl">🚀</span>
+                    <div>
+                      <h2 className="text-sm font-bold text-violet-900">
+                        {isZh ? "歡迎使用 Atlas EIP！完成以下步驟開始使用" : "Welcome to Atlas EIP! Complete these steps to get started"}
+                      </h2>
+                      <p className="text-xs text-violet-600 mt-0.5">
+                        {isZh ? "只需幾分鐘，讓您的團隊開始享受 AI 驅動的工作流程" : "Just a few minutes to unlock AI-powered workflows for your team"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      {
+                        step: "1",
+                        icon: "📚",
+                        title: isZh ? "上傳員工手冊" : "Upload Employee Handbook",
+                        desc: isZh ? "上傳公司規章，Atlas AI 自動建立知識庫" : "Upload company policies — Atlas AI builds your knowledge base",
+                        href: "/library",
+                        cta: isZh ? "前往文件庫 →" : "Go to Library →",
+                        done: false,
+                      },
+                      {
+                        step: "2",
+                        icon: "👥",
+                        title: isZh ? "邀請團隊成員" : "Invite Your Team",
+                        desc: isZh ? "邀請員工加入，讓他們用自然語言提交申請" : "Invite employees to submit requests in natural language",
+                        href: "/team",
+                        cta: isZh ? "邀請成員 →" : "Invite Members →",
+                        done: (data?.memberCount || 0) > 1,
+                      },
+                      {
+                        step: "3",
+                        icon: "💬",
+                        title: isZh ? "提交第一筆申請" : "Submit First Request",
+                        desc: isZh ? "用一句話請假或申請加班，體驗 AI 自動填寫" : "Submit leave or overtime in one sentence — AI fills the form",
+                        href: "/workflows",
+                        cta: isZh ? "試試看 →" : "Try it →",
+                        done: false,
+                      },
+                    ].map((item) => (
+                      <a key={item.step} href={item.href}
+                        className="flex gap-3 p-3 bg-white rounded-lg border border-violet-100 hover:border-violet-300 hover:shadow-sm transition-all group no-underline"
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${item.done ? "bg-emerald-100 text-emerald-700" : "bg-violet-100 text-violet-700"}`}>
+                          {item.done ? "✓" : item.step}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-base">{item.icon}</span>
+                            <span className="text-xs font-semibold text-slate-800">{item.title}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed mb-2">{item.desc}</p>
+                          <span className="text-xs text-violet-600 font-semibold group-hover:text-violet-800">{item.cta}</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Quick Actions */}
               <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -259,6 +328,50 @@ export default function DashboardPage() {
                 >
                   {isZh ? "查看表單" : "View forms"}
                 </Link>
+              </div>
+            )}
+
+            {/* Trial expiry banner */}
+            {isAdmin && data && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 30 && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">⏳</span>
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800">
+                      {isZh
+                        ? `試用期還剩 ${data.trialDaysRemaining} 天`
+                        : `Your trial ends in ${data.trialDaysRemaining} days`}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      {isZh ? "聯絡我們繼續使用完整功能" : "Contact us to continue with full access"}
+                    </p>
+                  </div>
+                </div>
+                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約"
+                  className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors no-underline">
+                  {isZh ? "聯絡我們" : "Contact Us"}
+                </a>
+              </div>
+            )}
+
+            {/* Trial expired banner */}
+            {isAdmin && data && data.planId === "explorer" && data.trialDaysRemaining === 0 && (
+              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">🔒</span>
+                  <div>
+                    <p className="text-sm font-semibold text-red-800">
+                      {isZh ? "試用期已結束" : "Your trial has ended"}
+                    </p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      {isZh ? "升級至付費方案以繼續使用完整功能" : "Upgrade to continue with full access"}
+                    </p>
+                  </div>
+                </div>
+                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案"
+                  className="flex-shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors no-underline">
+                  {isZh ? "升級方案" : "Upgrade Plan"}
+                </a>
               </div>
             )}
           </>

@@ -237,20 +237,20 @@ export default function WorkflowsPage() {
   const meta = parsedType ? formMeta[parsedType] : null;
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 16px" }}>
+    <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 12px 80px 12px" }}>
       {message && <div style={{ padding: "10px 16px", borderRadius: 10, background: message.includes("✅") ? "#D1FAE5" : "#FEE2E2", color: message.includes("✅") ? "#065F46" : "#991B1B", fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{message}</div>}
 
       {/* ═══ STATS ═══ */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 16 }}>
         {[
           { label: "待審核", val: stats.pending, color: "#D97706", bg: "#FEF3C7" },
           { label: "本月核准", val: stats.approved_this_month, color: "#059669", bg: "#D1FAE5" },
           { label: "本月駁回", val: stats.rejected_this_month, color: "#DC2626", bg: "#FEE2E2" },
           { label: "本月總計", val: stats.total_this_month, color: "#6B7280", bg: "#F3F4F6" },
         ].map(s => (
-          <div key={s.label} style={{ padding: "14px 16px", background: s.bg, borderRadius: 10, textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
-            <div style={{ fontSize: 12, color: s.color, opacity: 0.8 }}>{s.label}</div>
+          <div key={s.label} style={{ padding: "10px 8px", background: s.bg, borderRadius: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.val}</div>
+            <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -259,7 +259,7 @@ export default function WorkflowsPage() {
       {leaveBalance && (
         <div style={{ padding: 16, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", marginBottom: 20 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 12 }}>🏖️ 假期餘額 {new Date().getFullYear()}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 6 }}>
             {[
               { label: "特休 Annual", used: leaveBalance.annual_used, total: leaveBalance.annual_total, color: "#7C3AED", tag: "有薪 Paid", tagColor: "#059669" },
               { label: "病假 Sick", used: leaveBalance.sick_used, total: leaveBalance.sick_total, color: "#2563EB", tag: "半薪 Half-Pay", tagColor: "#D97706" },
@@ -327,7 +327,7 @@ export default function WorkflowsPage() {
               placeholder="例如：我下週一到週三要請特休，因為要回南部探親..."
               rows={3}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleParse(); } }}
-              style={{ width: "100%", padding: "14px 16px", paddingRight: 100, border: "1.5px solid #E5E7EB", borderRadius: 12, fontSize: 15, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box", transition: "border-color 0.2s", fontFamily: "inherit" }}
+              style={{ width: "100%", padding: "14px 16px", paddingRight: 90, border: "1.5px solid #E5E7EB", borderRadius: 12, fontSize: 15, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box", transition: "border-color 0.2s", fontFamily: "inherit", WebkitTextSizeAdjust: "100%" }}
               onFocus={(e) => e.currentTarget.style.borderColor = "#7C3AED"}
               onBlur={(e) => e.currentTarget.style.borderColor = "#E5E7EB"}
             />
@@ -568,7 +568,7 @@ export default function WorkflowsPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6, marginBottom: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 5, marginBottom: 10 }}>
                   {Object.entries(s.form_data).map(([key, value]) => (
                     <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
                       <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
