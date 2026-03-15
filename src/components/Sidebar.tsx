@@ -120,14 +120,14 @@ export default function Sidebar({ children }: SidebarProps) {
           collapsed ? "justify-center" : "justify-start",
           active 
             ? "bg-violet-50 text-violet-700 font-medium" 
-            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         )}
         title={collapsed ? `${link.label} ${link.labelEn}` : undefined}
       >
         <span className="relative">
           <Icon className={cn(
             "w-4 h-4 flex-shrink-0",
-            active ? "text-violet-600" : "text-slate-400 group-hover:text-slate-600"
+            active ? "text-violet-600" : "text-slate-400 group-hover:text-slate-700"
           )} />
           {showBadge && collapsed && (
             <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
@@ -248,7 +248,7 @@ export default function Sidebar({ children }: SidebarProps) {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            className="absolute top-5 -right-3 w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:bg-slate-50 text-slate-500"
+            className="absolute top-5 -right-3 w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm hover:bg-slate-100 text-slate-500"
           >
             <ChevronRight className="w-3 h-3" />
           </button>
