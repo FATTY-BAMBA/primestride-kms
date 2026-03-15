@@ -42,6 +42,8 @@ function SummaryCard({ label, value, color }: { label: string; value: number | s
 
 export default function LearningPage() {
   const [data, setData] = useState<RollupResponse | null>(null);
+  const [lang, setLang] = useState<"zh" | "en">("zh");
+  const t = (zh: string, en: string) => lang === "zh" ? zh : en;
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export default function LearningPage() {
     setErr(null);
 
     try {
+      fetch("/api/profile").then(r => r.json()).then(d => { if (d.language) setLang(d.language); }).catch(() => {});
       const res = await fetch("/api/learning-rollup");
       const json = await res.json();
       if (!res.ok) {
@@ -130,10 +133,10 @@ export default function LearningPage() {
           <div>
             {/* Summary Cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 32 }}>
-              <SummaryCard label="📄 Total Documents" value={data.summary.totalDocs} />
-              <SummaryCard label="💬 Total Feedback" value={data.summary.totalFeedback} color="#2563EB" />
-              <SummaryCard label="👍 Helpful" value={data.summary.helpful} color="#059669" />
-              <SummaryCard label="👎 Not Helpful" value={data.summary.notHelpful} color="#DC2626" />
+              <SummaryCard label={t("📄 文件總數", "📄 Total Documents")} value={data.summary.totalDocs} color="#A78BFA" />
+              <SummaryCard label={t("💬 回饋總數", "💬 Total Feedback")} value={data.summary.totalFeedback} color="#2563EB" />
+              <SummaryCard label={t("👍 有幫助", "👍 Helpful")} value={data.summary.helpful} color="#059669" />
+              <SummaryCard label={t("👎 無幫助", "👎 Not Helpful")} value={data.summary.notHelpful} color="#DC2626" />
               <SummaryCard
                 label="📈 Helpfulness Rate"
                 value={overallRate !== null ? `${overallRate}%` : "—"}

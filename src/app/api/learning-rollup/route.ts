@@ -118,14 +118,13 @@ export async function GET(req: Request) {
     // 5) Global summary
     const summary = rollups.reduce(
       (acc, d) => {
-        acc.totalDocs += 1;
         acc.totalFeedback += d.counts.totalFeedback;
         acc.helpful += d.counts.helpful;
         acc.notHelpful += d.counts.notHelpful;
         return acc;
       },
       {
-        totalDocs: 0,
+        totalDocs: docRecords.length,  // actual total, not just docs with feedback
         totalFeedback: 0,
         helpful: 0,
         notHelpful: 0,
