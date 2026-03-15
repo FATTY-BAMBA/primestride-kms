@@ -93,7 +93,11 @@ AVAILABLE ACTIONS (respond with JSON array of actions):
    params: {} (no params needed)
    USE THIS when user asks about: subsidies, 補助, 政府補助, grants, 申請補助, eligible benefits, 可申請
 
-10. REPLY — Just reply with text (no action needed)
+10. ANALYZE_TRENDS — Analyze leave and overtime submission trends from real data
+    params: {} (no params needed)
+    USE THIS when user asks about: trends, 趨勢, 分析, analyze submissions, 申請分析, 近3個月, last 3 months, leave patterns, overtime patterns, 請假趨勢, 加班趨勢, 勞工申請
+
+11. REPLY — Just reply with text (no action needed)
     params: { message }
 
 CURRENT ORGANIZATION CONTEXT:
@@ -452,6 +456,19 @@ RULES:
               if (hasTaxId) lines.push(`  ✅ 統一編號已登記，符合申請資格`);
               lines.push("申請所需文件：系統導入合約、費用單據、成效說明書");
               lines.push("申請窗口：2026年3月（本月）及9月 | 主管機關：經濟部商業發展署");
+              lines.push("🔗 申請連結：https://gcis.nat.gov.tw/mainNew/subclassNAction.do?method=getFile&pk=636");
+              lines.push("");
+
+              // ── Subsidy 1b: T-Cloud 雲市集 — 50% software cost subsidy ──
+              found++;
+              lines.push("☁️ T-Cloud 雲市集數位點數補助 🔴 高優先");
+              lines.push("金額：最高 NT$30,000 數位點數（折抵軟體費用50%）");
+              lines.push("符合原因：");
+              lines.push(`  ✅ ${companyName} 使用符合資格的雲端 AI 軟體服務`);
+              lines.push("  ✅ 政府補助50%訂閱費用，實質降低 Atlas EIP 導入成本");
+              lines.push("  ✅ 適用中小企業，申請門檻低");
+              lines.push("申請窗口：全年度開放 | 主管機關：經濟部中小及新創企業署");
+              lines.push("🔗 申請連結：https://tcloud.nat.gov.tw");
               lines.push("");
 
               // ── Subsidy 2: Training for employees approaching 1-year ──
@@ -466,6 +483,7 @@ RULES:
                 lines.push("  ✅ 可申請 AI 工具、數位辦公、軟體操作等培訓課程補助");
                 lines.push("  ⏰ 需在年資達成後3個月內提出申請，請勿錯過");
                 lines.push("申請窗口：年資達成後3個月內 | 主管機關：勞動力發展署");
+                lines.push("🔗 申請連結：https://www.wda.gov.tw/News_Training.aspx");
                 lines.push("");
               }
 
@@ -481,8 +499,22 @@ RULES:
                 if (industry) lines.push(`  ✅ 產業別：${industry}，符合數位化轉型訓練補助範圍`);
                 lines.push("建議用途：AI 工具操作培訓、勞動法規教育訓練、數位管理技能");
                 lines.push("申請窗口：全年度開放，按季申請 | 主管機關：勞動部勞動力發展署");
+                lines.push("🔗 申請連結：https://ojt.wda.gov.tw");
                 lines.push("");
               }
+
+              // ── Subsidy 3b: Taipei SITI — if registered in Taipei ──
+              // Note: We show this as advisory since we don't store city data yet
+              found++;
+              lines.push("🏙️ 台北市產業發展補助 (SITI) 🟡 中優先");
+              lines.push("金額：最高 NT$1,000,000–5,000,000（研發/品牌/新創）");
+              lines.push("符合原因（如登記於台北市）：");
+              lines.push(`  ✅ ${companyName} 若設籍台北市，可申請台北市產業局補助`);
+              lines.push("  ✅ 涵蓋：研發費用、品牌推廣、新創加速等項目");
+              lines.push("  ℹ️ 請確認公司登記地址是否在台北市");
+              lines.push("申請窗口：依計畫公告 | 主管機關：台北市政府產業發展局");
+              lines.push("🔗 申請連結：https://www.siti.taipei");
+              lines.push("");
 
               // ── Subsidy 4: Workplace safety (50+ employees) ──
               if (memberCount >= 50) {
@@ -507,6 +539,12 @@ RULES:
               if (soonSeniority.length > 0) lines.push("  2. 數位轉型培訓補助 — 追蹤年資到達日期，及時申請");
               lines.push("  如需協助準備申請文件或填寫申請表，請直接告訴我。");
               lines.push("");
+              lines.push("💡 額外提醒：");
+              lines.push("  若公司員工使用 Atlas 申請彈性育嬰假（按日請假），");
+              lines.push("  雇主每日可向勞保局申請 NT$1,000 友善家庭雇主獎勵。");
+              lines.push("  Atlas 可自動偵測符合條件的申請並協助草擬請領文件。");
+              lines.push("  🔗 勞保局：https://www.bli.gov.tw");
+              lines.push("");
               lines.push("---");
               lines.push("⚠️ 免責聲明：以上補助資訊依據 2026 年度已知方案整理，實際資格與金額以各主管機關公告為準。建議申請前諮詢專業勞資顧問或直接洽詢主管機關確認。");
               lines.push("Disclaimer: Based on known 2026 programs. Verify with the relevant agency or a labor affairs consultant before applying.");
@@ -515,6 +553,112 @@ RULES:
               results.push(header + lines.join("\n"));
             } catch (e: any) {
               results.push(`Subsidy Hunter 執行失敗：${e?.message || "未知錯誤"}`);
+            }
+            break;
+          }
+
+          case "ANALYZE_TRENDS": {
+            try {
+              const now3 = new Date();
+              const threeMonthsAgo = new Date(now3.getFullYear(), now3.getMonth() - 2, 1).toISOString();
+              const monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+
+              const { data: recentSubs } = await supabase
+                .from("workflow_submissions")
+                .select("form_type, status, form_data, created_at, submitter_name, submitted_by")
+                .eq("organization_id", orgId)
+                .gte("created_at", threeMonthsAgo)
+                .order("created_at", { ascending: false });
+
+              const subs = recentSubs || [];
+              if (subs.length === 0) {
+                results.push("📊 近3個月內尚無申請紀錄。\n\nNo submissions found in the past 3 months.");
+                break;
+              }
+
+              // Group by month
+              const byMonth: Record<string, { leave: number; overtime: number; business_trip: number; total: number }> = {};
+              const byType: Record<string, number> = { leave: 0, overtime: 0, business_trip: 0 };
+              const byStatus: Record<string, number> = { pending: 0, approved: 0, rejected: 0 };
+              const byPerson: Record<string, number> = {};
+              const leaveTypes: Record<string, number> = {};
+
+              for (const s of subs) {
+                const d = new Date(s.created_at);
+                const key = `${d.getFullYear()}/${monthNames[d.getMonth()]}`;
+                if (!byMonth[key]) byMonth[key] = { leave: 0, overtime: 0, business_trip: 0, total: 0 };
+                byMonth[key][s.form_type as keyof typeof byMonth[string]] = (byMonth[key][s.form_type as keyof typeof byMonth[string]] as number || 0) + 1;
+                byMonth[key].total++;
+                byType[s.form_type] = (byType[s.form_type] || 0) + 1;
+                byStatus[s.status] = (byStatus[s.status] || 0) + 1;
+                const name = s.submitter_name || s.submitted_by?.slice(0, 12) || "未知";
+                byPerson[name] = (byPerson[name] || 0) + 1;
+                if (s.form_type === "leave" && s.form_data?.leave_type) {
+                  leaveTypes[s.form_data.leave_type] = (leaveTypes[s.form_data.leave_type] || 0) + 1;
+                }
+              }
+
+              const approvalRate = subs.length > 0
+                ? Math.round(((byStatus.approved || 0) / subs.length) * 100)
+                : 0;
+
+              const topPersons = Object.entries(byPerson)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+
+              const topLeaveTypes = Object.entries(leaveTypes)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+
+              const lines: string[] = [];
+              lines.push("📊 近3個月勞工申請趨勢分析");
+              lines.push(`分析期間：${threeMonthsAgo.slice(0,7)} → ${now3.toISOString().slice(0,7)}`);
+              lines.push(`總申請件數：${subs.length} 件`);
+              lines.push("");
+
+              lines.push("── 按月份分佈 ──");
+              for (const [month, data] of Object.entries(byMonth)) {
+                lines.push(`${month}：共 ${data.total} 件（請假 ${data.leave}、加班 ${data.overtime}、出差 ${data.business_trip}）`);
+              }
+              lines.push("");
+
+              lines.push("── 申請類型 ──");
+              lines.push(`請假 Leave：${byType.leave || 0} 件 (${Math.round(((byType.leave||0)/subs.length)*100)}%)`);
+              lines.push(`加班 Overtime：${byType.overtime || 0} 件 (${Math.round(((byType.overtime||0)/subs.length)*100)}%)`);
+              lines.push(`出差 Business Trip：${byType.business_trip || 0} 件 (${Math.round(((byType.business_trip||0)/subs.length)*100)}%)`);
+              lines.push("");
+
+              lines.push("── 審核狀況 ──");
+              lines.push(`✅ 核准：${byStatus.approved || 0} 件 | ⏳ 待審：${byStatus.pending || 0} 件 | ❌ 駁回：${byStatus.rejected || 0} 件`);
+              lines.push(`整體核准率：${approvalRate}%`);
+              lines.push("");
+
+              if (topPersons.length > 0) {
+                lines.push("── 申請最多員工 Top 3 ──");
+                topPersons.forEach(([name, count], i) => {
+                  lines.push(`${i+1}. ${name}：${count} 件`);
+                });
+                lines.push("");
+              }
+
+              if (topLeaveTypes.length > 0) {
+                lines.push("── 最常見請假類型 ──");
+                topLeaveTypes.forEach(([type, count]) => {
+                  lines.push(`${type}：${count} 件`);
+                });
+                lines.push("");
+              }
+
+              // Insights
+              lines.push("── 洞察 Insights ──");
+              if ((byStatus.pending || 0) > 3) lines.push(`⚠️ 目前有 ${byStatus.pending} 件待審核，建議盡快處理`);
+              if (approvalRate < 80) lines.push(`⚠️ 核准率偏低（${approvalRate}%），建議檢視駁回原因`);
+              if ((byType.overtime || 0) > (byType.leave || 0)) lines.push("📈 加班申請多於請假申請，注意員工工時是否過高");
+              if (approvalRate >= 90) lines.push("✅ 核准率良好，申請流程運作順暢");
+
+              results.push(lines.join("\n"));
+            } catch (e: any) {
+              results.push(`趨勢分析執行失敗：${e?.message || "未知錯誤"}`);
             }
             break;
           }
