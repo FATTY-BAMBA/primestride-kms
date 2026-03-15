@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Library, 
+  Library,
+  Home,
   FolderKanban, 
   Bot, 
   Search, 
@@ -74,6 +75,7 @@ export default function Sidebar({ children }: SidebarProps) {
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const mainLinks: LinkItem[] = [
+    { href: "/home", icon: Home, label: "首頁", labelEn: "Home" },
     { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
     // { href: "/projects", icon: FolderKanban, label: "專案", labelEn: "Projects" }, // Hidden until pilots validate need
     { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent" },

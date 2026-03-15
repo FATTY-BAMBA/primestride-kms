@@ -163,14 +163,23 @@ export async function GET() {
       return sum;
     }, 0);
 
+    // Add disclaimer to each subsidy
+    const subsidiesWithDisclaimer = subsidies.map(s => ({
+      ...s,
+      disclaimer_zh: "以上資訊依據 2026 年度已知方案整理，實際資格與金額以主管機關公告為準。建議申請前諮詢勞資顧問。",
+      disclaimer_en: "Based on known 2026 programs. Verify eligibility with the relevant agency or a labor affairs consultant before applying.",
+    }));
+
     return NextResponse.json({
-      subsidies,
+      subsidies: subsidiesWithDisclaimer,
+      disclaimer_zh: "補助資訊依據 2026 年度方案整理，非官方資料。請申請前諮詢專業勞資顧問或直接洽詢主管機關。",
+      disclaimer_en: "Subsidy information is based on known 2026 programs and is not official government data. Consult a labor affairs consultant or contact the relevant agency before applying.",
       summary: {
         total_found: subsidies.length,
         high_urgency: subsidies.filter(s => s.urgency === "high").length,
         total_potential_nt: totalPotential,
         member_count: memberCount,
-        scanned_at: now.toISOString(),
+          scanned_at: now.toISOString(),
       },
     });
   } catch (err: any) {
