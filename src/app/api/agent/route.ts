@@ -386,21 +386,38 @@ RULES:
             try {
               const now2 = new Date();
 
-              const { data: members2 } = await supabase
-                .from("organization_members")
-                .select("user_id, joined_at")
-                .eq("organization_id", orgId)
-                .eq("is_active", true);
+              // Fetch members + org metadata in parallel
+              const [memberRes, orgMetaRes, docsRes] = await Promise.all([
+                supabase
+                  .from("organization_members")
+                  .select("user_id, joined_at")
+                  .eq("organization_id", orgId)
+                  .eq("is_active", true),
+                supabase
+                  .from("organization_metadata")
+                  .select("company_name, company_size, industry, tax_id")
+                  .eq("organization_id", orgId)
+                  .single(),
+                supabase
+                  .from("documents")
+                  .select("doc_id", { count: "exact", head: true })
+                  .eq("organization_id", orgId),
+              ]);
 
-              const memberCount = (members2 || []).length;
-              const uids2 = (members2 || []).map((m: any) => m.user_id);
+              const members2 = memberRes.data || [];
+              const orgMeta = orgMetaRes.data;
+              const memberCount = members2.length;
+              const docCount = docsRes.count || 0;
+
+              const uids2 = members2.map((m: any) => m.user_id);
               const { data: profiles2 } = await supabase
                 .from("profiles").select("id, full_name, email").in("id", uids2);
               const pMap2 = new Map((profiles2 || []).map((p: any) => [
                 p.id, p.full_name || p.email?.split("@")[0] || p.id.slice(0, 12)
               ]));
 
-              const soonSeniority = (members2 || []).filter((m: any) => {
+              // Employees approaching 1-year seniority (within 60 days)
+              const soonSeniority = members2.filter((m: any) => {
                 if (!m.joined_at) return false;
                 const oneYear = new Date(m.joined_at);
                 oneYear.setFullYear(oneYear.getFullYear() + 1);
@@ -408,52 +425,93 @@ RULES:
                 return days >= 0 && days <= 60;
               });
 
+              // Employees with > 1 year seniority (already eligible)
+              const seniorEmployees = members2.filter((m: any) => {
+                if (!m.joined_at) return false;
+                const oneYear = new Date(m.joined_at);
+                oneYear.setFullYear(oneYear.getFullYear() + 1);
+                return now2 >= oneYear;
+              });
+
+              const companyName = orgMeta?.company_name || "貴公司";
+              const industry = orgMeta?.industry || "";
+              const size = orgMeta?.company_size || "";
+              const hasTaxId = !!orgMeta?.tax_id;
+
               const lines: string[] = [];
               let found = 0;
 
-              if (soonSeniority.length > 0) {
-                found++;
-                const names = soonSeniority.map((m: any) => pMap2.get(m.user_id) || m.user_id.slice(0, 12)).join("、");
-                lines.push("🎓 數位轉型人才培訓補助 🔴 高優先");
-                lines.push(`金額：NT$${(soonSeniority.length * 6000).toLocaleString()} 最高可申請`);
-                lines.push(`符合員工：${names}`);
-                lines.push("原因：即將達到1年年資，符合勞動力發展署培訓補助資格");
-                lines.push("截止：年資達成後3個月內 | 主管機關：勞動力發展署");
-                lines.push("");
-              }
-
-              if (memberCount >= 5) {
-                found++;
-                lines.push("💼 員工在職訓練補助 🟡 中優先");
-                lines.push("金額：訓練費用最高80%補助");
-                lines.push(`貴公司有 ${memberCount} 位員工，符合中小企業訓練補助資格。`);
-                lines.push("截止：全年度開放申請 | 主管機關：勞動部勞動力發展署");
-                lines.push("");
-              }
-
+              // ── Subsidy 1: Digital Transformation (MOEA) — always applicable with Atlas ──
               found++;
               lines.push("🏛️ 商業服務業智慧轉型補助 🔴 高優先");
               lines.push("金額：最高 NT$500,000");
-              lines.push("貴公司導入 AI 人資系統符合經濟部商業發展署補助條件。");
-              lines.push("截止：2026年申請窗口：3月及9月 | 主管機關：經濟部商業發展署");
+              lines.push("符合原因：");
+              lines.push(`  ✅ ${companyName} 已導入 Atlas EIP AI 人資管理系統`);
+              lines.push(`  ✅ 系統涵蓋：AI 自然語言請假、2026 勞基法合規引擎、RAG 知識庫`);
+              if (docCount > 0) lines.push(`  ✅ 已建立 ${docCount} 份數位化文件知識庫`);
+              if (hasTaxId) lines.push(`  ✅ 統一編號已登記，符合申請資格`);
+              lines.push("申請所需文件：系統導入合約、費用單據、成效說明書");
+              lines.push("申請窗口：2026年3月（本月）及9月 | 主管機關：經濟部商業發展署");
               lines.push("");
 
+              // ── Subsidy 2: Training for employees approaching 1-year ──
+              if (soonSeniority.length > 0) {
+                found++;
+                const names = soonSeniority.map((m: any) => pMap2.get(m.user_id) || "員工").join("、");
+                const maxAmount = soonSeniority.length * 6000;
+                lines.push("🎓 數位轉型人才培訓補助 🔴 高優先");
+                lines.push(`金額：最高 NT$${maxAmount.toLocaleString()}（每人 NT$6,000）`);
+                lines.push("符合原因：");
+                lines.push(`  ✅ ${soonSeniority.length} 位員工即將達到1年年資資格：${names}`);
+                lines.push("  ✅ 可申請 AI 工具、數位辦公、軟體操作等培訓課程補助");
+                lines.push("  ⏰ 需在年資達成後3個月內提出申請，請勿錯過");
+                lines.push("申請窗口：年資達成後3個月內 | 主管機關：勞動力發展署");
+                lines.push("");
+              }
+
+              // ── Subsidy 3: On-the-job training (5+ employees) ──
+              if (memberCount >= 5) {
+                found++;
+                const smeSizeLabel = memberCount <= 30 ? "微型企業（最高補助80%）" : memberCount <= 200 ? "中小企業（最高補助70%）" : "一般企業（最高補助60%）";
+                lines.push("💼 員工在職訓練補助 🟡 中優先");
+                lines.push("金額：訓練費用最高80%補助");
+                lines.push("符合原因：");
+                lines.push(`  ✅ ${companyName} 現有 ${memberCount} 位員工，屬 ${smeSizeLabel}`);
+                if (seniorEmployees.length > 0) lines.push(`  ✅ ${seniorEmployees.length} 位員工年資滿1年，可申請在職訓練補助`);
+                if (industry) lines.push(`  ✅ 產業別：${industry}，符合數位化轉型訓練補助範圍`);
+                lines.push("建議用途：AI 工具操作培訓、勞動法規教育訓練、數位管理技能");
+                lines.push("申請窗口：全年度開放，按季申請 | 主管機關：勞動部勞動力發展署");
+                lines.push("");
+              }
+
+              // ── Subsidy 4: Workplace safety (50+ employees) ──
               if (memberCount >= 50) {
                 found++;
                 lines.push("🛡️ 職場安全衛生改善補助 🟡 中優先");
                 lines.push("金額：最高 NT$100,000");
-                lines.push(`貴公司達50人規模，符合職場安全衛生改善補助資格。`);
-                lines.push("截止：每年1月及7月 | 主管機關：勞動部職業安全衛生署");
+                lines.push("符合原因：");
+                lines.push(`  ✅ ${companyName} 達 ${memberCount} 人規模，符合職安法補助門檻`);
+                lines.push("申請窗口：每年1月及7月 | 主管機關：勞動部職業安全衛生署");
                 lines.push("");
               }
 
-              lines.push("建議優先申請高優先項目。如需協助準備申請文件，請繼續告訴我。");
+              // ── Summary & next steps ──
+              const totalMax = (500000) +
+                (soonSeniority.length > 0 ? soonSeniority.length * 6000 : 0) +
+                (memberCount >= 50 ? 100000 : 0);
+
+              lines.push(`📊 合計最高可申請：NT$${totalMax.toLocaleString()}`);
+              lines.push("");
+              lines.push("建議立即行動：");
+              lines.push("  1. 商業服務業智慧轉型補助 — 本月（3月）是申請窗口，優先處理");
+              if (soonSeniority.length > 0) lines.push("  2. 數位轉型培訓補助 — 追蹤年資到達日期，及時申請");
+              lines.push("  如需協助準備申請文件或填寫申請表，請直接告訴我。");
               lines.push("");
               lines.push("---");
               lines.push("⚠️ 免責聲明：以上補助資訊依據 2026 年度已知方案整理，實際資格與金額以各主管機關公告為準。建議申請前諮詢專業勞資顧問或直接洽詢主管機關確認。");
               lines.push("Disclaimer: Based on known 2026 programs. Verify with the relevant agency or a labor affairs consultant before applying.");
 
-              const header = `💰 補助獵人 Subsidy Hunter 報告\n\n共發現 ${found} 項可申請補助\n\n`;
+              const header = `💰 補助獵人 Subsidy Hunter — ${companyName}\n\n共發現 ${found} 項符合資格的補助，合計最高 NT$${totalMax.toLocaleString()}\n\n`;
               results.push(header + lines.join("\n"));
             } catch (e: any) {
               results.push(`Subsidy Hunter 執行失敗：${e?.message || "未知錯誤"}`);
