@@ -100,18 +100,18 @@ export default function LearningPage() {
                 >
                   📊
                 </div>
-                <h1 style={{ margin: 0 }}>Learning Dashboard</h1>
+                <h1 style={{ margin: 0 }}>{t("學習分析儀表板", "Learning Dashboard")}</h1>
               </div>
               <p style={{ color: "#6B7280", margin: 0 }}>
-                Feedback analytics per document — identify what needs improvement
+                {t("每份文件的回饋分析 — 找出需要改善的地方", "Feedback analytics per document — identify what needs improvement")}
               </p>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <Link href="/" className="btn">
-                ← Library
+                {t("← 文件庫", "← Library")}
               </Link>
               <Link href="/admin" className="btn btn-primary">
-                Admin →
+                {t("管理 →", "Admin →")}
               </Link>
               <UserMenu />
             </div>
@@ -138,7 +138,7 @@ export default function LearningPage() {
               <SummaryCard label={t("👍 有幫助", "👍 Helpful")} value={data.summary.helpful} color="#059669" />
               <SummaryCard label={t("👎 無幫助", "👎 Not Helpful")} value={data.summary.notHelpful} color="#DC2626" />
               <SummaryCard
-                label="📈 Helpfulness Rate"
+                label={t("📈 有用率", "📈 Helpfulness Rate")}
                 value={overallRate !== null ? `${overallRate}%` : "—"}
                 color={
                   overallRate === null
@@ -154,7 +154,7 @@ export default function LearningPage() {
 
             <h2 style={{ fontSize: 18, marginBottom: 16 }}>Documents Ranked by Need for Improvement</h2>
             <p style={{ color: "#9CA3AF", fontSize: 13, marginTop: -12, marginBottom: 16 }}>
-              Documents with the most negative feedback appear first
+              {t("負面回饋最多的文件優先顯示", "Documents with the most negative feedback appear first")}
             </p>
 
             <div style={{ display: "grid", gap: 16 }}>
@@ -196,7 +196,7 @@ export default function LearningPage() {
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <Link href={`/library/${encodeURIComponent(d.doc_id)}`} className="btn">
-                        View →
+                        {t("查看 →", "View →")}
                       </Link>
                     </div>
                   </div>
@@ -205,17 +205,17 @@ export default function LearningPage() {
                   <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 14, marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span>💬</span>
-                      <span style={{ color: "#9CA3AF" }}>Total:</span>
+                      <span style={{ color: "#9CA3AF" }}>{t("總計：", "Total:")}</span>
                       <span style={{ fontWeight: 600 }}>{d.counts.totalFeedback}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span>👍</span>
-                      <span style={{ color: "#9CA3AF" }}>Helpful:</span>
+                      <span style={{ color: "#9CA3AF" }}>{t("有幫助：", "Helpful:")}</span>
                       <span style={{ fontWeight: 600, color: "#059669" }}>{d.counts.helpful}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span>👎</span>
-                      <span style={{ color: "#9CA3AF" }}>Not helpful:</span>
+                      <span style={{ color: "#9CA3AF" }}>{t("無幫助：", "Not helpful:")}</span>
                       <span style={{ fontWeight: 600, color: "#DC2626" }}>{d.counts.notHelpful}</span>
                     </div>
                   </div>
@@ -255,10 +255,10 @@ export default function LearningPage() {
 
                   {/* Negative Comments */}
                   <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 16 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>💬 Negative Feedback Comments</div>
+                    <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>{t("💬 負面回饋留言", "💬 Negative Feedback Comments")}</div>
                     {d.topNotes.length === 0 ? (
                       <p style={{ color: "#9CA3AF", fontSize: 14, margin: 0 }}>
-                        No negative comments yet — looking good!
+                        {t("尚無負面留言 — 表現良好！", "No negative comments yet — looking good!")}
                       </p>
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: 20 }}>
@@ -276,7 +276,7 @@ export default function LearningPage() {
 
             {data.documents.length === 0 && (
               <div className="card" style={{ textAlign: "center", padding: 40 }}>
-                <p style={{ color: "#9CA3AF" }}>No documents found. Create documents and collect feedback to see analytics.</p>
+                <p style={{ color: "#9CA3AF" }}>{t("尚無文件。請上傳文件並收集回饋後即可查看分析。", "No documents found. Create documents and collect feedback to see analytics.")}</p>
               </div>
             )}
           </div>
