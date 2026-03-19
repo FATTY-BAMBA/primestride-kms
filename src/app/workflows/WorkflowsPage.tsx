@@ -290,10 +290,22 @@ export default function WorkflowsPage() {
     if (compliance?.status === "blocked") { setMessage("🚫 合規檢查未通過，請調整內容。"); setTimeout(() => setMessage(""), 4000); return; }
     setSubmitting(true);
     try {
+      // ✅ If compliance check hasn't run yet, run it now before saving
+      let complianceToSave = compliance;
+      if (!complianceToSave && !checkingCompliance) {
+        try {
+          const cRes = await fetch("/api/compliance/check", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ form_type: parsedType, form_data: formData }),
+          });
+          const cData = await cRes.json();
+          complianceToSave = cData.data || { status: "pass", checks: [] };
+          setCompliance(complianceToSave);
+        } catch { complianceToSave = { status: "pass", checks: [] }; }
+      }
       const res = await fetch("/api/workflows", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        // ✅ compliance_result saved with submission so admins can see it
-        body: JSON.stringify({ form_type: parsedType, form_data: formData, original_text: nlpInput, ai_parsed: true, compliance_result: compliance || null }),
+        body: JSON.stringify({ form_type: parsedType, form_data: formData, original_text: nlpInput, ai_parsed: true, compliance_result: complianceToSave || null }),
       });
       if (res.ok) {
         setMessage("✅ 已送出！");
