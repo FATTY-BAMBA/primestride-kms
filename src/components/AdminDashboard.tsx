@@ -537,7 +537,7 @@ export default function AdminDashboard() {
       {!loading && tab === "pending" && (
         <div>
           {selectedIds.size > 0 && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, padding: "10px 16px", background: "#EDE9FE", borderRadius: 10, flexWrap: "wrap", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, padding: "10px 16px", background: "#EDE9FE", borderRadius: 10, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>已選 {selectedIds.size} 筆</span>
               <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="批次備註"
                 style={{ flex: 1, minWidth: 140, padding: "6px 10px", border: "1px solid #C4B5FD", borderRadius: 6, fontSize: 12, outline: "none" }} />
