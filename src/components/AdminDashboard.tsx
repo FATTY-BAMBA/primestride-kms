@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import ComplianceConflictScanner from "@/components/ComplianceConflictScanner";
+import { FormTemplate } from "@/components/FormTemplates";
 
 interface Submission {
   id: string;
@@ -89,6 +90,10 @@ export default function AdminDashboard() {
   const [subsidySummary, setSubsidySummary] = useState<any>(null);
   const [showSubsidyDetail, setShowSubsidyDetail] = useState<string | null>(null);
   const [expandedCompliance, setExpandedCompliance] = useState<string | null>(null);
+  const [templateView, setTemplateView] = useState<Set<string>>(new Set());
+  const toggleTemplate = (id: string) => {
+    const n = new Set(templateView); n.has(id) ? n.delete(id) : n.add(id); setTemplateView(n);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -238,7 +243,7 @@ export default function AdminDashboard() {
   }, [employees, empSearch, empSort]);
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 16px" }}>
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 12px" }}>
       {message && <div style={{ padding: "10px 16px", borderRadius: 10, background: message.includes("✅") ? "#D1FAE5" : "#FEE2E2", color: message.includes("✅") ? "#065F46" : "#991B1B", fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{message}</div>}
 
       {/* ═══ HEADER ═══ */}
@@ -274,7 +279,7 @@ export default function AdminDashboard() {
       {!loading && tab === "overview" && (
         <div>
           {/* Key Metrics */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
             {[
               { label: "待審核", val: pendingCount, icon: "📋", color: "#D97706", bg: "#FEF3C7", onClick: () => setTab("pending") },
               { label: "今日請假", val: onLeaveToday.length, icon: "🏖️", color: "#7C3AED", bg: "#EDE9FE", onClick: undefined  },
@@ -314,7 +319,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Quick Alerts */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 16 }}>
             {/* Pending Queue Preview */}
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -532,7 +537,7 @@ export default function AdminDashboard() {
       {!loading && tab === "pending" && (
         <div>
           {selectedIds.size > 0 && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, padding: "10px 16px", background: "#EDE9FE", borderRadius: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, padding: "10px 16px", background: "#EDE9FE", borderRadius: 10, flexWrap: "wrap", flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>已選 {selectedIds.size} 筆</span>
               <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="批次備註"
                 style={{ flex: 1, minWidth: 140, padding: "6px 10px", border: "1px solid #C4B5FD", borderRadius: 6, fontSize: 12, outline: "none" }} />
@@ -567,7 +572,7 @@ export default function AdminDashboard() {
                   border: isSelected ? "2px solid #7C3AED" : "1px solid #E5E7EB",
                   padding: 18, borderLeft: `4px solid ${ft?.color || "#6B7280"}`,
                 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(s.id)}
                         style={{ width: 18, height: 18, cursor: "pointer", accentColor: "#7C3AED" }} />
@@ -581,14 +586,30 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6, marginBottom: 10 }}>
-                    {Object.entries(s.form_data).map(([key, value]) => (
-                      <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
-                        <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
-                        <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{String(value || "—")}</div>
-                      </div>
-                    ))}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                    <button onClick={() => toggleTemplate(s.id)} style={{
+                      fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                      border: "1px solid #E5E7EB",
+                      background: templateView.has(s.id) ? "#EDE9FE" : "#F9FAFB",
+                      color: templateView.has(s.id) ? "#7C3AED" : "#6B7280",
+                    }}>
+                      {templateView.has(s.id) ? "📄 一般檢視" : "📋 切換表單格式"}
+                    </button>
                   </div>
+                  {templateView.has(s.id) ? (
+                    <div style={{ marginBottom: 10 }}>
+                      <FormTemplate submission={s} />
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6, marginBottom: 10 }}>
+                      {Object.entries(s.form_data).map(([key, value]) => (
+                        <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
+                          <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
+                          <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{String(value || "—")}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {s.original_text && (
                     <div style={{ fontSize: 11, color: "#6B7280", padding: "4px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
                   )}
@@ -848,7 +869,7 @@ export default function AdminDashboard() {
                 {syncing ? "⏳ 同步中..." : "🔄 立即同步"}
               </button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
               <div style={{ padding: 16, background: "#F8FAFC", borderRadius: 10, textAlign: "center" }}>
                 <div style={{ fontSize: 28, fontWeight: 800, color: "#7C3AED", fontFamily: "monospace" }}>{complianceStatus?.total_rules || 0}</div>
                 <div style={{ fontSize: 12, color: "#6B7280" }}>合規規則數</div>
