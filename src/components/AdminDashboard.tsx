@@ -88,6 +88,7 @@ export default function AdminDashboard() {
   const [subsidies, setSubsidies] = useState<any[]>([]);
   const [subsidySummary, setSubsidySummary] = useState<any>(null);
   const [showSubsidyDetail, setShowSubsidyDetail] = useState<string | null>(null);
+  const [expandedCompliance, setExpandedCompliance] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -591,40 +592,86 @@ export default function AdminDashboard() {
                   {s.original_text && (
                     <div style={{ fontSize: 11, color: "#6B7280", padding: "4px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
                   )}
-                  {/* ✅ Compliance summary — helps admin make informed review decision */}
-                  {s.compliance_result && (
-                    <div style={{
-                      margin: "0 0 10px 0", padding: "8px 12px", borderRadius: 8,
-                      background: s.compliance_result.status === "blocked" ? "#FEF2F2" : s.compliance_result.status === "warning" ? "#FFFBEB" : "#F0FDF4",
-                      border: `1px solid ${s.compliance_result.status === "blocked" ? "#FECACA" : s.compliance_result.status === "warning" ? "#FCD34D" : "#BBF7D0"}`,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 11 }}>
-                          {s.compliance_result.status === "blocked" ? "🚫" : s.compliance_result.status === "warning" ? "⚠️" : "✅"}
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: s.compliance_result.status === "blocked" ? "#991B1B" : s.compliance_result.status === "warning" ? "#92400E" : "#065F46" }}>
-                          {s.compliance_result.status === "blocked" ? "合規未通過" : s.compliance_result.status === "warning" ? "合規提醒" : "合規通過"}
-                          <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4, color: "#9CA3AF" }}>申請時合規狀態</span>
-                        </span>
-                      </div>
-                      {s.compliance_result.checks.filter(c => c.status !== "pass").map((check, i) => (
-                        <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 3 }}>
-                          <span style={{ fontSize: 10, color: check.status === "blocked" ? "#DC2626" : "#D97706", flexShrink: 0 }}>
-                            {check.status === "blocked" ? "✕" : "!"}
-                          </span>
-                          <div>
-                            <div style={{ fontSize: 11, color: "#374151" }}>{check.message_zh}</div>
-                            <div style={{ fontSize: 10, color: "#9CA3AF" }}>📖 {check.rule_reference}</div>
+                  {s.compliance_result && (() => {
+                    const cr = s.compliance_result;
+                    const nonPass = cr.checks.filter((c: any) => c.status !== "pass");
+                    const isExpanded = expandedCompliance === s.id;
+                    return (
+                      <div style={{
+                        margin: "0 0 10px 0", padding: "8px 12px", borderRadius: 8,
+                        background: cr.status === "blocked" ? "#FEF2F2" : cr.status === "warning" ? "#FFFBEB" : "#F0FDF4",
+                        border: `1px solid ${cr.status === "blocked" ? "#FECACA" : cr.status === "warning" ? "#FCD34D" : "#BBF7D0"}`,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 11 }}>
+                              {cr.status === "blocked" ? "🚫" : cr.status === "warning" ? "⚠️" : "✅"}
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: cr.status === "blocked" ? "#991B1B" : cr.status === "warning" ? "#92400E" : "#065F46" }}>
+                              {cr.status === "blocked" ? "合規未通過" : cr.status === "warning" ? "合規提醒" : "合規通過"}
+                              <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4, color: "#9CA3AF" }}>申請時合規狀態</span>
+                            </span>
                           </div>
+                          {cr.checks.length > 0 && (
+                            <button
+                              onClick={() => setExpandedCompliance(isExpanded ? null : s.id)}
+                              style={{
+                                fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4, cursor: "pointer",
+                                border: `1px solid ${cr.status === "blocked" ? "#FECACA" : cr.status === "warning" ? "#FCD34D" : "#BBF7D0"}`,
+                                background: "white", color: cr.status === "blocked" ? "#991B1B" : cr.status === "warning" ? "#92400E" : "#065F46",
+                              }}>
+                              {isExpanded ? "收合 ▲" : "查看法條 ▼"}
+                            </button>
+                          )}
                         </div>
-                      ))}
-                      {s.compliance_result.ai_analysis_zh && (
-                        <div style={{ fontSize: 10, color: "#6B7280", marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-                          🤖 {s.compliance_result.ai_analysis_zh}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        {nonPass.length > 0 && (
+                          <div style={{ marginTop: 6 }}>
+                            {nonPass.map((check: any, i: number) => (
+                              <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 4 }}>
+                                <span style={{ fontSize: 10, color: check.status === "blocked" ? "#DC2626" : "#D97706", flexShrink: 0, marginTop: 1 }}>
+                                  {check.status === "blocked" ? "✕" : "!"}
+                                </span>
+                                <div>
+                                  <div style={{ fontSize: 11, color: "#374151" }}>{check.message_zh}</div>
+                                  <div style={{ fontSize: 10, color: "#7C3AED", fontWeight: 600 }}>📖 {check.rule_reference}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {isExpanded && (
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              合規檢查詳情 · {cr.checks.length} 項規則
+                            </div>
+                            {cr.checks.map((check: any, i: number) => (
+                              <div key={i} style={{
+                                display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6,
+                                padding: "6px 8px", borderRadius: 6,
+                                background: check.status === "blocked" ? "#FEE2E2" : check.status === "warning" ? "#FEF3C7" : "rgba(255,255,255,0.7)",
+                                border: `1px solid ${check.status === "blocked" ? "#FECACA" : check.status === "warning" ? "#FCD34D" : "rgba(0,0,0,0.06)"}`,
+                              }}>
+                                <span style={{ fontSize: 9, fontWeight: 700, flexShrink: 0, marginTop: 1, color: check.status === "blocked" ? "#DC2626" : check.status === "warning" ? "#D97706" : "#059669" }}>
+                                  {check.status === "blocked" ? "✕" : check.status === "warning" ? "!" : "✓"}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 11, color: "#111827", marginBottom: 2 }}>{check.message_zh}</div>
+                                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "1px 6px", borderRadius: 3, fontSize: 9, fontWeight: 700, background: "#EDE9FE", color: "#7C3AED", border: "1px solid #DDD6FE" }}>
+                                    📖 {check.rule_reference}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {cr.ai_analysis_zh && (
+                          <div style={{ fontSize: 10, color: "#6B7280", marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                            🤖 {cr.ai_analysis_zh}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {reviewingId === s.id ? (
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="備註"
