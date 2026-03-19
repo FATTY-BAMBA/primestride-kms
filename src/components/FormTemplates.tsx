@@ -154,7 +154,10 @@ export function LeaveFormTemplate({ formData, submitterName, submittedAt, status
       )}
       {meta.requiresDoc && (
         <FormRow label="應附文件" value={
-          <span style={{ color: "#D97706", fontWeight: 600 }}>📎 {meta.requiresDoc}</span>
+          <span style={{ 
+            color: meta.requiresDoc.includes("選附") ? "#9CA3AF" : "#D97706", 
+            fontWeight: 600 
+          }}>📎 {meta.requiresDoc}</span>
         } />
       )}
 
@@ -398,7 +401,12 @@ export function BusinessTripFormTemplate({ formData, submitterName, submittedAt,
 
       <SectionHeader title="出差行程" color="#059669" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-        <FormRow label="出差地點" value={
+        <FormRow label="出發地" value={
+          <span style={{ fontWeight: 600, color: "#374151" }}>
+            {formData.origin || "台北（預設）"}
+          </span>
+        } />
+        <FormRow label="目的地" value={
           <span style={{ fontWeight: 700, color: "#059669" }}>{formData.destination || "—"}</span>
         } />
         <FormRow label="出差類型" value={
