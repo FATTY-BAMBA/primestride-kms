@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { FormTemplate } from "@/components/FormTemplates";
 
 interface Submission {
   id: string;
@@ -152,6 +153,12 @@ export default function WorkflowsPage() {
   const [stats, setStats] = useState<Stats>({ pending: 0, approved_this_month: 0, rejected_this_month: 0, total_this_month: 0 });
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [templateView, setTemplateView] = useState<Set<string>>(new Set());
+  const toggleTemplate = (id: string) => {
+    const n = new Set(templateView);
+    n.has(id) ? n.delete(id) : n.add(id);
+    setTemplateView(n);
+  };
 
   const fetchSubmissions = async () => {
     try {
@@ -600,14 +607,33 @@ export default function WorkflowsPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6, marginBottom: 10 }}>
-                  {Object.entries(s.form_data).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
-                    <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
-                      <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
-                      <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{value || "—"}</div>
-                    </div>
-                  ))}
+                {/* ── Form Template Toggle ── */}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                  <button
+                    onClick={() => toggleTemplate(s.id)}
+                    style={{
+                      fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 5, cursor: "pointer",
+                      border: "1px solid #E5E7EB", background: templateView.has(s.id) ? "#EDE9FE" : "#F9FAFB",
+                      color: templateView.has(s.id) ? "#7C3AED" : "#6B7280",
+                    }}>
+                    {templateView.has(s.id) ? "📄 一般檢視" : "📋 切換表單格式"}
+                  </button>
                 </div>
+
+                {templateView.has(s.id) ? (
+                  <div style={{ marginBottom: 10 }}>
+                    <FormTemplate submission={s} />
+                  </div>
+                ) : (
+                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6, marginBottom: 10 }}>
+                   {Object.entries(s.form_data).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
+                     <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
+                       <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
+                       <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{value || "—"}</div>
+                     </div>
+                   ))}
+                </div>
+                )}
 
                 {s.original_text && (
                   <div style={{ fontSize: 11, color: "#6B7280", padding: "5px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
