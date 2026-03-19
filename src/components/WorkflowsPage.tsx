@@ -16,6 +16,11 @@ interface Submission {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
+  compliance_result: {
+    status: "pass" | "warning" | "blocked";
+    checks: { check_type: string; status: string; rule_reference: string; message_zh: string; message: string }[];
+    ai_analysis_zh?: string;
+  } | null;
 }
 
 interface LeaveBalance {
@@ -81,6 +86,51 @@ const examples = [
 
 // Key compliance check types to show even when "pass"
 const SHOW_PASS_TYPES = ["sick_leave_bonus_prorata", "family_care_hourly_2026", "overtime_pay_estimate", "attendance_bonus_protection", "quarterly_overtime_cap"];
+
+
+// ── Compact compliance summary for submission history cards ──
+const SHOW_PASS_TYPES_CARD = ["sick_leave_bonus_prorata", "family_care_hourly_2026", "attendance_bonus_protection"];
+
+function ComplianceSummary({ result }: { result: Submission["compliance_result"] }) {
+  if (!result) return null;
+  const nonPass = result.checks.filter(c => c.status !== "pass");
+  const keyPass = result.checks.filter(c => c.status === "pass" && SHOW_PASS_TYPES_CARD.includes(c.check_type));
+  if (nonPass.length === 0 && keyPass.length === 0 && result.status === "pass") {
+    return (
+      <div style={{ margin: "6px 0", padding: "5px 10px", borderRadius: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 10 }}>✅</span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "#065F46" }}>合規通過 <span style={{ fontWeight: 400, color: "#9CA3AF" }}>申請時合規狀態</span></span>
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      margin: "6px 0", padding: "8px 12px", borderRadius: 8,
+      background: result.status === "blocked" ? "#FEF2F2" : result.status === "warning" ? "#FFFBEB" : "#F0FDF4",
+      border: `1px solid ${result.status === "blocked" ? "#FECACA" : result.status === "warning" ? "#FCD34D" : "#BBF7D0"}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: nonPass.length > 0 ? 6 : 0 }}>
+        <span style={{ fontSize: 10 }}>{result.status === "blocked" ? "🚫" : result.status === "warning" ? "⚠️" : "✅"}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: result.status === "blocked" ? "#991B1B" : result.status === "warning" ? "#92400E" : "#065F46" }}>
+          {result.status === "blocked" ? "合規未通過" : result.status === "warning" ? "合規提醒" : "合規通過"}
+          <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4, color: "#9CA3AF" }}>申請時</span>
+        </span>
+      </div>
+      {nonPass.map((check, i) => (
+        <div key={i} style={{ display: "flex", gap: 5, alignItems: "flex-start", marginBottom: 3 }}>
+          <span style={{ fontSize: 9, color: check.status === "blocked" ? "#DC2626" : "#D97706", flexShrink: 0, marginTop: 1 }}>{check.status === "blocked" ? "✕" : "!"}</span>
+          <div>
+            <div style={{ fontSize: 10, color: "#374151" }}>{check.message_zh}</div>
+            <div style={{ fontSize: 9, color: "#9CA3AF" }}>📖 {check.rule_reference}</div>
+          </div>
+        </div>
+      ))}
+      {result.ai_analysis_zh && (
+        <div style={{ fontSize: 9, color: "#6B7280", marginTop: 3 }}>🤖 {result.ai_analysis_zh}</div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkflowsPage() {
   const [nlpInput, setNlpInput] = useState("");
@@ -180,10 +230,23 @@ export default function WorkflowsPage() {
     }
     setSubmitting(true);
     try {
+      // ✅ Ensure compliance_result is captured before saving
+      let complianceToSave = compliance;
+      if (!complianceToSave && !checkingCompliance) {
+        try {
+          const cRes = await fetch("/api/compliance/check", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ form_type: parsedType, form_data: formData }),
+          });
+          const cData = await cRes.json();
+          complianceToSave = cData.data || { status: "pass", checks: [] };
+          setCompliance(complianceToSave);
+        } catch { complianceToSave = { status: "pass", checks: [] }; }
+      }
       const res = await fetch("/api/workflows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ form_type: parsedType, form_data: formData, original_text: nlpInput, ai_parsed: true }),
+        body: JSON.stringify({ form_type: parsedType, form_data: formData, original_text: nlpInput, ai_parsed: true, compliance_result: complianceToSave || null }),
       });
       if (res.ok) {
         setMessage("✅ 已送出！");
@@ -549,6 +612,8 @@ export default function WorkflowsPage() {
                 {s.original_text && (
                   <div style={{ fontSize: 11, color: "#6B7280", padding: "5px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
                 )}
+
+                <ComplianceSummary result={s.compliance_result} />
 
                 {s.reviewed_at && (
                   <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 8 }}>
