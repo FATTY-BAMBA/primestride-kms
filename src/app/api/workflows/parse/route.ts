@@ -12,8 +12,8 @@ const supabase = createClient(
 
 // ══════════════════════════════════════════════════════════════
 // POST /api/workflows/parse
-// Universal NLP parser v3 — enhanced Taiwanese Mandarin,
-// smart proxy suggestions from team data
+// Universal NLP parser v4 — enhanced Taiwanese Mandarin,
+// smart proxy suggestions, Supabase slang dictionary
 // ══════════════════════════════════════════════════════════════
 
 export async function POST(req: NextRequest) {
@@ -27,11 +27,14 @@ export async function POST(req: NextRequest) {
     // Get user context for smart proxy
     let teamMembers: string[] = [];
     let userName = "";
+    let orgId = "";
     try {
       const { userId } = await auth();
       if (userId) {
         const org = await getUserOrganization(userId);
         if (org) {
+          orgId = org.organization_id;
+
           // Get team members for proxy suggestion
           const { data: members } = await supabase
             .from("organization_members")
@@ -41,7 +44,6 @@ export async function POST(req: NextRequest) {
             .neq("user_id", userId);
 
           if (members && members.length > 0) {
-            // Get names from profiles
             const { data: profiles } = await supabase
               .from("profiles")
               .select("id, full_name")
@@ -72,6 +74,38 @@ export async function POST(req: NextRequest) {
 
     const isAuto = !form_type || form_type === "auto";
 
+    // ── Fetch slang dictionary (global + org-specific) ──
+    let slangContext = "";
+    try {
+      const query = supabase
+        .from("leave_slang_dictionary")
+        .select("expression, maps_to_type, maps_to_subtype, confidence, context_note")
+        .eq("is_active", true);
+
+      // Include global entries + org-specific if we have orgId
+      const { data: slangEntries } = orgId
+        ? await query.or(`organization_id.is.null,organization_id.eq.${orgId}`)
+        : await query.is("organization_id", null);
+
+      if (slangEntries && slangEntries.length > 0) {
+        const byType: Record<string, string[]> = { leave: [], overtime: [], business_trip: [] };
+        for (const e of slangEntries) {
+          const label = e.maps_to_subtype
+            ? `"${e.expression}"→${e.maps_to_subtype}${e.confidence === "medium" ? "(context)" : ""}${e.context_note ? ` [${e.context_note}]` : ""}`
+            : `"${e.expression}"${e.context_note ? ` [${e.context_note}]` : ""}`;
+          if (byType[e.maps_to_type]) byType[e.maps_to_type].push(label);
+        }
+        slangContext = `
+COLLOQUIAL EXPRESSION DICTIONARY — use these to correctly identify intent:
+Leave: ${byType.leave.slice(0, 70).join(" | ")}
+Overtime: ${byType.overtime.slice(0, 25).join(" | ")}
+Business trip: ${byType.business_trip.slice(0, 25).join(" | ")}
+`;
+      }
+    } catch {
+      // Non-critical — continue without slang context
+    }
+
     // ── Smart proxy context ──
     const proxyContext = teamMembers.length > 0
       ? `\nTEAM MEMBERS (for proxy suggestion): ${teamMembers.join(", ")}
@@ -83,7 +117,7 @@ You are an expert in Taiwanese workplace terminology and culture.
 
 Today is ${todayStr} (${dayOfWeekZh} ${dayOfWeek}).
 ${userName ? `Current user: ${userName}` : ""}
-
+${slangContext}
 ${isAuto ? `STEP 1: Detect the form type from the user's text:
 - "leave" — any mention of: 請假, 休假, 病假, 特休, 年假, 事假, 假, 補休, 調休, 公假, 喪假, 婚假, 產假, 陪產假, 家庭照顧假, 生理假, 育嬰假, leave, day off, sick, PTO, 照顧, family care, 不舒服, 身體不適, 看醫生, 看病
 - "overtime" — any mention of: 加班, OT, overtime, 晚上要做, 趕工, work late, 留下來, 多做, 延長工時
