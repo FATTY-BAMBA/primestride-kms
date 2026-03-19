@@ -187,7 +187,9 @@ RULES:
 TAIWANESE MANDARIN NUANCES:
 - 請一天假 = requesting 1 day leave
 - 請個假 = requesting leave (duration unclear, default 1 day)
-- 掛號/看診 = doctor visit → 病假 Sick
+- 掛號/看診 = doctor visit → 病假 Sick (BUT if subject is child/family member → 家庭照顧假)
+- 小孩/孩子/兒子/女兒 + 發燒/生病/看醫生 = ALWAYS 家庭照顧假, never 病假
+- 帶小孩/帶孩子 = ALWAYS 家庭照顧假
 - 接小孩 = pick up child → 家庭照顧假 Family Care
 - 回南部 = going to southern Taiwan → reason (not a business trip)
 - 跑客戶 = visiting clients → could be business_trip
