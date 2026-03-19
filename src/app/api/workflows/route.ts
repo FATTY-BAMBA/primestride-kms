@@ -13,7 +13,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ── Helper: Resolve user IDs to names from profiles table ──
 async function resolveUserNames(submissions: any[]): Promise<any[]> {
   if (!submissions || submissions.length === 0) return [];
 
@@ -57,7 +56,6 @@ export async function GET(request: NextRequest) {
     const isAdmin = ["owner", "admin"].includes(membership.role || "");
     const orgId = membership.organization_id;
 
-    // Fetch submissions
     let query = supabase
       .from("workflow_submissions")
       .select("*")
@@ -73,10 +71,8 @@ export async function GET(request: NextRequest) {
 
     const { data: submissions } = await query.limit(50);
 
-    // ✅ Resolve user names from profiles table
     const enriched = await resolveUserNames(submissions || []);
 
-    // Fetch stats
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
@@ -93,7 +89,6 @@ export async function GET(request: NextRequest) {
       total_this_month: (allOrgSubs || []).length,
     };
 
-    // Fetch leave balance for current user
     const currentYear = now.getFullYear();
     let { data: balance } = await supabase
       .from("leave_balances")
@@ -103,7 +98,6 @@ export async function GET(request: NextRequest) {
       .eq("year", currentYear)
       .single();
 
-    // Auto-create balance if not exists
     if (!balance) {
       const { data: newBalance } = await supabase
         .from("leave_balances")
@@ -144,13 +138,13 @@ export async function POST(request: NextRequest) {
     if (!membership) return NextResponse.json({ error: "No organization" }, { status: 404 });
 
     const body = await request.json();
-    const { form_type, form_data, original_text, ai_parsed } = body;
+    // ✅ Extract compliance_result from body
+    const { form_type, form_data, original_text, ai_parsed, compliance_result } = body;
 
     if (!form_type || !form_data) {
       return NextResponse.json({ error: "form_type and form_data required" }, { status: 400 });
     }
 
-    // ✅ Get name from profiles table (not organization_members)
     let submitterName = userId;
     try {
       const { data: profile } = await supabase
@@ -173,13 +167,14 @@ export async function POST(request: NextRequest) {
         submitted_by: userId,
         submitter_name: submitterName,
         status: "pending",
+        // ✅ Save compliance result so admins can see it on pending cards
+        compliance_result: compliance_result || null,
       })
       .select()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // ✅ Email notify admins (fire-and-forget, don't block response)
     try {
       const { data: admins } = await supabase
         .from("organization_members")
@@ -239,7 +234,6 @@ export async function PATCH(request: NextRequest) {
     const isAdmin = ["owner", "admin"].includes(membership.role || "");
     const orgId = membership.organization_id;
 
-    // Cancel — user can cancel their own
     if (action === "cancel" || action === "cancelled") {
       const { data, error } = await supabase
         .from("workflow_submissions")
@@ -254,13 +248,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ submission: data });
     }
 
-    // Approve/Reject — admin only
     if (!isAdmin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
     if (!["approved", "rejected"].includes(action)) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    // ✅ Get reviewer name from profiles
     let reviewerName = userId;
     try {
       const { data: profile } = await supabase
@@ -272,14 +264,12 @@ export async function PATCH(request: NextRequest) {
       else if (profile?.email) reviewerName = profile.email.split("@")[0];
     } catch {}
 
-    // Batch approval support
     const targetIds = ids || (id ? [id] : []);
     if (targetIds.length === 0) return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
 
     const results = [];
 
     for (const targetId of targetIds) {
-      // Fetch submission first for leave deduction
       const { data: sub } = await supabase
         .from("workflow_submissions")
         .select("*")
@@ -289,7 +279,6 @@ export async function PATCH(request: NextRequest) {
 
       if (!sub) continue;
 
-      // Update status
       const { data, error } = await supabase
         .from("workflow_submissions")
         .update({
@@ -307,7 +296,6 @@ export async function PATCH(request: NextRequest) {
 
       if (error) continue;
 
-      // ✅ Deduct leave balance on approval (extended for all leave types)
       if (action === "approved" && sub.form_type === "leave" && sub.form_data) {
         const days = parseFloat(sub.form_data.days) || 0;
         const leaveType = (sub.form_data.leave_type || "").toLowerCase();
@@ -346,7 +334,6 @@ export async function PATCH(request: NextRequest) {
 
       results.push(data);
 
-      // ✅ Email notify submitter on approve/reject (fire-and-forget)
       try {
         const { data: submitterProfile } = await supabase
           .from("profiles")

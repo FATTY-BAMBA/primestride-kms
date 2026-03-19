@@ -17,6 +17,11 @@ interface Submission {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
+  compliance_result: {
+    status: "pass" | "warning" | "blocked";
+    checks: { check_type: string; status: string; rule_reference: string; message_zh: string; message: string }[];
+    ai_analysis_zh?: string;
+  } | null;
 }
 
 interface EmployeeSummary {
@@ -585,6 +590,40 @@ export default function AdminDashboard() {
                   </div>
                   {s.original_text && (
                     <div style={{ fontSize: 11, color: "#6B7280", padding: "4px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
+                  )}
+                  {/* ✅ Compliance summary — helps admin make informed review decision */}
+                  {s.compliance_result && (
+                    <div style={{
+                      margin: "0 0 10px 0", padding: "8px 12px", borderRadius: 8,
+                      background: s.compliance_result.status === "blocked" ? "#FEF2F2" : s.compliance_result.status === "warning" ? "#FFFBEB" : "#F0FDF4",
+                      border: `1px solid ${s.compliance_result.status === "blocked" ? "#FECACA" : s.compliance_result.status === "warning" ? "#FCD34D" : "#BBF7D0"}`,
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 11 }}>
+                          {s.compliance_result.status === "blocked" ? "🚫" : s.compliance_result.status === "warning" ? "⚠️" : "✅"}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: s.compliance_result.status === "blocked" ? "#991B1B" : s.compliance_result.status === "warning" ? "#92400E" : "#065F46" }}>
+                          {s.compliance_result.status === "blocked" ? "合規未通過" : s.compliance_result.status === "warning" ? "合規提醒" : "合規通過"}
+                          <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4, color: "#9CA3AF" }}>申請時合規狀態</span>
+                        </span>
+                      </div>
+                      {s.compliance_result.checks.filter(c => c.status !== "pass").map((check, i) => (
+                        <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 3 }}>
+                          <span style={{ fontSize: 10, color: check.status === "blocked" ? "#DC2626" : "#D97706", flexShrink: 0 }}>
+                            {check.status === "blocked" ? "✕" : "!"}
+                          </span>
+                          <div>
+                            <div style={{ fontSize: 11, color: "#374151" }}>{check.message_zh}</div>
+                            <div style={{ fontSize: 10, color: "#9CA3AF" }}>📖 {check.rule_reference}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {s.compliance_result.ai_analysis_zh && (
+                        <div style={{ fontSize: 10, color: "#6B7280", marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+                          🤖 {s.compliance_result.ai_analysis_zh}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {reviewingId === s.id ? (
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>

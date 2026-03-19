@@ -16,6 +16,11 @@ interface Submission {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
+  compliance_result: {
+    status: "pass" | "warning" | "blocked";
+    checks: { check_type: string; status: string; rule_reference: string; message_zh: string; message: string }[];
+    ai_analysis_zh?: string;
+  } | null;
 }
 
 interface LeaveBalance {
@@ -79,10 +84,8 @@ const examples = [
   "週六加班4小時處理緊急訂單",
 ];
 
-// Key compliance check types to show even when "pass"
 const SHOW_PASS_TYPES = ["sick_leave_bonus_prorata", "family_care_hourly_2026", "overtime_pay_estimate", "attendance_bonus_protection", "quarterly_overtime_cap"];
 
-// ── Law article text database ──
 const lawArticles: Record<string, { zh: string; en: string; source: string }> = {
   "LSA Art. 32": {
     zh: "勞動基準法第32條：雇主有使勞工在正常工作時間以外工作之必要者，雇主經工會同意；雇主延長勞工之工作時間連同正常工作時間，一日不得超過十二小時；延長之工作時間，一個月不得超過四十六小時，但雇主經工會同意，及勞資會議同意後，延長之工作時間，一個月不得超過五十四小時，每三個月不得超過一百三十八小時。",
@@ -96,63 +99,41 @@ const lawArticles: Record<string, { zh: string; en: string; source: string }> = 
   },
   "LSA Art. 32 — Quarterly 138-Hour Hard Cap": {
     zh: "勞動基準法第32條第2項：每三個月延長工時不得超過一百三十八小時。此為絕對上限，不得以任何合意延長。",
-    en: "LSA Art. 32 Para. 2: The absolute 3-month rolling overtime cap is 138 hours. No exceptions — no consent can extend this limit.",
+    en: "LSA Art. 32 Para. 2: The absolute 3-month rolling overtime cap is 138 hours. No exceptions.",
     source: "勞動基準法第32條第2項",
   },
   "LSA Art. 38": {
     zh: "勞動基準法第38條：勞工在同一雇主或事業單位，繼續工作滿一定期間者，應依規定給予特別休假。特別休假期日，由勞工排定之。",
-    en: "LSA Art. 38: Employees with sufficient tenure are entitled to annual leave. Leave days are scheduled by the employee. Unused days must be paid out or carried over.",
+    en: "LSA Art. 38: Employees with sufficient tenure are entitled to annual leave. Unused days must be paid out or carried over.",
     source: "勞動基準法第38條",
   },
   "LSA Art. 9-1 — Full Attendance Bonus Protection": {
     zh: "勞動基準法第9-1條（2026修正）：雇主不得因勞工請合法假別而扣發全勤獎金。病假應按比例扣減，家庭照顧假、育嬰假、喪假、婚假不得扣減任何全勤獎金。",
-    en: "LSA Art. 9-1 (2026): Employers cannot fully deduct attendance bonuses for legally protected leave. Sick leave: pro-rata deduction only. Family care/parental/bereavement/marriage leave: zero deduction allowed.",
+    en: "LSA Art. 9-1 (2026): Employers cannot fully deduct attendance bonuses for legally protected leave.",
     source: "勞動基準法第9-1條（2026年修正）",
   },
   "LSA Art. 9-1 — 2026 Pro-Rata Bonus Protection": {
     zh: "勞動基準法第9-1條：2026年明定全勤獎金扣減須按比例計算，不得全額扣發。每日扣減金額 = 月獎金 ÷ 30日。",
-    en: "LSA Art. 9-1 (2026): Attendance bonus deductions must be pro-rated. Daily deduction = monthly bonus ÷ 30 days. Full deduction is illegal.",
+    en: "LSA Art. 9-1 (2026): Attendance bonus deductions must be pro-rated. Full deduction is illegal.",
     source: "勞動基準法第9-1條",
   },
   "Labor Leave Rules Art. 4": {
-    zh: "勞工請假規則第4條：家庭照顧假，每年以七日為限，其請假日數併入事假計算；2026年修正得以小時為單位請假，全年度上限五十六小時。",
-    en: "Labor Leave Rules Art. 4: Family care leave is limited to 7 days/year (56 hours), counted with personal leave. From 2026, may be taken in hourly increments.",
+    zh: "勞工請假規則第4條：家庭照顧假，每年以七日為限；2026年修正得以小時為單位請假，全年度上限五十六小時。",
+    en: "Labor Leave Rules Art. 4: Family care leave limited to 7 days/year (56 hours). From 2026, may be taken in hourly increments.",
     source: "勞工請假規則第4條",
   },
 };
 
-// ── Verified Snippet Component ──
 function VerifiedSnippet({ ruleReference }: { ruleReference: string }) {
   const [open, setOpen] = useState(false);
   const article = lawArticles[ruleReference];
-
   return (
     <div style={{ marginTop: 4, position: "relative", display: "inline-block" }}>
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-          background: open ? "#EDE9FE" : "#F5F3FF",
-          border: `1px solid ${open ? "#7C3AED" : "#DDD6FE"}`,
-          color: "#7C3AED", cursor: "pointer",
-          transition: "all 0.15s",
-        }}
-      >
-        📖 {ruleReference}
-        <span style={{ fontSize: 8 }}>{open ? "▲" : "▼"}</span>
+      <button onClick={() => setOpen(!open)} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: open ? "#EDE9FE" : "#F5F3FF", border: `1px solid ${open ? "#7C3AED" : "#DDD6FE"}`, color: "#7C3AED", cursor: "pointer", transition: "all 0.15s" }}>
+        📖 {ruleReference}<span style={{ fontSize: 8 }}>{open ? "▲" : "▼"}</span>
       </button>
-
       {open && (
-        <div style={{
-          position: "absolute", bottom: "calc(100% + 6px)", left: 0,
-          width: 320, maxWidth: "90vw",
-          background: "white", borderRadius: 10,
-          border: "1px solid #DDD6FE",
-          boxShadow: "0 8px 24px rgba(124,58,237,0.12)",
-          zIndex: 100, overflow: "hidden",
-        }}>
-          {/* Header */}
+        <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, width: 320, maxWidth: "90vw", background: "white", borderRadius: 10, border: "1px solid #DDD6FE", boxShadow: "0 8px 24px rgba(124,58,237,0.12)", zIndex: 100, overflow: "hidden" }}>
           <div style={{ padding: "8px 12px", background: "linear-gradient(135deg, #7C3AED, #6D28D9)", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 14 }}>⚖️</span>
             <div>
@@ -161,29 +142,14 @@ function VerifiedSnippet({ ruleReference }: { ruleReference: string }) {
             </div>
             <button onClick={() => setOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 14 }}>✕</button>
           </div>
-
           {article ? (
             <div style={{ padding: 12 }}>
-              {/* Chinese text */}
-              <div style={{ fontSize: 11, color: "#374151", lineHeight: 1.6, marginBottom: 8, padding: "8px 10px", background: "#F5F3FF", borderRadius: 6, borderLeft: "3px solid #7C3AED" }}>
-                {article.zh}
-              </div>
-              {/* English text */}
-              <div style={{ fontSize: 10, color: "#6B7280", lineHeight: 1.5, marginBottom: 8 }}>
-                {article.en}
-              </div>
-              {/* Copy button */}
-              <button
-                onClick={() => { navigator.clipboard.writeText(article.zh); }}
-                style={{ fontSize: 10, padding: "4px 10px", borderRadius: 5, border: "1px solid #DDD6FE", background: "#F5F3FF", color: "#7C3AED", cursor: "pointer", fontWeight: 600 }}
-              >
-                📋 複製法條文字
-              </button>
+              <div style={{ fontSize: 11, color: "#374151", lineHeight: 1.6, marginBottom: 8, padding: "8px 10px", background: "#F5F3FF", borderRadius: 6, borderLeft: "3px solid #7C3AED" }}>{article.zh}</div>
+              <div style={{ fontSize: 10, color: "#6B7280", lineHeight: 1.5, marginBottom: 8 }}>{article.en}</div>
+              <button onClick={() => { navigator.clipboard.writeText(article.zh); }} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 5, border: "1px solid #DDD6FE", background: "#F5F3FF", color: "#7C3AED", cursor: "pointer", fontWeight: 600 }}>📋 複製法條文字</button>
             </div>
           ) : (
-            <div style={{ padding: 12, fontSize: 11, color: "#6B7280" }}>
-              📖 {ruleReference}
-            </div>
+            <div style={{ padding: 12, fontSize: 11, color: "#6B7280" }}>📖 {ruleReference}</div>
           )}
         </div>
       )}
@@ -191,6 +157,57 @@ function VerifiedSnippet({ ruleReference }: { ruleReference: string }) {
   );
 }
 
+// ── Compact compliance summary for submission cards (employee + admin view) ──
+function ComplianceSummary({ result }: { result: Submission["compliance_result"] }) {
+  if (!result) return null;
+  const nonPass = result.checks.filter(c => c.status !== "pass");
+  const keyPass = result.checks.filter(c => c.status === "pass" && SHOW_PASS_TYPES.includes(c.check_type));
+
+  return (
+    <div style={{
+      margin: "8px 0",
+      padding: "8px 12px",
+      borderRadius: 8,
+      background: result.status === "blocked" ? "#FEF2F2" : result.status === "warning" ? "#FFFBEB" : "#F0FDF4",
+      border: `1px solid ${result.status === "blocked" ? "#FECACA" : result.status === "warning" ? "#FCD34D" : "#BBF7D0"}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: nonPass.length > 0 || keyPass.length > 0 ? 6 : 0 }}>
+        <span style={{ fontSize: 11 }}>
+          {result.status === "blocked" ? "🚫" : result.status === "warning" ? "⚠️" : "✅"}
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: result.status === "blocked" ? "#991B1B" : result.status === "warning" ? "#92400E" : "#065F46" }}>
+          {result.status === "blocked" ? "合規未通過" : result.status === "warning" ? "合規提醒" : "合規通過"}
+          <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 4, color: "#9CA3AF" }}>申請時合規狀態</span>
+        </span>
+      </div>
+      {nonPass.map((check, i) => (
+        <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 4 }}>
+          <span style={{ fontSize: 10, color: check.status === "blocked" ? "#DC2626" : "#D97706", flexShrink: 0, marginTop: 1 }}>
+            {check.status === "blocked" ? "✕" : "!"}
+          </span>
+          <div>
+            <div style={{ fontSize: 11, color: "#374151" }}>{check.message_zh}</div>
+            <VerifiedSnippet ruleReference={check.rule_reference} />
+          </div>
+        </div>
+      ))}
+      {keyPass.map((check, i) => (
+        <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 4, padding: "4px 8px", background: "rgba(255,255,255,0.6)", borderRadius: 6 }}>
+          <span style={{ fontSize: 10, color: "#059669", flexShrink: 0, marginTop: 1 }}>✓</span>
+          <div>
+            <div style={{ fontSize: 11, color: "#065F46" }}>{check.message_zh}</div>
+            <VerifiedSnippet ruleReference={check.rule_reference} />
+          </div>
+        </div>
+      ))}
+      {result.ai_analysis_zh && (
+        <div style={{ fontSize: 10, color: "#6B7280", marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+          🤖 {result.ai_analysis_zh}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkflowsPage() {
   const [nlpInput, setNlpInput] = useState("");
@@ -225,7 +242,7 @@ export default function WorkflowsPage() {
       if (data.leave_balance) setLeaveBalance(data.leave_balance);
     } catch (err) {
       console.error("Failed to fetch submissions:", err);
-      setMessage("⚠️ 無法載入申請紀錄，請重新整理頁面。Failed to load submissions.");
+      setMessage("⚠️ 無法載入申請紀錄，請重新整理頁面。");
       setTimeout(() => setMessage(""), 5000);
     } finally { setLoading(false); }
   };
@@ -237,25 +254,14 @@ export default function WorkflowsPage() {
     setParsing(true); setFormData(null); setParsedType(null); setCompliance(null); setShowEditMode(false);
     try {
       const res = await fetch("/api/workflows/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: nlpInput, form_type: "auto" }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) {
-        setMessage(`⚠️ ${data.error || "AI 解析失敗"} | AI parsing failed, try again.`);
-        setTimeout(() => setMessage(""), 5000);
-        return;
-      }
-      if (data.form_data) {
-        setFormData(data.form_data);
-        setParsedType(data.form_type || "leave");
-      }
-    } catch (err) {
-      console.error("NLP parse error:", err);
-      setMessage("⚠️ AI 解析失敗，請再試一次或手動填寫。AI parsing failed, please try again.");
-      setTimeout(() => setMessage(""), 5000);
-    } finally { setParsing(false); }
+      if (!res.ok || data.error) { setMessage(`⚠️ ${data.error || "AI 解析失敗"}`); setTimeout(() => setMessage(""), 5000); return; }
+      if (data.form_data) { setFormData(data.form_data); setParsedType(data.form_type || "leave"); }
+    } catch { setMessage("⚠️ AI 解析失敗，請再試一次。"); setTimeout(() => setMessage(""), 5000); }
+    finally { setParsing(false); }
   };
 
   const runComplianceCheck = async () => {
@@ -263,15 +269,13 @@ export default function WorkflowsPage() {
     setCheckingCompliance(true); setCompliance(null);
     try {
       const res = await fetch("/api/compliance/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ form_type: parsedType, form_data: formData }),
       });
       const data = await res.json();
       if (data.data) setCompliance(data.data);
-    } catch {
-      setCompliance({ status: "pass", checks: [] });
-    } finally { setCheckingCompliance(false); }
+    } catch { setCompliance({ status: "pass", checks: [] }); }
+    finally { setCheckingCompliance(false); }
   };
 
   useEffect(() => {
@@ -283,54 +287,45 @@ export default function WorkflowsPage() {
 
   const handleSubmit = async () => {
     if (!formData || !parsedType) return;
-    if (compliance?.status === "blocked") {
-      setMessage("🚫 合規檢查未通過，請調整內容。");
-      setTimeout(() => setMessage(""), 4000);
-      return;
-    }
+    if (compliance?.status === "blocked") { setMessage("🚫 合規檢查未通過，請調整內容。"); setTimeout(() => setMessage(""), 4000); return; }
     setSubmitting(true);
     try {
       const res = await fetch("/api/workflows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ form_type: parsedType, form_data: formData, original_text: nlpInput, ai_parsed: true }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        // ✅ compliance_result saved with submission so admins can see it
+        body: JSON.stringify({ form_type: parsedType, form_data: formData, original_text: nlpInput, ai_parsed: true, compliance_result: compliance || null }),
       });
       if (res.ok) {
         setMessage("✅ 已送出！");
         setNlpInput(""); setFormData(null); setParsedType(null); setCompliance(null);
-        fetchSubmissions();
-        setTimeout(() => setMessage(""), 3000);
+        fetchSubmissions(); setTimeout(() => setMessage(""), 3000);
       } else {
         const errData = await res.json().catch(() => ({}));
-        setMessage(`❌ ${errData.error || "送出失敗"} | Submission failed.`);
-        setTimeout(() => setMessage(""), 5000);
+        setMessage(`❌ ${errData.error || "送出失敗"}`); setTimeout(() => setMessage(""), 5000);
       }
-    } catch (err) {
-      console.error("Submit error:", err);
-      setMessage("❌ 送出失敗，請再試一次。Submission failed, please try again.");
-      setTimeout(() => setMessage(""), 5000);
-    } finally { setSubmitting(false); }
+    } catch { setMessage("❌ 送出失敗，請再試一次。"); setTimeout(() => setMessage(""), 5000); }
+    finally { setSubmitting(false); }
   };
 
   const handleReview = async (id: string, action: string) => {
     try {
       await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action, review_note: reviewNote }) });
       setReviewingId(null); setReviewNote(""); fetchSubmissions();
-    } catch (err) { console.error("Review error:", err); setMessage("⚠️ 審核操作失敗。"); setTimeout(() => setMessage(""), 4000); }
+    } catch { setMessage("⚠️ 審核操作失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
   const handleCancel = async (id: string) => {
     try {
       await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "cancelled" }) });
       fetchSubmissions();
-    } catch (err) { console.error("Cancel error:", err); setMessage("⚠️ 取消失敗。"); setTimeout(() => setMessage(""), 4000); }
+    } catch { setMessage("⚠️ 取消失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
   const handleBatchApproval = async (action: string) => {
     try {
       await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: Array.from(selectedIds), action, review_note: reviewNote }) });
       setSelectedIds(new Set()); setReviewNote(""); fetchSubmissions();
-    } catch (err) { console.error("Batch error:", err); setMessage("⚠️ 批次操作失敗。"); setTimeout(() => setMessage(""), 4000); }
+    } catch { setMessage("⚠️ 批次操作失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
   const toggleSelect = (id: string) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
@@ -342,7 +337,7 @@ export default function WorkflowsPage() {
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${ft?.name_zh || s.form_type}</title><style>body{font-family:'Noto Sans TC',sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#111827}h1{font-size:22px;border-bottom:3px solid ${ft?.color || "#7C3AED"};padding-bottom:12px}.field{display:flex;padding:8px 0;border-bottom:1px solid #eee}.field-label{width:140px;color:#6B7280;font-weight:600;font-size:14px}.field-val{flex:1;font-size:14px}.status{display:inline-block;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:600;margin-top:16px;background:${statusConfig[s.status]?.bg};color:${statusConfig[s.status]?.color}}</style></head><body>`);
     w.document.write(`<h1>${ft?.icon} ${ft?.name_zh} ${ft?.name_en}</h1>`);
-    Object.entries(s.form_data).forEach(([k, v]) => w.document.write(`<div class="field"><div class="field-label">${fieldLabels[k] || k}</div><div class="field-val">${v || "—"}</div></div>`));
+    Object.entries(s.form_data).filter(([k]) => !k.startsWith("_")).forEach(([k, v]) => w.document.write(`<div class="field"><div class="field-label">${fieldLabels[k] || k}</div><div class="field-val">${v || "—"}</div></div>`));
     w.document.write(`<div class="status">${statusConfig[s.status]?.label}</div>`);
     if (s.original_text) w.document.write(`<p style="margin-top:16px;font-size:12px;color:#9CA3AF">💬 ${s.original_text}</p>`);
     w.document.write(`<p style="margin-top:32px;font-size:11px;color:#D1D5DB;text-align:center">Atlas EIP · ${new Date().toLocaleDateString()}</p></body></html>`);
@@ -357,16 +352,16 @@ export default function WorkflowsPage() {
       {message && <div style={{ padding: "10px 16px", borderRadius: 10, background: message.includes("✅") ? "#D1FAE5" : "#FEE2E2", color: message.includes("✅") ? "#065F46" : "#991B1B", fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{message}</div>}
 
       {/* ═══ STATS ═══ */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 16 }}>
         {[
           { label: "待審核", val: stats.pending, color: "#D97706", bg: "#FEF3C7" },
           { label: "本月核准", val: stats.approved_this_month, color: "#059669", bg: "#D1FAE5" },
           { label: "本月駁回", val: stats.rejected_this_month, color: "#DC2626", bg: "#FEE2E2" },
           { label: "本月總計", val: stats.total_this_month, color: "#6B7280", bg: "#F3F4F6" },
         ].map(s => (
-          <div key={s.label} style={{ padding: "14px 16px", background: s.bg, borderRadius: 10, textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
-            <div style={{ fontSize: 12, color: s.color, opacity: 0.8 }}>{s.label}</div>
+          <div key={s.label} style={{ padding: "10px 8px", background: s.bg, borderRadius: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.val}</div>
+            <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -407,7 +402,7 @@ export default function WorkflowsPage() {
               placeholder="例如：我下週一到週三要請特休，因為要回南部探親..."
               rows={3}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleParse(); } }}
-              style={{ width: "100%", padding: "14px 16px", paddingRight: 100, border: "1.5px solid #E5E7EB", borderRadius: 12, fontSize: 15, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box", transition: "border-color 0.2s", fontFamily: "inherit" }}
+              style={{ width: "100%", padding: "14px 16px", paddingRight: 90, border: "1.5px solid #E5E7EB", borderRadius: 12, fontSize: 15, outline: "none", resize: "none", lineHeight: 1.6, boxSizing: "border-box", transition: "border-color 0.2s", fontFamily: "inherit", WebkitTextSizeAdjust: "100%" }}
               onFocus={(e) => e.currentTarget.style.borderColor = "#7C3AED"}
               onBlur={(e) => e.currentTarget.style.borderColor = "#E5E7EB"}
             />
@@ -418,7 +413,7 @@ export default function WorkflowsPage() {
           </div>
 
           {!formData && !parsing && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 10 }}>
               {examples.map((ex) => (
                 <button key={ex} onClick={() => setNlpInput(ex)}
                   style={{ padding: "5px 12px", borderRadius: 100, border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: 12, color: "#6B7280", cursor: "pointer", transition: "all 0.15s" }}
@@ -498,41 +493,23 @@ export default function WorkflowsPage() {
             {/* ═══ COMPLIANCE PANEL ═══ */}
             {(checkingCompliance || compliance) && (
               <div style={{ margin: "0 20px 12px", borderRadius: 10, overflow: "hidden", border: `1px solid ${compliance?.status === "blocked" ? "#FCA5A5" : compliance?.status === "warning" ? "#FCD34D" : "#86EFAC"}` }}>
-                <div style={{
-                  padding: "8px 14px", fontWeight: 700, fontSize: 12,
-                  background: compliance?.status === "blocked" ? "#FEE2E2" : compliance?.status === "warning" ? "#FEF3C7" : "#D1FAE5",
-                  color: compliance?.status === "blocked" ? "#991B1B" : compliance?.status === "warning" ? "#92400E" : "#065F46",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}>
-                  {checkingCompliance ? "⏳ 合規檢查中..."
-                    : compliance?.status === "blocked" ? "🚫 合規未通過 — 無法送出"
-                    : compliance?.status === "warning" ? "⚠️ 合規提醒"
-                    : "✅ 合規通過"}
+                <div style={{ padding: "8px 14px", fontWeight: 700, fontSize: 12, background: compliance?.status === "blocked" ? "#FEE2E2" : compliance?.status === "warning" ? "#FEF3C7" : "#D1FAE5", color: compliance?.status === "blocked" ? "#991B1B" : compliance?.status === "warning" ? "#92400E" : "#065F46", display: "flex", alignItems: "center", gap: 6 }}>
+                  {checkingCompliance ? "⏳ 合規檢查中..." : compliance?.status === "blocked" ? "🚫 合規未通過 — 無法送出" : compliance?.status === "warning" ? "⚠️ 合規提醒" : "✅ 合規通過"}
                 </div>
-
                 {compliance && compliance.checks.length > 0 && (
                   <div style={{ padding: 12, background: "white" }}>
-                    {/* Warnings and blocked checks */}
                     {compliance.checks.filter(c => c.status !== "pass").map((check, i) => (
                       <div key={`warn-${i}`} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
-                        <div style={{
-                          width: 20, height: 20, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10,
-                          background: check.status === "blocked" ? "#FEE2E2" : "#FEF3C7",
-                          color: check.status === "blocked" ? "#DC2626" : "#D97706",
-                        }}>{check.status === "blocked" ? "✕" : "!"}</div>
+                        <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, background: check.status === "blocked" ? "#FEE2E2" : "#FEF3C7", color: check.status === "blocked" ? "#DC2626" : "#D97706" }}>{check.status === "blocked" ? "✕" : "!"}</div>
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{check.message_zh}</div>
                           <VerifiedSnippet ruleReference={check.rule_reference} />
                         </div>
                       </div>
                     ))}
-                    {/* Key informational pass checks (bonus, hourly, OT pay) */}
                     {compliance.checks.filter(c => c.status === "pass" && SHOW_PASS_TYPES.includes(c.check_type)).map((check, i) => (
                       <div key={`info-${i}`} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8, padding: "8px 10px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0" }}>
-                        <div style={{
-                          width: 20, height: 20, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10,
-                          background: "#D1FAE5", color: "#059669",
-                        }}>✓</div>
+                        <div style={{ width: 20, height: 20, borderRadius: 5, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, background: "#D1FAE5", color: "#059669" }}>✓</div>
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: "#065F46" }}>{check.message_zh}</div>
                           <VerifiedSnippet ruleReference={check.rule_reference} />
@@ -541,26 +518,16 @@ export default function WorkflowsPage() {
                     ))}
                   </div>
                 )}
-
                 {compliance?.ai_analysis_zh && (
-                  <div style={{ padding: "8px 14px", borderTop: "1px solid #E5E7EB", background: "#F8FAFC", fontSize: 12, color: "#374151" }}>
-                    🤖 {compliance.ai_analysis_zh}
-                  </div>
+                  <div style={{ padding: "8px 14px", borderTop: "1px solid #E5E7EB", background: "#F8FAFC", fontSize: 12, color: "#374151" }}>🤖 {compliance.ai_analysis_zh}</div>
                 )}
               </div>
             )}
 
             {/* ═══ SUBMIT / CANCEL ═══ */}
             <div style={{ padding: "12px 20px 16px", display: "flex", gap: 10 }}>
-              <button onClick={handleSubmit}
-                disabled={submitting || checkingCompliance || compliance?.status === "blocked"}
-                style={{
-                  flex: 1, padding: "12px", borderRadius: 10, border: "none",
-                  background: compliance?.status === "blocked" ? "#D1D5DB" : meta.color,
-                  color: "white", fontSize: 15, fontWeight: 700,
-                  cursor: compliance?.status === "blocked" ? "not-allowed" : "pointer",
-                  opacity: submitting || checkingCompliance ? 0.6 : 1, transition: "all 0.2s",
-                }}>
+              <button onClick={handleSubmit} disabled={submitting || checkingCompliance || compliance?.status === "blocked"}
+                style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: compliance?.status === "blocked" ? "#D1D5DB" : meta.color, color: "white", fontSize: 15, fontWeight: 700, cursor: compliance?.status === "blocked" ? "not-allowed" : "pointer", opacity: submitting || checkingCompliance ? 0.6 : 1, transition: "all 0.2s" }}>
                 {checkingCompliance ? "⏳ 檢查中..." : submitting ? "送出中..." : compliance?.status === "blocked" ? "🚫 無法送出" : "確認送出 →"}
               </button>
               <button onClick={() => { setFormData(null); setParsedType(null); setCompliance(null); setShowEditMode(false); }}
@@ -583,8 +550,7 @@ export default function WorkflowsPage() {
                 <button onClick={() => setViewMode("all")} style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 12, cursor: "pointer", background: viewMode === "all" ? "#7C3AED" : "white", color: viewMode === "all" ? "white" : "#374151" }}>全部</button>
               </>
             )}
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 12, outline: "none" }}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ padding: "5px 10px", borderRadius: 8, border: "1px solid #D1D5DB", fontSize: 12, outline: "none" }}>
               <option value="">全部</option>
               <option value="pending">⏳ 待審核</option>
               <option value="approved">✅ 已核准</option>
@@ -596,8 +562,7 @@ export default function WorkflowsPage() {
         {isAdmin && selectedIds.size > 0 && (
           <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10, padding: "8px 14px", background: "#EDE9FE", borderRadius: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#5B21B6" }}>已選 {selectedIds.size} 筆</span>
-            <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="備註 (optional)"
-              style={{ flex: 1, minWidth: 120, padding: "4px 8px", border: "1px solid #C4B5FD", borderRadius: 6, fontSize: 11, outline: "none" }} />
+            <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="備註 (optional)" style={{ flex: 1, minWidth: 120, padding: "4px 8px", border: "1px solid #C4B5FD", borderRadius: 6, fontSize: 11, outline: "none" }} />
             <button onClick={() => handleBatchApproval("approved")} style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "#059669", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✅ 批次核准</button>
             <button onClick={() => handleBatchApproval("rejected")} style={{ padding: "4px 12px", borderRadius: 6, border: "none", background: "#DC2626", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>❌ 批次駁回</button>
             <button onClick={() => setSelectedIds(new Set())} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", fontSize: 11, cursor: "pointer" }}>取消</button>
@@ -647,11 +612,11 @@ export default function WorkflowsPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6, marginBottom: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 5, marginBottom: 10 }}>
                   {Object.entries(s.form_data).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
                     <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
                       <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
-                      <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{value || "—"}</div>
+                      <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{String(value || "—")}</div>
                     </div>
                   ))}
                 </div>
@@ -659,6 +624,9 @@ export default function WorkflowsPage() {
                 {s.original_text && (
                   <div style={{ fontSize: 11, color: "#6B7280", padding: "5px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>
                 )}
+
+                {/* ✅ Compliance summary — visible to both employee and admin */}
+                <ComplianceSummary result={s.compliance_result} />
 
                 {s.reviewed_at && (
                   <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 8 }}>
