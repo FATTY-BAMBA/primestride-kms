@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
-  FileText, Clock, CheckCircle2, AlertTriangle,
-  Upload, Link as LinkIcon, PenLine, ArrowRight,
-  Users, Library, Bot, Zap
+  FileText, Clock, Users, Library, Bot,
+  Upload, Link as LinkIcon, PenLine,
+  AlertTriangle, CheckCircle2, TrendingUp,
+  ArrowRight, ChevronRight, Zap, Shield,
+  DollarSign, Calendar, Bell, Search
 } from "lucide-react";
 
 type RecentDoc = {
@@ -29,18 +31,45 @@ type DashboardData = {
   language: "zh" | "en";
   trialDaysRemaining: number;
   planId: string;
+  approvedThisMonth: number;
+  overtimeHours: number;
 };
 
-function timeAgo(dateStr: string) {
+type SmartAction = {
+  id: string;
+  priority: "urgent" | "high" | "normal";
+  icon: React.ReactNode;
+  label: string;
+  sublabel: string;
+  href: string;
+  accentColor: string;
+  bgColor: string;
+  badge?: string;
+};
+
+function timeAgo(dateStr: string, isZh: boolean) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
+  if (mins < 60) return isZh ? `${mins} 分鐘前` : `${mins}m ago`;
+  if (hours < 24) return isZh ? `${hours} 小時前` : `${hours}h ago`;
+  if (days === 1) return isZh ? "昨天" : "Yesterday";
+  if (days < 7) return isZh ? `${days} 天前` : `${days}d ago`;
   return new Date(dateStr).toLocaleDateString();
+}
+
+function PulsingDot({ color }: { color: string }) {
+  return (
+    <span style={{ position: "relative", display: "inline-flex", width: 8, height: 8 }}>
+      <span style={{
+        position: "absolute", inset: 0, borderRadius: "50%",
+        background: color, opacity: 0.4,
+        animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite",
+      }} />
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, position: "relative" }} />
+    </span>
+  );
 }
 
 export default function DashboardPage() {
@@ -59,10 +88,18 @@ export default function DashboardPage() {
       fetch("/api/branding").then(r => r.json()),
       fetch("/api/organizations").then(r => r.json()),
       fetch("/api/subscription").then(r => r.json()),
-    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs, sub]) => {
-      // org name priority: branding custom name → actual org name → fallback
+      fetch("/api/workflows?view=all").then(r => r.json()),
+    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs, sub, allWorkflows]) => {
       const actualOrgName = orgs.organizations?.[0]?.name || "";
       const orgName = branding.branding?.org_name || actualOrgName || (profile.language === "zh" ? "貴公司" : "your organization");
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const allSubs = allWorkflows.submissions || [];
+      const approvedThisMonth = allSubs.filter((s: any) => s.status === "approved" && s.created_at >= monthStart).length;
+      const overtimeHours = allSubs
+        .filter((s: any) => s.form_type === "overtime" && s.status === "approved" && s.created_at >= monthStart)
+        .reduce((sum: number, s: any) => sum + (Number(s.form_data?.hours) || 0), 0);
 
       setData({
         pendingFormsOrg: orgWorkflows.submissions?.length || 0,
@@ -78,6 +115,8 @@ export default function DashboardPage() {
         language: profile.language || "en",
         trialDaysRemaining: sub.trial_days_remaining || 0,
         planId: sub.subscription?.plan_id || "explorer",
+        approvedThisMonth,
+        overtimeHours,
       });
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -86,196 +125,448 @@ export default function DashboardPage() {
   const isZh = data?.language === "zh";
   const hour = new Date().getHours();
 
-  // Localised greeting
   const greeting = isZh
-    ? (hour < 12 ? "早安" : hour < 18 ? "午安" : "晚安")
-    : (hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
+    ? (hour < 5 ? "夜深了" : hour < 12 ? "早安" : hour < 18 ? "午安" : "晚安")
+    : (hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
 
   const firstName = data?.full_name?.split(" ")[0] || "";
-  const subheading = isZh
-    ? `以下是 ${data?.org_name || ""} 的最新動態`
-    : `Here's what's happening at ${data?.org_name || "your organization"}`;
 
-  const pendingCount = isAdmin ? data?.pendingFormsOrg : data?.pendingFormsMine;
-  const pendingLabel = isZh
-    ? (isAdmin ? "待審核表單" : "我的待審表單")
-    : (isAdmin ? "Pending Reviews" : "My Pending Forms");
+  // ── Smart Actions: context-aware, priority-sorted ──
+  const buildSmartActions = (): SmartAction[] => {
+    if (!data) return [];
+    const actions: SmartAction[] = [];
+
+    // URGENT: pending reviews (admin)
+    if (isAdmin && data.pendingFormsOrg > 0) {
+      actions.push({
+        id: "pending-review",
+        priority: "urgent",
+        icon: <Bell className="w-4 h-4" />,
+        label: isZh ? `${data.pendingFormsOrg} 份表單等待審核` : `${data.pendingFormsOrg} form${data.pendingFormsOrg > 1 ? "s" : ""} need review`,
+        sublabel: isZh ? "員工正在等待您的決定" : "Employees are waiting on your decision",
+        href: "/admin",
+        accentColor: "#DC2626",
+        bgColor: "#FEF2F2",
+        badge: String(data.pendingFormsOrg),
+      });
+    }
+
+    // URGENT: trial expiring soon
+    if (isAdmin && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 7) {
+      actions.push({
+        id: "trial-expiry",
+        priority: "urgent",
+        icon: <Clock className="w-4 h-4" />,
+        label: isZh ? `試用期還剩 ${data.trialDaysRemaining} 天` : `Trial ends in ${data.trialDaysRemaining} days`,
+        sublabel: isZh ? "聯絡我們確保服務不中斷" : "Contact us to keep full access",
+        href: "mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約",
+        accentColor: "#D97706",
+        bgColor: "#FFFBEB",
+      });
+    }
+
+    // HIGH: no documents yet (admin)
+    if (isAdmin && data.totalDocs === 0) {
+      actions.push({
+        id: "upload-first",
+        priority: "high",
+        icon: <Upload className="w-4 h-4" />,
+        label: isZh ? "上傳您的第一份員工手冊" : "Upload your first employee handbook",
+        sublabel: isZh ? "讓 Ask Atlas 開始回答員工問題" : "Enable Ask Atlas to answer employee questions",
+        href: "/library/new",
+        accentColor: "#7C3AED",
+        bgColor: "#F5F3FF",
+      });
+    }
+
+    // HIGH: pending my own forms (member)
+    if (!isAdmin && data.pendingFormsMine > 0) {
+      actions.push({
+        id: "my-pending",
+        priority: "high",
+        icon: <Clock className="w-4 h-4" />,
+        label: isZh ? `${data.pendingFormsMine} 份申請等待主管審核` : `${data.pendingFormsMine} request${data.pendingFormsMine > 1 ? "s" : ""} awaiting approval`,
+        sublabel: isZh ? "主管即將審核您的申請" : "Your manager will review soon",
+        href: "/workflows",
+        accentColor: "#2563EB",
+        bgColor: "#EFF6FF",
+      });
+    }
+
+    // HIGH: overtime high this month (admin)
+    if (isAdmin && data.overtimeHours >= 30) {
+      actions.push({
+        id: "overtime-alert",
+        priority: "high",
+        icon: <Shield className="w-4 h-4" />,
+        label: isZh ? `本月加班已達 ${data.overtimeHours} 小時` : `${data.overtimeHours}h overtime this month`,
+        sublabel: isZh ? "查看 Shadow Audit 了解風險詳情" : "Check Shadow Audit for risk details",
+        href: "/admin",
+        accentColor: "#DC2626",
+        bgColor: "#FEF2F2",
+      });
+    }
+
+    // NORMAL: submit a request
+    actions.push({
+      id: "submit-request",
+      priority: "normal",
+      icon: <FileText className="w-4 h-4" />,
+      label: isZh ? "用一句話提交申請" : "Submit a request in one sentence",
+      sublabel: isZh ? "請假、加班、出差 — AI 自動辨識" : "Leave, overtime, business trip — AI parses it",
+      href: "/workflows",
+      accentColor: "#7C3AED",
+      bgColor: "#F5F3FF",
+    });
+
+    // NORMAL: ask atlas
+    actions.push({
+      id: "ask-atlas",
+      priority: "normal",
+      icon: <Bot className="w-4 h-4" />,
+      label: isZh ? "詢問 Atlas 關於公司政策" : "Ask Atlas about company policy",
+      sublabel: isZh ? "AI 即時回答，有來源引用" : "Instant AI answers with source citations",
+      href: "/search",
+      accentColor: "#EC4899",
+      bgColor: "#FDF2F8",
+    });
+
+    // NORMAL: browse library
+    if (data.totalDocs > 0) {
+      actions.push({
+        id: "browse-library",
+        priority: "normal",
+        icon: <Library className="w-4 h-4" />,
+        label: isZh ? `瀏覽知識庫 (${data.totalDocs} 份文件)` : `Browse knowledge base (${data.totalDocs} docs)`,
+        sublabel: isZh ? "搜尋公司政策和規章" : "Search company policies and documents",
+        href: "/library",
+        accentColor: "#0891B2",
+        bgColor: "#ECFEFF",
+      });
+    }
+
+    // NORMAL: admin-specific
+    if (isAdmin) {
+      actions.push({
+        id: "upload-doc",
+        priority: "normal",
+        icon: <Upload className="w-4 h-4" />,
+        label: isZh ? "上傳或匯入文件" : "Upload or import a document",
+        sublabel: isZh ? "PDF、Word、網址、YouTube 均支援" : "PDF, Word, URL, YouTube supported",
+        href: "/library/new",
+        accentColor: "#059669",
+        bgColor: "#F0FDF4",
+      });
+    }
+
+    // Sort: urgent first, then high, then normal
+    const order = { urgent: 0, high: 1, normal: 2 };
+    return actions.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5);
+  };
+
+  const smartActions = buildSmartActions();
+
+  // ── Stat cards: meaningful metrics only ──
+  const statCards = data ? [
+    {
+      label: isZh ? "文件數" : "Documents",
+      value: data.totalDocs,
+      icon: FileText,
+      color: "#7C3AED",
+      bg: "#F5F3FF",
+      href: "/library",
+      trend: data.totalDocs > 0 ? undefined : (isZh ? "尚無文件" : "Upload your first"),
+    },
+    {
+      label: isZh ? (isAdmin ? "待審核" : "我的待審") : (isAdmin ? "Pending Reviews" : "My Pending"),
+      value: isAdmin ? data.pendingFormsOrg : data.pendingFormsMine,
+      icon: Clock,
+      color: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0 ? "#DC2626" : "#059669",
+      bg: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0 ? "#FEF2F2" : "#F0FDF4",
+      href: isAdmin ? "/admin" : "/workflows",
+      pulse: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0,
+    },
+    {
+      label: isZh ? "團隊成員" : "Team Members",
+      value: data.memberCount,
+      icon: Users,
+      color: "#2563EB",
+      bg: "#EFF6FF",
+      href: isAdmin ? "/team" : undefined,
+    },
+    {
+      label: isZh ? "本月核准" : "Approved This Month",
+      value: data.approvedThisMonth,
+      icon: CheckCircle2,
+      color: "#059669",
+      bg: "#F0FDF4",
+      href: isAdmin ? "/admin" : "/workflows",
+      trend: data.approvedThisMonth > 0 ? undefined : (isZh ? "本月尚無" : "None yet"),
+    },
+  ] : [];
 
   return (
     <ProtectedRoute>
-      <div className="p-6 lg:p-8 max-w-5xl mx-auto">
+      <style>{`
+        @keyframes ping {
+          75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .atlas-card {
+          animation: fadeSlideUp 0.35s ease forwards;
+        }
+        .atlas-card:nth-child(1) { animation-delay: 0.05s; opacity: 0; }
+        .atlas-card:nth-child(2) { animation-delay: 0.10s; opacity: 0; }
+        .atlas-card:nth-child(3) { animation-delay: 0.15s; opacity: 0; }
+        .atlas-card:nth-child(4) { animation-delay: 0.20s; opacity: 0; }
+        .action-row:hover .action-arrow { transform: translateX(3px); }
+        .action-arrow { transition: transform 0.15s ease; }
+        .doc-row:hover .doc-title { color: #7C3AED; }
+        .doc-title { transition: color 0.15s ease; }
+      `}</style>
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-slate-900">
-            {greeting}{data ? `，${firstName}` : ""} 👋
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">{subheading}</p>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px 48px" }}>
+
+        {/* ── Header ── */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.02em" }}>
+              {greeting}{data ? `，${firstName}` : ""} 👋
+            </h1>
+          </div>
+          <p style={{ fontSize: 14, color: "#94A3B8", margin: "6px 0 0", fontWeight: 400 }}>
+            {data
+              ? (isZh ? `以下是 ${data.org_name} 的最新動態` : `Here's what's happening at ${data.org_name}`)
+              : (isZh ? "載入中..." : "Loading...")}
+          </p>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-slate-400">
-            {isZh ? "載入中..." : "Loading..."}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[1,2,3].map(i => (
+              <div key={i} style={{ height: 80, borderRadius: 12, background: "linear-gradient(90deg, #F8FAFC 25%, #F1F5F9 50%, #F8FAFC 75%)", backgroundSize: "400% 100%", animation: "shimmer 1.5s infinite" }} />
+            ))}
           </div>
         ) : (
           <>
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {[
-                { label: isZh ? "文件數" : "Documents", value: data?.totalDocs, icon: FileText, color: "text-violet-600", bg: "bg-violet-50", href: "/library" },
-                { label: pendingLabel, value: pendingCount, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", href: isAdmin ? "/admin" : "/workflows" },
-                { label: isZh ? "團隊成員" : "Team Members", value: data?.memberCount, icon: Users, color: "text-blue-600", bg: "bg-blue-50", href: isAdmin ? "/team" : undefined },
-                { label: isZh ? "AI 就緒" : "AI Ready", value: isZh ? "啟用" : "On", icon: Zap, color: "text-emerald-600", bg: "bg-emerald-50", href: "/search" },
-              ].map(stat => (
+            {/* ── Stat Cards ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 24 }}
+              className="lg:grid-cols-4">
+              {statCards.map((stat, i) => (
                 <div
                   key={stat.label}
+                  className="atlas-card"
                   onClick={() => stat.href && router.push(stat.href)}
-                  className={`bg-white border border-slate-200 rounded-xl p-4 ${stat.href ? "cursor-pointer hover:border-violet-300 hover:shadow-sm" : ""} transition-all`}
+                  style={{
+                    background: "white",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: 14,
+                    padding: "16px 18px",
+                    cursor: stat.href ? "pointer" : "default",
+                    transition: "box-shadow 0.2s, border-color 0.2s, transform 0.2s",
+                    animationDelay: `${i * 0.05}s`,
+                    position: "relative",
+                    overflow: "hidden",
+                  }}
+                  onMouseEnter={e => {
+                    if (stat.href) {
+                      (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
+                      (e.currentTarget as HTMLElement).style.borderColor = "#CBD5E1";
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                    (e.currentTarget as HTMLElement).style.borderColor = "#E2E8F0";
+                    (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                  }}
                 >
-                  <div className={`w-9 h-9 rounded-lg ${stat.bg} flex items-center justify-center mb-3`}>
-                    <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: stat.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <stat.icon style={{ width: 16, height: 16, color: stat.color }} />
+                    </div>
+                    {(stat as any).pulse && <PulsingDot color={stat.color} />}
                   </div>
-                  <div className="text-2xl font-semibold text-slate-900">{stat.value ?? "—"}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{stat.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: stat.color, lineHeight: 1, marginBottom: 4, letterSpacing: "-0.03em" }}>
+                    {stat.value ?? "—"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#94A3B8", fontWeight: 500 }}>{stat.label}</div>
+                  {(stat as any).trend && (
+                    <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 3 }}>{(stat as any).trend}</div>
+                  )}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-              {/* Getting Started — shown only when org has no docs yet */}
-              {isAdmin && data && data.totalDocs === 0 && (
-                <div className="lg:col-span-3 bg-gradient-to-r from-violet-50 to-blue-50 border border-violet-200 rounded-xl p-5 mb-2">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-xl">🚀</span>
-                    <div>
-                      <h2 className="text-sm font-bold text-violet-900">
-                        {isZh ? "歡迎使用 Atlas EIP！完成以下步驟開始使用" : "Welcome to Atlas EIP! Complete these steps to get started"}
-                      </h2>
-                      <p className="text-xs text-violet-600 mt-0.5">
-                        {isZh ? "只需幾分鐘，讓您的團隊開始享受 AI 驅動的工作流程" : "Just a few minutes to unlock AI-powered workflows for your team"}
-                      </p>
+            {/* ── Onboarding checklist (first-time orgs) ── */}
+            {isAdmin && data && data.totalDocs === 0 && (
+              <div style={{
+                background: "linear-gradient(135deg, #7C3AED08 0%, #2563EB06 100%)",
+                border: "1px solid #DDD6FE",
+                borderRadius: 16, padding: 20, marginBottom: 20,
+              }} className="atlas-card">
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #7C3AED, #6D28D9)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Zap style={{ width: 18, height: 18, color: "white" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1E1B4B" }}>
+                      {isZh ? "完成設定，解鎖完整 AI 功能" : "Complete setup to unlock all AI features"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#8B5CF6" }}>
+                      {isZh ? "只需 3 個步驟，不到 5 分鐘" : "3 steps, less than 5 minutes"}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      {
-                        step: "1",
-                        icon: "📚",
-                        title: isZh ? "上傳員工手冊" : "Upload Employee Handbook",
-                        desc: isZh ? "上傳公司規章，Atlas AI 自動建立知識庫" : "Upload company policies — Atlas AI builds your knowledge base",
-                        href: "/library",
-                        cta: isZh ? "前往文件庫 →" : "Go to Library →",
-                        done: false,
-                      },
-                      {
-                        step: "2",
-                        icon: "👥",
-                        title: isZh ? "邀請團隊成員" : "Invite Your Team",
-                        desc: isZh ? "邀請員工加入，讓他們用自然語言提交申請" : "Invite employees to submit requests in natural language",
-                        href: "/team",
-                        cta: isZh ? "邀請成員 →" : "Invite Members →",
-                        done: (data?.memberCount || 0) > 1,
-                      },
-                      {
-                        step: "3",
-                        icon: "💬",
-                        title: isZh ? "提交第一筆申請" : "Submit First Request",
-                        desc: isZh ? "用一句話請假或申請加班，體驗 AI 自動填寫" : "Submit leave or overtime in one sentence — AI fills the form",
-                        href: "/workflows",
-                        cta: isZh ? "試試看 →" : "Try it →",
-                        done: false,
-                      },
-                    ].map((item) => (
-                      <a key={item.step} href={item.href}
-                        className="flex gap-3 p-3 bg-white rounded-lg border border-violet-100 hover:border-violet-300 hover:shadow-sm transition-all group no-underline"
-                      >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${item.done ? "bg-emerald-100 text-emerald-700" : "bg-violet-100 text-violet-700"}`}>
-                          {item.done ? "✓" : item.step}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-base">{item.icon}</span>
-                            <span className="text-xs font-semibold text-slate-800">{item.title}</span>
-                          </div>
-                          <p className="text-xs text-slate-500 leading-relaxed mb-2">{item.desc}</p>
-                          <span className="text-xs text-violet-600 font-semibold group-hover:text-violet-800">{item.cta}</span>
-                        </div>
-                      </a>
-                    ))}
-                  </div>
                 </div>
-              )}
-
-              {/* Quick Actions */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5">
-                <h2 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-violet-500" />
-                  {isZh ? "快速操作" : "Quick Actions"}
-                </h2>
-                <div className="space-y-1">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {[
-                    { label: isZh ? "詢問 Atlas" : "Ask Atlas", icon: Bot, href: "/search", color: "text-pink-600", bg: "bg-pink-50" },
-                    { label: isZh ? "提交表單" : "Submit a form", icon: FileText, href: "/workflows", color: "text-amber-600", bg: "bg-amber-50" },
-                    { label: isZh ? "瀏覽文件庫" : "Browse library", icon: Library, href: "/library", color: "text-violet-600", bg: "bg-violet-50" },
-                    ...(isAdmin ? [
-                      { label: isZh ? "上傳文件" : "Upload a document", icon: Upload, href: "/library/new", color: "text-blue-600", bg: "bg-blue-50" },
-                      { label: isZh ? "匯入網址" : "Import from URL", icon: LinkIcon, href: "/library/new?mode=url", color: "text-blue-600", bg: "bg-blue-50" },
-                      { label: isZh ? "新增筆記" : "Write a note", icon: PenLine, href: "/library/note/new", color: "text-emerald-600", bg: "bg-emerald-50" },
-                      { label: isZh ? "審核待審表單" : "Review pending forms", icon: CheckCircle2, href: "/admin", color: "text-slate-600", bg: "bg-slate-100" },
-                    ] : []),
-                  ].map(action => (
-                    <Link key={action.href + action.label} href={action.href}
-                      className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors group"
+                    { step: 1, icon: "📚", title: isZh ? "上傳員工手冊" : "Upload Handbook", desc: isZh ? "建立 AI 知識庫" : "Build AI knowledge base", href: "/library/new", done: false },
+                    { step: 2, icon: "👥", title: isZh ? "邀請團隊成員" : "Invite Team", desc: isZh ? "讓員工開始使用" : "Get employees onboard", href: "/team", done: (data?.memberCount || 0) > 1 },
+                    { step: 3, icon: "💬", title: isZh ? "提交第一筆申請" : "First Request", desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing", href: "/workflows", done: false },
+                  ].map(item => (
+                    <a key={item.step} href={item.href} style={{ textDecoration: "none" }}>
+                      <div style={{
+                        display: "flex", gap: 12, padding: "12px 14px",
+                        background: "white", borderRadius: 10,
+                        border: `1px solid ${item.done ? "#BBF7D0" : "#E8E3FF"}`,
+                        cursor: "pointer", transition: "all 0.15s",
+                      }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#7C3AED"; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(124,58,237,0.1)"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = item.done ? "#BBF7D0" : "#E8E3FF"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
+                      >
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: item.done ? "#D1FAE5" : "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                          {item.done ? "✓" : item.icon}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#1E1B4B", marginBottom: 2 }}>{item.title}</div>
+                          <div style={{ fontSize: 11, color: "#94A3B8" }}>{item.desc}</div>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Main content grid ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 16, alignItems: "start" }}>
+
+              {/* ── Smart Actions ── */}
+              <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 16, overflow: "hidden" }} className="atlas-card">
+                <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F8FAFC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: "#F5F3FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Zap style={{ width: 14, height: 14, color: "#7C3AED" }} />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                      {isZh ? "今日重點" : "Today's Focus"}
+                    </span>
+                  </div>
+                  {smartActions.some(a => a.priority === "urgent") && (
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      {isZh ? "需要處理" : "Action needed"}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ padding: "6px 0" }}>
+                  {smartActions.map((action, i) => (
+                    <div
+                      key={action.id}
+                      className="action-row"
+                      onClick={() => router.push(action.href)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "11px 18px", cursor: "pointer",
+                        borderBottom: i < smartActions.length - 1 ? "1px solid #F8FAFC" : "none",
+                        transition: "background 0.15s",
+                        background: action.priority === "urgent" ? `${action.bgColor}` : "transparent",
+                      }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = action.bgColor; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = action.priority === "urgent" ? action.bgColor : "transparent"; }}
                     >
-                      <span className={`w-7 h-7 rounded-md ${action.bg} flex items-center justify-center flex-shrink-0`}>
-                        <action.icon className={`w-3.5 h-3.5 ${action.color}`} />
-                      </span>
-                      <span className="text-sm text-slate-700 group-hover:text-slate-900">{action.label}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-300 ml-auto group-hover:text-slate-500 transition-colors" />
-                    </Link>
+                      <div style={{ width: 34, height: 34, borderRadius: 9, background: action.bgColor, border: `1px solid ${action.accentColor}20`, display: "flex", alignItems: "center", justifyContent: "center", color: action.accentColor, flexShrink: 0, position: "relative" }}>
+                        {action.icon}
+                        {action.badge && (
+                          <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, borderRadius: "50%", background: action.accentColor, color: "white", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {action.badge}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {action.label}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#94A3B8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {action.sublabel}
+                        </div>
+                      </div>
+                      <ChevronRight className="action-arrow" style={{ width: 14, height: 14, color: "#CBD5E1", flexShrink: 0 }} />
+                    </div>
                   ))}
                 </div>
               </div>
 
-              {/* Recent Documents */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 lg:col-span-2">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                    <Library className="w-4 h-4 text-slate-400" />
-                    {isZh ? "最近文件" : "Recent Documents"}
-                  </h2>
-                  <Link href="/library" className="text-xs text-violet-600 hover:text-violet-700 font-medium">
-                    {isZh ? "查看全部 →" : "View all →"}
+              {/* ── Recent Documents ── */}
+              <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 16, overflow: "hidden" }} className="atlas-card">
+                <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F8FAFC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Library style={{ width: 14, height: 14, color: "#059669" }} />
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                      {isZh ? "最近文件" : "Recent Documents"}
+                    </span>
+                  </div>
+                  <Link href="/library" style={{ fontSize: 12, color: "#7C3AED", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
+                    {isZh ? "查看全部" : "View all"} <ArrowRight style={{ width: 12, height: 12 }} />
                   </Link>
                 </div>
 
                 {data?.recentDocs.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">{isZh ? "尚無文件" : "No documents yet"}</p>
+                  <div style={{ padding: "36px 20px", textAlign: "center" }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                      <Library style={{ width: 22, height: 22, color: "#CBD5E1" }} />
+                    </div>
+                    <p style={{ fontSize: 13, color: "#94A3B8", margin: "0 0 8px", fontWeight: 500 }}>
+                      {isZh ? "知識庫尚無文件" : "No documents yet"}
+                    </p>
                     {isAdmin && (
-                      <Link href="/library/new" className="text-xs text-violet-600 hover:underline mt-1 inline-block">
+                      <Link href="/library/new" style={{ fontSize: 12, color: "#7C3AED", fontWeight: 600, textDecoration: "none" }}>
                         {isZh ? "上傳第一份文件 →" : "Upload your first document →"}
                       </Link>
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    {data?.recentDocs.map(doc => (
-                      <Link key={doc.doc_id} href={`/library/${encodeURIComponent(doc.doc_id)}`}
-                        className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-4 h-4 text-violet-500" />
+                  <div style={{ padding: "4px 0" }}>
+                    {data?.recentDocs.map((doc, i) => (
+                      <Link key={doc.doc_id} href={`/library/${encodeURIComponent(doc.doc_id)}`} style={{ textDecoration: "none" }}>
+                        <div
+                          className="doc-row"
+                          style={{
+                            display: "flex", alignItems: "center", gap: 12, padding: "11px 18px",
+                            borderBottom: i < (data?.recentDocs.length || 0) - 1 ? "1px solid #F8FAFC" : "none",
+                            transition: "background 0.15s", cursor: "pointer",
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FAFBFF"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                        >
+                          <div style={{ width: 36, height: 36, borderRadius: 9, background: "#F5F3FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <FileText style={{ width: 16, height: 16, color: "#7C3AED" }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p className="doc-title" style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {doc.title}
+                            </p>
+                            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>
+                              {doc.doc_type || "document"} · {doc.updated_at ? timeAgo(doc.updated_at, isZh ?? false) : ""}
+                            </p>
+                          </div>
+                          <ChevronRight style={{ width: 14, height: 14, color: "#E2E8F0", flexShrink: 0 }} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate group-hover:text-violet-700">{doc.title}</p>
-                          {doc.doc_type && <p className="text-xs text-slate-400">{doc.doc_type}</p>}
-                        </div>
-                        <span className="text-xs text-slate-400 flex-shrink-0">
-                          {doc.updated_at ? timeAgo(doc.updated_at) : ""}
-                        </span>
                       </Link>
                     ))}
                   </div>
@@ -283,93 +574,40 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Admin alert */}
-            {isAdmin && data && data.pendingFormsOrg > 0 && (
-              <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+            {/* ── Trial banners ── */}
+            {isAdmin && data && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 30 && data.trialDaysRemaining > 7 && (
+              <div style={{ marginTop: 16, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>⏳</span>
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">
-                      {isZh
-                        ? `${data.pendingFormsOrg} 份表單等待審核`
-                        : `${data.pendingFormsOrg} form${data.pendingFormsOrg > 1 ? "s" : ""} waiting for review`}
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF", margin: 0 }}>
+                      {isZh ? `試用期還剩 ${data.trialDaysRemaining} 天` : `Trial ends in ${data.trialDaysRemaining} days`}
                     </p>
-                    <p className="text-xs text-amber-600 mt-0.5">
-                      {isZh ? "員工正在等待您的審核" : "Employees are waiting for approval on their requests"}
+                    <p style={{ fontSize: 11, color: "#3B82F6", margin: 0 }}>
+                      {isZh ? "聯絡我們確保服務不中斷" : "Contact us to keep full access"}
                     </p>
                   </div>
                 </div>
-                <Link href="/admin"
-                  className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                >
-                  {isZh ? "立即審核" : "Review now"}
-                </Link>
-              </div>
-            )}
-
-            {/* Member alert */}
-            {!isAdmin && data && data.pendingFormsMine > 0 && (
-              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-800">
-                      {isZh
-                        ? `您有 ${data.pendingFormsMine} 份表單待審中`
-                        : `${data.pendingFormsMine} of your form${data.pendingFormsMine > 1 ? "s are" : " is"} pending approval`}
-                    </p>
-                    <p className="text-xs text-blue-600 mt-0.5">
-                      {isZh ? "主管即將審核您的申請" : "Your manager will review them soon"}
-                    </p>
-                  </div>
-                </div>
-                <Link href="/workflows"
-                  className="flex-shrink-0 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                >
-                  {isZh ? "查看表單" : "View forms"}
-                </Link>
-              </div>
-            )}
-
-            {/* Trial expiry banner */}
-            {isAdmin && data && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 30 && (
-              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">⏳</span>
-                  <div>
-                    <p className="text-sm font-semibold text-blue-800">
-                      {isZh
-                        ? `試用期還剩 ${data.trialDaysRemaining} 天`
-                        : `Your trial ends in ${data.trialDaysRemaining} days`}
-                    </p>
-                    <p className="text-xs text-blue-600 mt-0.5">
-                      {isZh ? "聯絡我們繼續使用完整功能" : "Contact us to continue with full access"}
-                    </p>
-                  </div>
-                </div>
-                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約"
-                  className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors no-underline">
+                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約" style={{ padding: "8px 16px", background: "#2563EB", color: "white", borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
                   {isZh ? "聯絡我們" : "Contact Us"}
                 </a>
               </div>
             )}
 
-            {/* Trial expired banner */}
             {isAdmin && data && data.planId === "explorer" && data.trialDaysRemaining === 0 && (
-              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">🔒</span>
+              <div style={{ marginTop: 16, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>🔒</span>
                   <div>
-                    <p className="text-sm font-semibold text-red-800">
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#991B1B", margin: 0 }}>
                       {isZh ? "試用期已結束" : "Your trial has ended"}
                     </p>
-                    <p className="text-xs text-red-600 mt-0.5">
+                    <p style={{ fontSize: 11, color: "#DC2626", margin: 0 }}>
                       {isZh ? "升級至付費方案以繼續使用完整功能" : "Upgrade to continue with full access"}
                     </p>
                   </div>
                 </div>
-                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案"
-                  className="flex-shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors no-underline">
+                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案" style={{ padding: "8px 16px", background: "#DC2626", color: "white", borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
                   {isZh ? "升級方案" : "Upgrade Plan"}
                 </a>
               </div>
