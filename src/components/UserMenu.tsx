@@ -43,7 +43,6 @@ export default function UserMenu() {
   };
 
   return (
-    // No overflow:hidden here — dropdown needs to escape upward
     <div style={{ position: "relative" }}>
       <button
         onClick={() => setOpen(!open)}
@@ -79,7 +78,8 @@ export default function UserMenu() {
           <div style={{
             position: "absolute",
             bottom: "calc(100% + 8px)",
-            left: 0,
+            right: 0,
+            left: "auto",
             width: 220,
             background: "var(--bg-secondary)",
             border: "1px solid var(--border-color)",
@@ -88,9 +88,8 @@ export default function UserMenu() {
             zIndex: 9999,
             overflow: "hidden",
           }}>
-            {/* User info */}
             <div style={{ padding: 12, borderBottom: "1px solid var(--border-color)" }}>
-              <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}>
                 {displayName}
               </div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -103,7 +102,6 @@ export default function UserMenu() {
               )}
             </div>
 
-            {/* Language toggle — all users */}
             <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-color)" }}>
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                 Language / 語言
@@ -133,7 +131,6 @@ export default function UserMenu() {
               </div>
             </div>
 
-            {/* Actions */}
             <div style={{ padding: 8 }}>
               {isAdmin && (
                 <Link href="/admin" onClick={() => setOpen(false)} style={{ display: "block", padding: "8px 12px", fontSize: 14, borderRadius: "var(--radius-sm)", color: "var(--text-primary)", textDecoration: "none" }}>
