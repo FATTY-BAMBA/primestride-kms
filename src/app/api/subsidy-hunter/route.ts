@@ -66,6 +66,7 @@ export async function GET() {
       eligible_employees?: { user_id: string; name: string; reason: string }[];
       action_zh: string;
       action_en: string;
+      portal_url: string;
       urgency: "high" | "medium" | "low";
       icon: string;
     }[] = [];
@@ -98,6 +99,7 @@ export async function GET() {
         })),
         action_zh: "前往勞動力發展署補助系統申請",
         action_en: "Apply via WDA subsidy portal",
+        portal_url: "https://ezlearn.wda.gov.tw",
         urgency: "high",
         icon: "🎓",
       });
@@ -117,6 +119,7 @@ export async function GET() {
         source: "勞動部勞動力發展署",
         action_zh: "每季定期申請，建議Q2前提出",
         action_en: "Apply quarterly — recommend before Q2",
+        portal_url: "https://ilabor.mol.gov.tw/",
         urgency: "medium",
         icon: "💼",
       });
@@ -135,6 +138,7 @@ export async function GET() {
       source: "經濟部商業發展署 MOEA",
       action_zh: "需附系統導入證明及費用單據",
       action_en: "Requires proof of system implementation and receipts",
+      portal_url: "https://gcis.nat.gov.tw/mainNew/subclassNAction.do?method=getFile&pk=875",
       urgency: "high",
       icon: "🏛️",
     });
@@ -152,6 +156,7 @@ export async function GET() {
         source: "勞動部職業安全衛生署",
         action_zh: "需提交職場安全計畫書",
         action_en: "Requires workplace safety plan submission",
+        portal_url: "https://www.osha.gov.tw/",
         urgency: "medium",
         icon: "🛡️",
       });
