@@ -13,7 +13,74 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ── Helper: Resolve user IDs to names from profiles table ──
+// ── Default balance values for new members ────────────────────────────────
+const DEFAULT_BALANCE = {
+  annual_total: 7,       annual_used: 0,
+  sick_total: 30,        sick_used: 0,
+  personal_total: 14,    personal_used: 0,
+  family_care_total: 7,  family_care_used: 0,
+  family_care_hours_total: 56, family_care_hours_used: 0,
+  maternity_total: 56,   maternity_used: 0,   // days
+  paternity_total: 7,    paternity_used: 0,
+  marriage_total: 8,     marriage_used: 0,
+  bereavement_total: 8,  bereavement_used: 0,
+  official_total: 0,     official_used: 0,
+  comp_time_total: 0,    comp_time_used: 0,
+};
+
+// ── Map leave_type string → leave_balances column ────────────────────────
+// Handles all formats the NLP parser produces:
+// "特休 Annual", "特休", "annual", "sick leave", etc.
+function getLeaveColumn(leaveType: string): string {
+  const t = leaveType.toLowerCase();
+
+  if (t.includes("特休") || t.includes("annual") || t.includes("pto")) return "annual_used";
+  if (t.includes("補休") || t.includes("comp") || t.includes("調休") || t.includes("換休")) return "comp_time_used";
+  if (t.includes("病假") || t.includes("sick") || t.includes("生理")) return "sick_used";
+  if (t.includes("事假") || t.includes("personal")) return "personal_used";
+  if (t.includes("家庭") || t.includes("family") || t.includes("family care")) return "family_care_used";
+  if (t.includes("婚假") || t.includes("marriage") || t.includes("wedding")) return "marriage_used";
+  if (t.includes("喪假") || t.includes("bereavement") || t.includes("funeral")) return "bereavement_used";
+  if (t.includes("產假") || t.includes("maternity")) return "maternity_used";
+  if (t.includes("陪產") || t.includes("paternity")) return "paternity_used";
+  if (t.includes("公假") || t.includes("official")) return "official_used";
+  if (t.includes("育嬰") || t.includes("parental")) return "annual_used"; // map to annual as closest
+
+  return ""; // unknown type — do not deduct
+}
+
+// ── Ensure leave balance row exists for a user, create if missing ─────────
+async function ensureLeaveBalance(
+  orgId: string,
+  userId: string,
+  year: number
+): Promise<any> {
+  const { data: existing } = await supabase
+    .from("leave_balances")
+    .select("*")
+    .eq("organization_id", orgId)
+    .eq("user_id", userId)
+    .eq("year", year)
+    .single();
+
+  if (existing) return existing;
+
+  // Create with defaults
+  const { data: created } = await supabase
+    .from("leave_balances")
+    .insert({
+      organization_id: orgId,
+      user_id: userId,
+      year,
+      ...DEFAULT_BALANCE,
+    })
+    .select()
+    .single();
+
+  return created;
+}
+
+// ── Helper: Resolve user IDs to names from profiles table ─────────────────
 async function resolveUserNames(submissions: any[]): Promise<any[]> {
   if (!submissions || submissions.length === 0) return [];
 
@@ -39,7 +106,7 @@ async function resolveUserNames(submissions: any[]): Promise<any[]> {
   }));
 }
 
-// GET — list submissions + stats + leave balance
+// ── GET — list submissions + stats + leave balance ────────────────────────
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -64,19 +131,15 @@ export async function GET(request: NextRequest) {
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
 
-    if (view === "my" || !isAdmin) {
-      query = query.eq("submitted_by", userId);
-    }
+    if (view === "my" || !isAdmin) query = query.eq("submitted_by", userId);
     if (status) query = query.eq("status", status);
     if (formType) query = query.eq("form_type", formType);
     if (userIdFilter && isAdmin) query = query.eq("submitted_by", userIdFilter);
 
     const { data: submissions } = await query.limit(50);
-
-    // ✅ Resolve user names from profiles table
     const enriched = await resolveUserNames(submissions || []);
 
-    // Fetch stats
+    // Stats
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
@@ -90,39 +153,12 @@ export async function GET(request: NextRequest) {
       pending: (allOrgSubs || []).filter(s => s.status === "pending").length,
       approved_this_month: (allOrgSubs || []).filter(s => s.status === "approved").length,
       rejected_this_month: (allOrgSubs || []).filter(s => s.status === "rejected").length,
-      // ✅ Exclude cancelled — total should only count active submissions
       total_this_month: (allOrgSubs || []).filter(s => s.status !== "cancelled").length,
     };
 
-    // Fetch leave balance for current user
+    // Ensure leave balance exists for current user (creates if missing)
     const currentYear = now.getFullYear();
-    let { data: balance } = await supabase
-      .from("leave_balances")
-      .select("*")
-      .eq("organization_id", orgId)
-      .eq("user_id", userId)
-      .eq("year", currentYear)
-      .single();
-
-    // Auto-create balance if not exists
-    if (!balance) {
-      const { data: newBalance } = await supabase
-        .from("leave_balances")
-        .insert({
-          organization_id: orgId,
-          user_id: userId,
-          year: currentYear,
-          annual_total: 7,
-          annual_used: 0,
-          sick_total: 30,
-          sick_used: 0,
-          personal_total: 14,
-          personal_used: 0,
-        })
-        .select()
-        .single();
-      balance = newBalance;
-    }
+    const balance = await ensureLeaveBalance(orgId, userId, currentYear);
 
     return NextResponse.json({
       submissions: enriched,
@@ -135,7 +171,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST — submit a new form
+// ── POST — submit a new form ───────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -151,7 +187,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "form_type and form_data required" }, { status: 400 });
     }
 
-    // ✅ Get name from profiles table (not organization_members)
+    // Get submitter name
     let submitterName = userId;
     try {
       const { data: profile } = await supabase
@@ -180,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // ✅ Email notify admins (fire-and-forget, don't block response)
+    // Email notify admins
     try {
       const { data: admins } = await supabase
         .from("organization_members")
@@ -210,7 +246,13 @@ export async function POST(request: NextRequest) {
       console.error("Failed to send admin notifications:", notifyErr);
     }
 
-    logUsage({ organization_id: membership.organization_id, user_id: userId, action: "workflow.submit", resource_type: "workflow", metadata: { form_type } });
+    logUsage({
+      organization_id: membership.organization_id,
+      user_id: userId,
+      action: "workflow.submit",
+      resource_type: "workflow",
+      metadata: { form_type },
+    });
     logAudit({
       organizationId: membership.organization_id,
       userId,
@@ -225,7 +267,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PATCH — approve/reject/cancel/batch
+// ── PATCH — approve / reject / cancel / batch ─────────────────────────────
 export async function PATCH(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -240,7 +282,7 @@ export async function PATCH(request: NextRequest) {
     const isAdmin = ["owner", "admin"].includes(membership.role || "");
     const orgId = membership.organization_id;
 
-    // Cancel — user can cancel their own
+    // ── Cancel — user can cancel their own ──────────────────────────────
     if (action === "cancel" || action === "cancelled") {
       const { data, error } = await supabase
         .from("workflow_submissions")
@@ -255,13 +297,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ submission: data });
     }
 
-    // Approve/Reject — admin only
+    // ── Approve / Reject — admin only ───────────────────────────────────
     if (!isAdmin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
     if (!["approved", "rejected"].includes(action)) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    // ✅ Get reviewer name from profiles
+    // Get reviewer name
     let reviewerName = userId;
     try {
       const { data: profile } = await supabase
@@ -273,14 +315,13 @@ export async function PATCH(request: NextRequest) {
       else if (profile?.email) reviewerName = profile.email.split("@")[0];
     } catch {}
 
-    // Batch approval support
     const targetIds = ids || (id ? [id] : []);
     if (targetIds.length === 0) return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
 
     const results = [];
+    const currentYear = new Date().getFullYear();
 
     for (const targetId of targetIds) {
-      // Fetch submission first for leave deduction
       const { data: sub } = await supabase
         .from("workflow_submissions")
         .select("*")
@@ -290,7 +331,7 @@ export async function PATCH(request: NextRequest) {
 
       if (!sub) continue;
 
-      // Update status
+      // Update submission status
       const { data, error } = await supabase
         .from("workflow_submissions")
         .update({
@@ -308,46 +349,56 @@ export async function PATCH(request: NextRequest) {
 
       if (error) continue;
 
-      // ✅ Deduct leave balance on approval (extended for all leave types)
+      // ── Deduct leave balance on approval ──────────────────────────────
       if (action === "approved" && sub.form_type === "leave" && sub.form_data) {
-        const days = parseFloat(sub.form_data.days) || 0;
-        const leaveType = (sub.form_data.leave_type || "").toLowerCase();
-        const currentYear = new Date().getFullYear();
-
-        let column = "";
-        if (leaveType.includes("特休") || leaveType.includes("annual")) column = "annual_used";
-        else if (leaveType.includes("病假") || leaveType.includes("sick")) column = "sick_used";
-        else if (leaveType.includes("事假") || leaveType.includes("personal")) column = "personal_used";
-        else if (leaveType.includes("家庭") || leaveType.includes("family")) column = "family_care_used";
-        else if (leaveType.includes("婚假") || leaveType.includes("marriage")) column = "marriage_used";
-        else if (leaveType.includes("喪假") || leaveType.includes("bereavement")) column = "bereavement_used";
-        else if (leaveType.includes("產假") || leaveType.includes("maternity")) column = "maternity_used";
-        else if (leaveType.includes("陪產") || leaveType.includes("paternity")) column = "paternity_used";
+        const days = Number(sub.form_data.days) || 0;
+        const leaveType = String(sub.form_data.leave_type || "");
+        const column = getLeaveColumn(leaveType);
 
         if (column && days > 0) {
-          const { data: bal } = await supabase
-            .from("leave_balances")
-            .select("*")
-            .eq("organization_id", orgId)
-            .eq("user_id", sub.submitted_by)
-            .eq("year", currentYear)
-            .single();
+          // ensureLeaveBalance creates the row if it doesn't exist yet
+          // (fixes the bug where admin approves before employee visits /workflows)
+          const bal = await ensureLeaveBalance(orgId, sub.submitted_by, currentYear);
 
           if (bal) {
+            const currentUsed = Number(bal[column]) || 0;
+            const newUsed = Math.round((currentUsed + days) * 1000) / 1000; // avoid float drift
+
             await supabase
               .from("leave_balances")
               .update({
-                [column]: (parseFloat(bal[column]) || 0) + days,
+                [column]: newUsed,
                 updated_at: new Date().toISOString(),
               })
               .eq("id", bal.id);
+          }
+        }
+
+        // ── Also deduct hours for hourly family care leave ─────────────
+        if (
+          leaveType.toLowerCase().includes("家庭") ||
+          leaveType.toLowerCase().includes("family")
+        ) {
+          const hoursRequested = Number(sub.form_data.hours_requested) || 0;
+          if (hoursRequested > 0) {
+            const bal = await ensureLeaveBalance(orgId, sub.submitted_by, currentYear);
+            if (bal) {
+              const currentHrsUsed = Number(bal.family_care_hours_used) || 0;
+              await supabase
+                .from("leave_balances")
+                .update({
+                  family_care_hours_used: Math.round((currentHrsUsed + hoursRequested) * 1000) / 1000,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", bal.id);
+            }
           }
         }
       }
 
       results.push(data);
 
-      // ✅ Email notify submitter on approve/reject (fire-and-forget)
+      // Email notify submitter
       try {
         const { data: submitterProfile } = await supabase
           .from("profiles")
