@@ -508,6 +508,19 @@ export default function AdminDashboard() {
                             <div style={{ fontSize: 11, color: "#059669", marginBottom: 4 }}>
                               ✅ <strong>行動：</strong>{sub.action_zh}
                             </div>
+                            {sub.portal_url && (
+                              <a href={sub.portal_url} target="_blank" rel="noopener noreferrer"
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8,
+                                  padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                  background: "#059669", color: "white", textDecoration: "none",
+                                  border: "none", cursor: "pointer",
+                                }}
+                                onClick={e => e.stopPropagation()}
+                              >
+                                🔗 前往申請官網
+                              </a>
+                            )}
                             {sub.eligible_employees && sub.eligible_employees.length > 0 && (
                               <div style={{ marginTop: 8 }}>
                                 <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", marginBottom: 4 }}>符合資格員工：</div>
@@ -858,30 +871,25 @@ export default function AdminDashboard() {
       {/* ═══ TAB: COMPLIANCE ═══ */}
       {!loading && tab === "compliance" && (
         <div>
-          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 24, marginBottom: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#111827" }}>⚖️ 勞動部 API 同步狀態</div>
-                <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Taiwan Ministry of Labor Open Data API</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 4 }}>⚖️ 合規規則資料庫</div>
+                <div style={{ fontSize: 12, color: "#6B7280" }}>
+                  {complianceStatus?.total_rules || 0} 條勞基法規則已載入
+                  {complianceStatus?.last_sync
+                    ? ` · 上次更新：${new Date(complianceStatus.last_sync).toLocaleDateString("zh-TW", { month: "short", day: "numeric" })}`
+                    : " · 尚未同步"
+                  }
+                </div>
+                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+                  資料來源：勞動部開放資料 API（apiservice.mol.gov.tw）
+                </div>
               </div>
               <button onClick={handleSync} disabled={syncing}
-                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: syncing ? "#D1D5DB" : "#7C3AED", color: "white", fontSize: 14, fontWeight: 700, cursor: syncing ? "not-allowed" : "pointer" }}>
+                style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: syncing ? "#D1D5DB" : "#7C3AED", color: "white", fontSize: 13, fontWeight: 700, cursor: syncing ? "not-allowed" : "pointer" }}>
                 {syncing ? "⏳ 同步中..." : "🔄 立即同步"}
               </button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-              <div style={{ padding: 16, background: "#F8FAFC", borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: "#7C3AED", fontFamily: "monospace" }}>{complianceStatus?.total_rules || 0}</div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>合規規則數</div>
-              </div>
-              <div style={{ padding: 16, background: "#F8FAFC", borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: complianceStatus?.status === "synced" ? "#059669" : "#D97706" }}>{complianceStatus?.status === "synced" ? "✓" : "—"}</div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>同步狀態</div>
-              </div>
-              <div style={{ padding: 16, background: "#F8FAFC", borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#374151", fontFamily: "monospace" }}>{complianceStatus?.last_sync ? new Date(complianceStatus.last_sync).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "尚未同步"}</div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>上次同步</div>
-              </div>
             </div>
           </div>
 
@@ -889,16 +897,23 @@ export default function AdminDashboard() {
             <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 14 }}>📖 主要合規規則</div>
             <div style={{ display: "grid", gap: 8 }}>
               {[
-                { art: "LSA Art. 30/32", rule: "每日工時上限12小時，每月加班上限46-54小時", color: "#2563EB" },
-                { art: "LSA Art. 24", rule: "加班費率：前2小時 1.34x，後2小時 1.67x，假日 2x", color: "#D97706" },
-                { art: "LSA Art. 38", rule: "特休：滿半年3天，滿1年7天，逐年遞增至30天", color: "#7C3AED" },
-                { art: "LSA Art. 50", rule: "產假56天，滿6個月全薪", color: "#DC2626" },
-                { art: "2026 更新", rule: "家庭照顧假可按小時請假（56小時/年），全勤獎金比例扣減", color: "#059669" },
-                { art: "2026 基本工資", rule: "月薪 NT$29,500 / 時薪 NT$196", color: "#059669" },
+                { art: "LSA Art. 30/32", rule: "每日工時上限12小時，每月加班上限46-54小時", color: "#2563EB", url: "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=30" },
+                { art: "LSA Art. 24", rule: "加班費率：前2小時 1.34x，後2小時 1.67x，假日 2x", color: "#D97706", url: "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24" },
+                { art: "LSA Art. 38", rule: "特休：滿半年3天，滿1年7天，逐年遞增至30天", color: "#7C3AED", url: "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=38" },
+                { art: "LSA Art. 50", rule: "產假56天，滿6個月全薪", color: "#DC2626", url: "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=50" },
+                { art: "2026 更新", rule: "家庭照顧假可按小時請假（56小時/年），全勤獎金比例扣減", color: "#059669", url: "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030036" },
+                { art: "2026 基本工資", rule: "月薪 NT$29,500 / 時薪 NT$196", color: "#059669", url: "https://www.mol.gov.tw/1607/1632/1633/56601/" },
               ].map(r => (
-                <div key={r.art} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", background: "#F9FAFB", borderRadius: 8, borderLeft: `3px solid ${r.color}` }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: r.color, whiteSpace: "nowrap" }}>{r.art}</span>
-                  <span style={{ fontSize: 13, color: "#374151" }}>{r.rule}</span>
+                <div key={r.art} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 12px", background: "#F9FAFB", borderRadius: 8, borderLeft: `3px solid ${r.color}`, justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flex: 1 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: r.color, whiteSpace: "nowrap" }}>{r.art}</span>
+                    <span style={{ fontSize: 13, color: "#374151" }}>{r.rule}</span>
+                  </div>
+                  <a href={r.url} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 10, fontWeight: 600, color: r.color, textDecoration: "none", whiteSpace: "nowrap", padding: "3px 8px", borderRadius: 4, border: `1px solid ${r.color}30`, background: "white", flexShrink: 0 }}
+                    title="查看全國法規資料庫">
+                    查看全文 →
+                  </a>
                 </div>
               ))}
             </div>
