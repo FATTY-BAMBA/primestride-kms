@@ -43,6 +43,7 @@ interface Props {
   organizationId: string;
   userRole?: string;
   userId?: string;
+  userName?: string;
 }
 
 export default function DocumentView({
@@ -52,6 +53,7 @@ export default function DocumentView({
   organizationId,
   userRole,
   userId,
+  userName,
 }: Props) {
   const isAdmin = userRole === "owner" || userRole === "admin";
   const [similarDocs, setSimilarDocs] = useState<SimilarDoc[]>([]);
@@ -377,14 +379,11 @@ export default function DocumentView({
         {/* Document Header Card */}
         <div className="card" style={{ padding: "clamp(16px, 4vw, 40px)", marginBottom: 24, background: "white", borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-            <span style={{ padding: "6px 14px", background: "#EEF2FF", color: "#4F46E5", borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
-              {document.doc_id}
-            </span>
-            <span style={{ padding: "6px 14px", background: "#F3F4F6", color: "#374151", borderRadius: 8, fontSize: 13, fontWeight: 500 }}>
-              Version {document.current_version}
+            <span style={{ padding: "4px 12px", background: "#F1F5F9", color: "#64748B", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+              v{document.current_version}
             </span>
             {document.doc_type && (
-              <span style={{ padding: "6px 14px", background: "#ECFDF5", color: "#059669", borderRadius: 8, fontSize: 13, fontWeight: 500 }}>
+              <span style={{ padding: "4px 12px", background: "#D1FAE5", color: "#065F46", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
                 {document.doc_type}
               </span>
             )}
@@ -559,8 +558,10 @@ export default function DocumentView({
           {showVersions && (
             <div style={{ marginTop: 8, border: "1px solid #E5E7EB", borderRadius: 12, background: "white", overflow: "hidden" }}>
               {versions.length === 0 ? (
-                <div style={{ padding: "24px 20px", textAlign: "center", color: "#9CA3AF", fontSize: 14 }}>
-                  No version history yet. Versions are created automatically when you edit a document.
+                <div style={{ padding: "32px 20px", textAlign: "center" }}>
+                  <div style={{ fontSize: 28, marginBottom: 10 }}>🕐</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#374151", marginBottom: 4 }}>尚無版本紀錄</div>
+                  <div style={{ fontSize: 13, color: "#9CA3AF" }}>No version history yet — versions are saved automatically when you edit this document.</div>
                 </div>
               ) : (
                 versions.map((v, i) => (
@@ -740,6 +741,7 @@ export default function DocumentView({
           <DocComments
             docId={document.doc_id}
             currentUserId={userId}
+            currentUserName={userName}
             isAdmin={isAdmin}
           />
         )}
@@ -777,8 +779,7 @@ export default function DocumentView({
                 <Link key={doc.doc_id} href={`/library/${encodeURIComponent(doc.doc_id)}`} className="card" style={{ padding: 20, border: "2px solid #E5E7EB", borderRadius: 10, textDecoration: "none", color: "inherit", display: "block", background: "white" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 16, color: "#111827" }}>{doc.title}</div>
-                      <div style={{ fontSize: 14, color: "#6B7280", fontFamily: "monospace" }}>{doc.doc_id}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: "#111827" }}>{doc.title}</div>
                     </div>
                     <div style={{ padding: "8px 16px", background: "#EEF2FF", color: "#4F46E5", borderRadius: 8, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap" }}>
                       {Math.round(doc.similarity > 1 ? doc.similarity : doc.similarity * 100)}% match

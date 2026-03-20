@@ -19,10 +19,11 @@ interface Comment {
 interface Props {
   docId: string;
   currentUserId: string;
+  currentUserName?: string;
   isAdmin: boolean;
 }
 
-export default function DocComments({ docId, currentUserId, isAdmin }: Props) {
+export default function DocComments({ docId, currentUserId, currentUserName, isAdmin }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
@@ -261,7 +262,9 @@ export default function DocComments({ docId, currentUserId, isAdmin }: Props) {
             display: "flex", alignItems: "center", justifyContent: "center",
             color: "white", fontSize: 13, fontWeight: 700,
           }}>
-            {currentUserId.slice(0, 2).toUpperCase()}
+            {currentUserName
+              ? currentUserName.split(" ").filter(Boolean).slice(0, 2).map(n => n[0]).join("").toUpperCase()
+              : "?"}
           </div>
           <div style={{ flex: 1 }}>
             <textarea

@@ -9,22 +9,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function DocumentPage({ 
-  params 
-}: { 
-  params: { docId: string } 
+export default async function DocumentPage({
+  params
+}: {
+  params: { docId: string }
 }) {
   const { userId } = await auth();
-  
-  if (!userId) {
-    redirect("/login");
-  }
+
+  if (!userId) redirect("/login");
 
   const membership = await getUserOrganization(userId);
-
-  if (!membership) {
-    return <div>No organization found</div>;
-  }
+  if (!membership) return <div>No organization found</div>;
 
   const { data: document } = await supabase
     .from("documents")
@@ -43,6 +38,15 @@ export default async function DocumentPage({
   const helpfulCount = feedbackStats?.filter(f => f.is_helpful).length || 0;
   const notHelpfulCount = feedbackStats?.filter(f => !f.is_helpful).length || 0;
 
+  // ── Fetch user's display name for DocComments avatar ──
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", userId)
+    .single();
+
+  const userName = profile?.full_name || profile?.email?.split("@")[0] || "";
+
   return (
     <DocumentView
       document={document}
@@ -51,6 +55,7 @@ export default async function DocumentPage({
       organizationId={membership.organization_id}
       userRole={membership.role}
       userId={userId}
+      userName={userName}
     />
   );
 }
