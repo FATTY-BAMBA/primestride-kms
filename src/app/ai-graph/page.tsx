@@ -16,20 +16,21 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 const CLUSTER_COLORS = ["#7C3AED", "#3B82F6", "#10B981", "#F59E0B", "#EF4444"];
 
 // Default cluster topic names shown when API doesn't return AI-generated names
-const CLUSTER_FALLBACK_NAMES = ["政策規章", "產品文件", "人資管理", "作業流程", "參考資料"];
+const CLUSTER_FALLBACK_NAMES_ZH = ["政策規章", "產品文件", "人資管理", "作業流程", "參考資料"];
+const CLUSTER_FALLBACK_NAMES_EN = ["Policies", "Product Docs", "HR & People", "Operations", "Reference"];
 
-function formatRelativeTime(dateString: string | null): string {
-  if (!dateString) return "尚未更新";
+function formatRelativeTime(dateString: string | null, lang: "zh" | "en" = "zh"): string {
+  if (!dateString) return lang === "zh" ? "尚未更新" : "Never updated";
   const date = new Date(dateString);
   const now = new Date();
   const diffMins = Math.floor((now.getTime() - date.getTime()) / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
-  if (diffMins < 1) return "剛剛";
-  if (diffMins < 60) return `${diffMins} 分鐘前`;
-  if (diffHours < 24) return `${diffHours} 小時前`;
-  if (diffDays < 7) return `${diffDays} 天前`;
-  return date.toLocaleDateString("zh-TW");
+  if (diffMins < 1) return lang === "zh" ? "剛剛" : "Just now";
+  if (diffMins < 60) return lang === "zh" ? `${diffMins} 分鐘前` : `${diffMins}m ago`;
+  if (diffHours < 24) return lang === "zh" ? `${diffHours} 小時前` : `${diffHours}h ago`;
+  if (diffDays < 7) return lang === "zh" ? `${diffDays} 天前` : `${diffDays}d ago`;
+  return date.toLocaleDateString(lang === "zh" ? "zh-TW" : "en-US");
 }
 
 export default function AIGraphPage() {
@@ -49,8 +50,9 @@ export default function AIGraphPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [refreshResult, setRefreshResult] = useState<any>(null);
-  // ── Fix 5: selected node side panel instead of immediate navigation ──
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [lang, setLang] = useState<"zh" | "en">("zh");
+  const t = (zh: string, en: string) => lang === "zh" ? zh : en;
 
   useEffect(() => {
     loadGraph();
@@ -61,7 +63,10 @@ export default function AIGraphPage() {
     try {
       const res = await fetch("/api/profile");
       const data = await res.json();
-      if (res.ok && data.role) setIsAdmin(["owner", "admin"].includes(data.role));
+      if (res.ok) {
+        if (data.role) setIsAdmin(["owner", "admin"].includes(data.role));
+        if (data.language) setLang(data.language);
+      }
     } catch {}
   };
 
@@ -86,7 +91,7 @@ export default function AIGraphPage() {
         Object.keys(counts).forEach((idx) => {
           const index = parseInt(idx);
           names[index] = data.clusterNames?.[index] 
-            || CLUSTER_FALLBACK_NAMES[index % CLUSTER_FALLBACK_NAMES.length];
+            || (lang === "zh" ? CLUSTER_FALLBACK_NAMES_ZH : CLUSTER_FALLBACK_NAMES_EN)[index % CLUSTER_FALLBACK_NAMES_ZH.length];
         });
         setClusterNames(names);
 
@@ -199,7 +204,7 @@ export default function AIGraphPage() {
     return (
       <ProtectedRoute>
         <div style={{ padding: "60px 20px", textAlign: "center", color: "#94A3B8" }}>
-          載入 AI 知識圖譜中...
+          {t("載入 AI 知識圖譜中...", "Loading AI Knowledge Graph...")}
         </div>
       </ProtectedRoute>
     );
@@ -227,26 +232,26 @@ export default function AIGraphPage() {
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
                 <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#0F172A" }}>
-                  🧠 AI 知識圖譜
+                  {t("🧠 AI 知識圖譜", "🧠 AI Knowledge Graph")}
                 </h1>
                 <button
                   onClick={() => setShowInfo(true)}
                   style={{ padding: "3px 10px", background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 5, fontSize: 12, cursor: "pointer", color: "#64748B", fontWeight: 500 }}
                 >
-                  ℹ️ 這是什麼？
+                  {t("ℹ️ 這是什麼？", "ℹ️ What is this?")}
                 </button>
               </div>
               <p style={{ fontSize: 13, color: "#94A3B8", margin: "0 0 10px" }}>
-                {stats.docs} 份文件 · {stats.connections} 個關聯 · 單擊節點查看詳情，雙擊開啟文件
+                {stats.docs} {t("份文件", "docs")} · {stats.connections} {t("個關聯", "connections")} · {t("單擊節點查看詳情，雙擊開啟文件", "Click to preview, double-click to open")}
               </p>
               <p style={{ fontSize: 12, color: "#CBD5E1", margin: "0 0 10px" }}>
-                🕐 最後更新：{formatRelativeTime(lastUpdated)}
+                🕐 {t("最後更新：", "Last updated: ")}{formatRelativeTime(lastUpdated, lang)}
               </p>
 
               {/* ── Fix 3: Cluster pills with meaningful names ── */}
               {Object.keys(clusterCounts).length > 0 && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8" }}>主題分群：</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8" }}>{t("主題分群：", "Topic Clusters:")}</span>
                   {Object.entries(clusterCounts).map(([idx, count]) => {
                     const index = parseInt(idx);
                     const name = clusterNames[index];
@@ -280,7 +285,7 @@ export default function AIGraphPage() {
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {isAdmin && (
                 <button onClick={generateEmbeddings} disabled={generating} style={{ ...btnPrimaryStyle, opacity: generating ? 0.7 : 1 }}>
-                  {generating ? "更新中..." : "🔄 重新整理"}
+                  {generating ? t("更新中...", "Refreshing...") : t("🔄 重新整理", "🔄 Refresh Graph")}
                 </button>
               )}
             </div>
@@ -307,7 +312,7 @@ export default function AIGraphPage() {
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", padding: 40 }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🧠</div>
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: "#0F172A" }}>
-              {isAdmin ? "尚未建立嵌入向量" : "目前無文件"}
+              {isAdmin ? t("尚未建立嵌入向量", "No Embeddings Yet") : t("目前無文件", "No Documents Available")}
             </h2>
             <p style={{ color: "#94A3B8", marginBottom: 24, textAlign: "center", maxWidth: 400, fontSize: 14 }}>
               {isAdmin
@@ -316,7 +321,7 @@ export default function AIGraphPage() {
             </p>
             {isAdmin && (
               <button onClick={generateEmbeddings} disabled={generating} style={btnPrimaryStyle}>
-                {generating ? "建立中..." : "🔄 建立嵌入向量"}
+                {generating ? t("建立中...", "Generating...") : t("🔄 建立嵌入向量", "🔄 Generate Embeddings")}
               </button>
             )}
           </div>
@@ -375,10 +380,10 @@ export default function AIGraphPage() {
                       textDecoration: "none", boxSizing: "border-box" as const,
                     }}
                   >
-                    開啟文件 →
+                    {t("開啟文件 →", "Open Document →")}
                   </a>
                   <div style={{ marginTop: 8, fontSize: 11, color: "#CBD5E1", textAlign: "center" as const }}>
-                    或雙擊節點快速開啟
+                    {t("或雙擊節點快速開啟", "Or double-click to open directly")}
                   </div>
                 </div>
               </div>
@@ -396,13 +401,13 @@ export default function AIGraphPage() {
               style={{ maxWidth: 540, width: "100%", padding: 32, margin: 20, background: "white", borderRadius: 16, boxShadow: "0 20px 40px rgba(0,0,0,0.2)", maxHeight: "90vh", overflow: "auto" }}
               onClick={e => e.stopPropagation()}
             >
-              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, color: "#0F172A" }}>🧠 關於 AI 知識圖譜</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, color: "#0F172A" }}>{t("🧠 關於 AI 知識圖譜", "🧠 About AI Knowledge Graph")}</h2>
               <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.7, marginBottom: 20 }}>
                 AI 知識圖譜將您的文件以視覺化方式呈現，自動找出文件之間的關聯與主題群組。
               </p>
 
               <div style={{ marginBottom: 16, padding: 16, background: "#F8FAFC", borderRadius: 10, border: "1px solid #E2E8F0" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 10 }}>如何使用：</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", marginBottom: 10 }}>{t("如何使用：", "How it works:")}</div>
                 {[
                   ["🔵 節點顏色", "相同顏色 = 相同主題群組，由 AI 自動分類"],
                   ["🏷️ 主題分群", "點擊上方分群標籤，查看該主題的所有文件"],
@@ -419,7 +424,7 @@ export default function AIGraphPage() {
               </div>
 
               <div style={{ padding: 16, background: "#F5F3FF", borderRadius: 10, border: "1px solid #DDD6FE", marginBottom: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6", marginBottom: 8 }}>💡 適合用來：</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6", marginBottom: 8 }}>{t("💡 適合用來：", "💡 Use this to:")}</div>
                 {["發現不知道存在的相關文件", "找出知識庫的缺口", "了解跨部門知識結構", "研究主題時快速找到相似文件"].map(item => (
                   <div key={item} style={{ fontSize: 13, color: "#6D28D9", marginBottom: 4 }}>✓ {item}</div>
                 ))}
@@ -456,7 +461,7 @@ export default function AIGraphPage() {
                 </h2>
               </div>
               <p style={{ fontSize: 13, color: "#94A3B8", marginBottom: 20 }}>
-                {selectedClusterDocs.length} 份文件屬於此主題群組
+                {selectedClusterDocs.length} {t("份文件屬於此主題群組", "documents in this cluster")}
               </p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
