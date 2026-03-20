@@ -74,7 +74,6 @@ const fieldLabels: Record<string, string> = {
   destination: "地點", purpose: "目的", transport: "交通", budget: "預算", accommodation: "住宿",
 };
 
-// ── Leave balance mini bar ─────────────────────────────────────────────────
 function BalanceBar({ used, total, color }: { used: number; total: number; color: string }) {
   const remaining = total - used;
   const pct = total > 0 ? Math.min((used / total) * 100, 100) : 0;
@@ -113,7 +112,6 @@ export default function AdminDashboard() {
   const [showSubsidyDetail, setShowSubsidyDetail] = useState<string | null>(null);
   const [expandedCompliance, setExpandedCompliance] = useState<string | null>(null);
   const [templateView, setTemplateView] = useState<Set<string>>(new Set());
-  // Leave overview state
   const [leaveSearch, setLeaveSearch] = useState("");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState<"annual" | "sick" | "personal" | "family_care" | "all">("all");
 
@@ -134,27 +132,12 @@ export default function AdminDashboard() {
       ]);
       const subData = await subRes.json();
       setSubmissions(subData.submissions || []);
-
       const allSubData = await allSubRes.json();
       setAllSubmissions(allSubData.submissions || []);
-
-      if (empRes.ok) {
-        const empData = await empRes.json();
-        setEmployees(empData.employees || []);
-      }
-      if (compRes.ok) {
-        const compData = await compRes.json();
-        setComplianceStatus(compData);
-      }
-      if (shadowRes.ok) {
-        const shadowData = await shadowRes.json();
-        setShadowRisks(shadowData.risks || []);
-      }
-      if (subsidyRes.ok) {
-        const subsidyData = await subsidyRes.json();
-        setSubsidies(subsidyData.subsidies || []);
-        setSubsidySummary(subsidyData.summary || null);
-      }
+      if (empRes.ok) { const empData = await empRes.json(); setEmployees(empData.employees || []); }
+      if (compRes.ok) { const compData = await compRes.json(); setComplianceStatus(compData); }
+      if (shadowRes.ok) { const shadowData = await shadowRes.json(); setShadowRisks(shadowData.risks || []); }
+      if (subsidyRes.ok) { const subsidyData = await subsidyRes.json(); setSubsidies(subsidyData.subsidies || []); setSubsidySummary(subsidyData.summary || null); }
     } catch {} finally { setLoading(false); }
   };
 
@@ -162,25 +145,15 @@ export default function AdminDashboard() {
 
   const handleReview = async (id: string, action: string) => {
     try {
-      await fetch("/api/workflows", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action, review_note: reviewNote }),
-      });
-      setReviewingId(null); setReviewNote("");
-      fetchData();
+      await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action, review_note: reviewNote }) });
+      setReviewingId(null); setReviewNote(""); fetchData();
     } catch {}
   };
 
   const handleBatch = async (action: string) => {
     try {
-      await fetch("/api/workflows", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds), action, review_note: reviewNote }),
-      });
-      setSelectedIds(new Set()); setReviewNote("");
-      fetchData();
+      await fetch("/api/workflows", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: Array.from(selectedIds), action, review_note: reviewNote }) });
+      setSelectedIds(new Set()); setReviewNote(""); fetchData();
     } catch {}
   };
 
@@ -199,106 +172,31 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/compliance/sync", { method: "POST" });
       const data = await res.json();
-      if (data.success) {
-        setMessage(`✅ 同步完成！`);
-        setComplianceStatus({ last_sync: data.synced_at, total_rules: complianceStatus?.total_rules || 0, status: "synced" });
-      } else { setMessage("❌ 同步失敗"); }
+      if (data.success) { setMessage("✅ 同步完成！"); setComplianceStatus({ last_sync: data.synced_at, total_rules: complianceStatus?.total_rules || 0, status: "synced" }); }
+      else { setMessage("❌ 同步失敗"); }
       setTimeout(() => setMessage(""), 4000);
-    } catch { setMessage("❌ 同步失敗"); }
-    finally { setSyncing(false); }
+    } catch { setMessage("❌ 同步失敗"); } finally { setSyncing(false); }
   };
 
   const toggleSelect = (id: string) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
   const formatDate = (d: string) => new Date(d).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  // ── Computed stats ──
   const pendingCount = submissions.length;
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const onLeaveToday = useMemo(() => {
-    return allSubmissions.filter(s =>
-      s.form_type === "leave" && s.status === "approved" &&
-      s.form_data.start_date <= todayStr &&
-      (s.form_data.end_date || s.form_data.start_date) >= todayStr
-    );
-  }, [allSubmissions, todayStr]);
-
-  const thisMonthApproved = useMemo(() => {
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    return allSubmissions.filter(s => s.status === "approved" && s.created_at >= monthStart).length;
-  }, [allSubmissions]);
-
-  const thisMonthOvertime = useMemo(() => {
-    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    return allSubmissions
-      .filter(s => s.form_type === "overtime" && s.status === "approved" && s.created_at >= monthStart)
-      .reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
-  }, [allSubmissions]);
-
-  const employeesLowLeave = useMemo(() => {
-    return employees.filter(emp => {
-      if (!emp.leave_balance) return false;
-      const lb = emp.leave_balance;
-      const annualRemaining = lb.annual_total - lb.annual_used;
-      return annualRemaining <= 2 && lb.annual_total > 0;
-    });
-  }, [employees]);
-
-  // ── Filtered & sorted employees ──
-  const filteredEmployees = useMemo(() => {
-    let result = employees;
-    if (empSearch.trim()) {
-      const q = empSearch.toLowerCase();
-      result = result.filter(e => (e.name || "").toLowerCase().includes(q) || (e.email || "").toLowerCase().includes(q));
-    }
-    result = [...result].sort((a, b) => {
-      switch (empSort) {
-        case "pending": return b.pending - a.pending;
-        case "leave": return b.leave_days_taken - a.leave_days_taken;
-        case "overtime": return b.overtime_hours - a.overtime_hours;
-        default: return (a.name || "").localeCompare(b.name || "");
-      }
-    });
-    return result;
-  }, [employees, empSearch, empSort]);
-
-  // ── Leave overview — filtered employees with balances ──
-  const leaveOverviewEmployees = useMemo(() => {
-    let result = employees.filter(e => e.leave_balance !== null);
-    if (leaveSearch.trim()) {
-      const q = leaveSearch.toLowerCase();
-      result = result.filter(e => (e.name || "").toLowerCase().includes(q) || (e.email || "").toLowerCase().includes(q));
-    }
-    return [...result].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  }, [employees, leaveSearch]);
-
-  // ── Leave overview summary stats ──
-  const leaveStats = useMemo(() => {
-    const withBalance = employees.filter(e => e.leave_balance);
-    const exhausted = withBalance.filter(e => {
-      const lb = e.leave_balance!;
-      return lb.annual_used >= lb.annual_total && lb.annual_total > 0;
-    });
-    const lowLeave = withBalance.filter(e => {
-      const lb = e.leave_balance!;
-      const remaining = lb.annual_total - lb.annual_used;
-      return remaining > 0 && remaining <= 2;
-    });
-    const totalAnnualUsed = withBalance.reduce((sum, e) => sum + (e.leave_balance?.annual_used || 0), 0);
-    const totalAnnualDays = withBalance.reduce((sum, e) => sum + (e.leave_balance?.annual_total || 0), 0);
-    return { exhausted: exhausted.length, lowLeave: lowLeave.length, totalAnnualUsed, totalAnnualDays, withBalance: withBalance.length };
-  }, [employees]);
-
-  // Pending leave that will affect balances once approved
-  const pendingLeave = useMemo(() => {
-    return submissions.filter(s => s.form_type === "leave");
-  }, [submissions]);
+  const onLeaveToday = useMemo(() => allSubmissions.filter(s => s.form_type === "leave" && s.status === "approved" && s.form_data.start_date <= todayStr && (s.form_data.end_date || s.form_data.start_date) >= todayStr), [allSubmissions, todayStr]);
+  const thisMonthApproved = useMemo(() => { const ms = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(); return allSubmissions.filter(s => s.status === "approved" && s.created_at >= ms).length; }, [allSubmissions]);
+  const thisMonthOvertime = useMemo(() => { const ms = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString(); return allSubmissions.filter(s => s.form_type === "overtime" && s.status === "approved" && s.created_at >= ms).reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0); }, [allSubmissions]);
+  const employeesLowLeave = useMemo(() => employees.filter(emp => { if (!emp.leave_balance) return false; const r = emp.leave_balance.annual_total - emp.leave_balance.annual_used; return r <= 2 && emp.leave_balance.annual_total > 0; }), [employees]);
+  const filteredEmployees = useMemo(() => { let r = employees; if (empSearch.trim()) { const q = empSearch.toLowerCase(); r = r.filter(e => (e.name || "").toLowerCase().includes(q) || (e.email || "").toLowerCase().includes(q)); } return [...r].sort((a, b) => { switch (empSort) { case "pending": return b.pending - a.pending; case "leave": return b.leave_days_taken - a.leave_days_taken; case "overtime": return b.overtime_hours - a.overtime_hours; default: return (a.name || "").localeCompare(b.name || ""); } }); }, [employees, empSearch, empSort]);
+  const leaveOverviewEmployees = useMemo(() => { let r = employees.filter(e => e.leave_balance !== null); if (leaveSearch.trim()) { const q = leaveSearch.toLowerCase(); r = r.filter(e => (e.name || "").toLowerCase().includes(q) || (e.email || "").toLowerCase().includes(q)); } return [...r].sort((a, b) => (a.name || "").localeCompare(b.name || "")); }, [employees, leaveSearch]);
+  const leaveStats = useMemo(() => { const w = employees.filter(e => e.leave_balance); const exhausted = w.filter(e => e.leave_balance!.annual_used >= e.leave_balance!.annual_total && e.leave_balance!.annual_total > 0); const low = w.filter(e => { const r = e.leave_balance!.annual_total - e.leave_balance!.annual_used; return r > 0 && r <= 2; }); return { exhausted: exhausted.length, lowLeave: low.length, withBalance: w.length }; }, [employees]);
+  const pendingLeave = useMemo(() => submissions.filter(s => s.form_type === "leave"), [submissions]);
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 12px" }}>
       {message && <div style={{ padding: "10px 16px", borderRadius: 10, background: message.includes("✅") ? "#D1FAE5" : "#FEE2E2", color: message.includes("✅") ? "#065F46" : "#991B1B", fontSize: 14, fontWeight: 600, marginBottom: 16 }}>{message}</div>}
 
-      {/* ═══ HEADER ═══ */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "#111827", margin: 0 }}>⚙️ 管理員儀表板</h1>
         <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 0" }}>Admin Dashboard — 總覽、審核、員工管理、合規管理</p>
@@ -307,20 +205,13 @@ export default function AdminDashboard() {
       {/* ═══ TAB BAR ═══ */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "2px solid #E5E7EB", paddingBottom: 0, overflowX: "auto" }}>
         {[
-          { key: "overview",    label: "📊 總覽" },
-          { key: "pending",     label: `📋 待審核 (${pendingCount})` },
-          { key: "employees",   label: `👥 員工 (${employees.length})` },
-          { key: "leave",       label: "🏖️ 假期總覽" },
-          { key: "compliance",  label: "⚖️ 合規" },
-        ].map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key as any)}
-            style={{
-              padding: "10px 18px", border: "none", background: "none",
-              fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
-              color: tab === t.key ? "#7C3AED" : "#6B7280",
-              borderBottom: tab === t.key ? "2px solid #7C3AED" : "2px solid transparent",
-              marginBottom: -2, transition: "all 0.15s",
-            }}>
+          { key: "overview",   label: "📊 總覽" },
+          { key: "pending",    label: `📋 待審核 (${pendingCount})` },
+          { key: "employees",  label: `👥 員工 (${employees.length})` },
+          { key: "leave",      label: "🏖️ 假期總覽" },
+          { key: "compliance", label: "⚖️ 合規" },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key as any)} style={{ padding: "10px 18px", border: "none", background: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: tab === t.key ? "#7C3AED" : "#6B7280", borderBottom: tab === t.key ? "2px solid #7C3AED" : "2px solid transparent", marginBottom: -2, transition: "all 0.15s" }}>
             {t.label}
           </button>
         ))}
@@ -328,7 +219,7 @@ export default function AdminDashboard() {
 
       {loading && <div style={{ padding: 60, textAlign: "center", color: "#9CA3AF" }}>載入中...</div>}
 
-      {/* ═══ TAB: OVERVIEW ═══ */}
+      {/* ═══ OVERVIEW ═══ */}
       {!loading && tab === "overview" && (
         <div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
@@ -338,11 +229,9 @@ export default function AdminDashboard() {
               { label: "本月核准", val: thisMonthApproved, icon: "✅", color: "#059669", bg: "#D1FAE5", onClick: undefined },
               { label: "本月加班時數", val: thisMonthOvertime, icon: "🕐", color: "#2563EB", bg: "#DBEAFE", onClick: undefined },
             ].map(s => (
-              <div key={s.label} onClick={s.onClick}
-                style={{ padding: "18px 16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: s.onClick ? "pointer" : "default", transition: "transform 0.15s" }}
+              <div key={s.label} onClick={s.onClick} style={{ padding: "18px 16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: s.onClick ? "pointer" : "default", transition: "transform 0.15s" }}
                 onMouseEnter={(e) => { if (s.onClick) e.currentTarget.style.transform = "translateY(-2px)"; }}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
+                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
                 <div style={{ fontSize: 14, marginBottom: 4 }}>{s.icon}</div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.val}</div>
                 <div style={{ fontSize: 12, color: s.color, opacity: 0.8 }}>{s.label}</div>
@@ -350,15 +239,12 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {/* Today's Absences */}
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>🏖️ 今日請假人員</div>
               <button onClick={() => setTab("leave")} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>假期總覽 →</button>
             </div>
-            {onLeaveToday.length === 0 ? (
-              <div style={{ fontSize: 13, color: "#9CA3AF", padding: "10px 0" }}>今天沒有人請假 ✓</div>
-            ) : (
+            {onLeaveToday.length === 0 ? <div style={{ fontSize: 13, color: "#9CA3AF", padding: "10px 0" }}>今天沒有人請假 ✓</div> : (
               <div style={{ display: "grid", gap: 8 }}>
                 {onLeaveToday.map(s => (
                   <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#F9FAFB", borderRadius: 8, borderLeft: "3px solid #7C3AED" }}>
@@ -373,67 +259,48 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          {/* Quick Alerts */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 16 }}>
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>📋 待審核隊列</div>
-                {pendingCount > 0 && (
-                  <button onClick={() => setTab("pending")} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>查看全部 →</button>
-                )}
+                {pendingCount > 0 && <button onClick={() => setTab("pending")} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>查看全部 →</button>}
               </div>
-              {submissions.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#059669", padding: "10px 0" }}>🎉 全部審核完畢！</div>
-              ) : (
+              {submissions.length === 0 ? <div style={{ fontSize: 13, color: "#059669", padding: "10px 0" }}>🎉 全部審核完畢！</div> : (
                 <div style={{ display: "grid", gap: 6 }}>
-                  {submissions.slice(0, 5).map(s => {
-                    const ft = formMeta[s.form_type];
-                    return (
-                      <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#F9FAFB", borderRadius: 6 }}>
-                        <span style={{ fontSize: 16 }}>{ft?.icon}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{s.submitter_name || s.submitted_by.slice(0, 10)}</div>
-                          <div style={{ fontSize: 10, color: "#9CA3AF" }}>{ft?.name_zh} · {formatDate(s.created_at)}</div>
-                        </div>
+                  {submissions.slice(0, 5).map(s => { const ft = formMeta[s.form_type]; return (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#F9FAFB", borderRadius: 6 }}>
+                      <span style={{ fontSize: 16 }}>{ft?.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{s.submitter_name || s.submitted_by.slice(0, 10)}</div>
+                        <div style={{ fontSize: 10, color: "#9CA3AF" }}>{ft?.name_zh} · {formatDate(s.created_at)}</div>
                       </div>
-                    );
-                  })}
-                  {submissions.length > 5 && (
-                    <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center", padding: "4px 0" }}>+{submissions.length - 5} 筆更多</div>
-                  )}
+                    </div>
+                  ); })}
+                  {submissions.length > 5 && <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center", padding: "4px 0" }}>+{submissions.length - 5} 筆更多</div>}
                 </div>
               )}
             </div>
-
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>⚠️ 假期餘額不足提醒</div>
-                {employeesLowLeave.length > 0 && (
-                  <button onClick={() => setTab("leave")} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>查看全部 →</button>
-                )}
+                {employeesLowLeave.length > 0 && <button onClick={() => setTab("leave")} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>查看全部 →</button>}
               </div>
-              {employeesLowLeave.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#059669", padding: "10px 0" }}>所有員工假期餘額充足 ✓</div>
-              ) : (
+              {employeesLowLeave.length === 0 ? <div style={{ fontSize: 13, color: "#059669", padding: "10px 0" }}>所有員工假期餘額充足 ✓</div> : (
                 <div style={{ display: "grid", gap: 6 }}>
-                  {employeesLowLeave.slice(0, 5).map(emp => {
-                    const remaining = (emp.leave_balance?.annual_total || 0) - (emp.leave_balance?.annual_used || 0);
-                    return (
-                      <div key={emp.user_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: remaining <= 0 ? "#FEF2F2" : "#FFFBEB", borderRadius: 6 }}>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{emp.name || emp.email}</div>
-                          <div style={{ fontSize: 10, color: "#9CA3AF" }}>特休 Annual Leave</div>
-                        </div>
-                        <span style={{ fontSize: 14, fontWeight: 800, color: remaining <= 0 ? "#DC2626" : "#D97706" }}>{remaining} 天</span>
+                  {employeesLowLeave.slice(0, 5).map(emp => { const remaining = (emp.leave_balance?.annual_total || 0) - (emp.leave_balance?.annual_used || 0); return (
+                    <div key={emp.user_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: remaining <= 0 ? "#FEF2F2" : "#FFFBEB", borderRadius: 6 }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{emp.name || emp.email}</div>
+                        <div style={{ fontSize: 10, color: "#9CA3AF" }}>特休 Annual Leave</div>
                       </div>
-                    );
-                  })}
+                      <span style={{ fontSize: 14, fontWeight: 800, color: remaining <= 0 ? "#DC2626" : "#D97706" }}>{remaining} 天</span>
+                    </div>
+                  ); })}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Shadow Audit */}
           {shadowRisks.length > 0 && (
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #FECACA", marginBottom: 16, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", background: "#FEF2F2", borderBottom: "1px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -449,15 +316,11 @@ export default function AdminDashboard() {
               <div style={{ padding: "10px 16px", display: "grid", gap: 8 }}>
                 {shadowRisks.map(risk => (
                   <div key={risk.user_id} style={{ padding: "10px 14px", borderRadius: 8, background: risk.risk_level === "critical" ? "#FEF2F2" : "#FFFBEB", border: `1px solid ${risk.risk_level === "critical" ? "#FECACA" : "#FCD34D"}`, display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: risk.risk_level === "critical" ? "#FEE2E2" : "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: risk.risk_level === "critical" ? "#DC2626" : "#D97706" }}>
-                      {risk.name[0]?.toUpperCase() || "?"}
-                    </div>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: risk.risk_level === "critical" ? "#FEE2E2" : "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: risk.risk_level === "critical" ? "#DC2626" : "#D97706" }}>{risk.name[0]?.toUpperCase() || "?"}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
                         {risk.name}
-                        <span style={{ marginLeft: 8, padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: risk.risk_level === "critical" ? "#FEE2E2" : "#FEF3C7", color: risk.risk_level === "critical" ? "#DC2626" : "#D97706" }}>
-                          {risk.risk_level === "critical" ? "🚨 超標" : "⚠️ 接近上限"}
-                        </span>
+                        <span style={{ marginLeft: 8, padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: risk.risk_level === "critical" ? "#FEE2E2" : "#FEF3C7", color: risk.risk_level === "critical" ? "#DC2626" : "#D97706" }}>{risk.risk_level === "critical" ? "🚨 超標" : "⚠️ 接近上限"}</span>
                       </div>
                       <div style={{ display: "flex", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 11, color: "#6B7280" }}>本月 <strong style={{ color: risk.monthly_hours >= 46 ? "#DC2626" : "#111827" }}>{risk.monthly_hours}h</strong> / 46h</span>
@@ -467,9 +330,7 @@ export default function AdminDashboard() {
                       {risk.alerts.map((alert: any, i: number) => (
                         <div key={i} style={{ fontSize: 11, color: risk.risk_level === "critical" ? "#991B1B" : "#92400E", marginBottom: 2 }}>
                           {alert.message_zh}
-                          <span style={{ marginLeft: 6, padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: "white", border: `1px solid ${risk.risk_level === "critical" ? "#FECACA" : "#FCD34D"}`, color: risk.risk_level === "critical" ? "#DC2626" : "#D97706", cursor: "pointer" }}>
-                            📖 {alert.law}{alert.fine && ` · 罰款 ${alert.fine}`}
-                          </span>
+                          <span style={{ marginLeft: 6, padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: "white", border: `1px solid ${risk.risk_level === "critical" ? "#FECACA" : "#FCD34D"}`, color: risk.risk_level === "critical" ? "#DC2626" : "#D97706" }}>📖 {alert.law}{alert.fine && ` · 罰款 ${alert.fine}`}</span>
                         </div>
                       ))}
                     </div>
@@ -479,7 +340,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Subsidy Hunter */}
           {subsidies.length > 0 && (
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #BBF7D0", marginBottom: 16, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", background: "linear-gradient(135deg, #F0FDF4, #ECFDF5)", borderBottom: "1px solid #BBF7D0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -494,8 +354,7 @@ export default function AdminDashboard() {
               </div>
               <div style={{ padding: "10px 16px", display: "grid", gap: 8 }}>
                 {subsidies.map(sub => (
-                  <div key={sub.id} style={{ padding: "12px 14px", borderRadius: 8, background: sub.urgency === "high" ? "#F0FDF4" : "#F9FAFB", border: `1px solid ${sub.urgency === "high" ? "#BBF7D0" : "#E5E7EB"}`, cursor: "pointer" }}
-                    onClick={() => setShowSubsidyDetail(showSubsidyDetail === sub.id ? null : sub.id)}>
+                  <div key={sub.id} style={{ padding: "12px 14px", borderRadius: 8, background: sub.urgency === "high" ? "#F0FDF4" : "#F9FAFB", border: `1px solid ${sub.urgency === "high" ? "#BBF7D0" : "#E5E7EB"}`, cursor: "pointer" }} onClick={() => setShowSubsidyDetail(showSubsidyDetail === sub.id ? null : sub.id)}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                       <span style={{ fontSize: 20, flexShrink: 0 }}>{sub.icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -513,11 +372,7 @@ export default function AdminDashboard() {
                             <div style={{ fontSize: 11, color: "#374151", marginBottom: 4 }}>🏛️ <strong>主管機關：</strong>{sub.source}</div>
                             <div style={{ fontSize: 11, color: "#059669", marginBottom: 4 }}>✅ <strong>行動：</strong>{sub.action_zh}</div>
                             {sub.portal_url && (
-                              <a href={sub.portal_url} target="_blank" rel="noopener noreferrer"
-                                style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: "#059669", color: "white", textDecoration: "none" }}
-                                onClick={e => e.stopPropagation()}>
-                                🔗 前往申請官網
-                              </a>
+                              <a href={sub.portal_url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, background: "#059669", color: "white", textDecoration: "none" }} onClick={e => e.stopPropagation()}>🔗 前往申請官網</a>
                             )}
                           </div>
                         )}
@@ -532,22 +387,15 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ═══ TAB: PENDING REVIEWS ═══ */}
+      {/* ═══ PENDING ═══ */}
       {!loading && tab === "pending" && (
-        <div>
-          {selectedIds.size > 0 && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, padding: "10px 16px", background: "#EDE9FE", borderRadius: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>已選 {selectedIds.size} 筆</span>
-              <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="批次備註"
-                style={{ flex: 1, minWidth: 140, padding: "6px 10px", border: "1px solid #C4B5FD", borderRadius: 6, fontSize: 12, outline: "none" }} />
-              <button onClick={() => handleBatch("approved")} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "#059669", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✅ 批次核准</button>
-              <button onClick={() => handleBatch("rejected")} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "#DC2626", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>❌ 批次駁回</button>
-              <button onClick={() => setSelectedIds(new Set())} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", fontSize: 12, cursor: "pointer" }}>取消</button>
-            </div>
-          )}
+        <div style={{ paddingBottom: selectedIds.size > 0 ? 100 : 0 }}>
+
+          {/* Select all link */}
           {submissions.length > 0 && selectedIds.size === 0 && (
             <button onClick={() => setSelectedIds(new Set(submissions.map(s => s.id)))} style={{ fontSize: 12, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", marginBottom: 10, textDecoration: "underline" }}>全選 ({submissions.length})</button>
           )}
+
           {submissions.length === 0 && (
             <div style={{ padding: 60, textAlign: "center", background: "white", borderRadius: 12, border: "1px solid #E5E7EB" }}>
               <div style={{ fontSize: 48, marginBottom: 10 }}>🎉</div>
@@ -555,6 +403,7 @@ export default function AdminDashboard() {
               <div style={{ fontSize: 13, color: "#9CA3AF" }}>All caught up!</div>
             </div>
           )}
+
           <div style={{ display: "grid", gap: 10 }}>
             {submissions.map(s => {
               const ft = formMeta[s.form_type];
@@ -644,10 +493,10 @@ export default function AdminDashboard() {
                   })()}
                   {reviewingId === s.id ? (
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="備註" style={{ flex: 1, padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 6, fontSize: 12, outline: "none" }} />
+                      <input type="text" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="備註" style={{ flex: 1, padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 6, fontSize: 12, outline: "none", color: "#111827", background: "white" }} />
                       <button onClick={() => handleReview(s.id, "approved")} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "#059669", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✅ 核准</button>
                       <button onClick={() => handleReview(s.id, "rejected")} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "#DC2626", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>❌ 駁回</button>
-                      <button onClick={() => setReviewingId(null)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", fontSize: 12, cursor: "pointer" }}>取消</button>
+                      <button onClick={() => setReviewingId(null)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #D1D5DB", background: "white", fontSize: 12, cursor: "pointer", color: "#6B7280" }}>取消</button>
                     </div>
                   ) : (
                     <button onClick={() => setReviewingId(s.id)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #7C3AED", background: "#EDE9FE", color: "#7C3AED", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📋 審核</button>
@@ -656,15 +505,72 @@ export default function AdminDashboard() {
               );
             })}
           </div>
+
+          {/* ═══ STICKY BATCH ACTION BAR — appears at bottom when items selected ═══ */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+              zIndex: 50, width: "calc(100% - 48px)", maxWidth: 700,
+              background: "white",
+              borderRadius: 16,
+              border: "1px solid #E5E7EB",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)",
+              padding: "12px 16px",
+              display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            }}>
+              {/* Count badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "#EDE9FE", flexShrink: 0 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 4, background: "#7C3AED", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "white", fontSize: 10, fontWeight: 800 }}>✓</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#5B21B6" }}>{selectedIds.size} 筆已選</span>
+              </div>
+
+              {/* Note input */}
+              <input
+                type="text"
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                placeholder="備註（選填）"
+                style={{ flex: 1, minWidth: 100, padding: "8px 12px", border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 13, outline: "none", color: "#111827", background: "#F9FAFB" }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "#7C3AED"; e.currentTarget.style.background = "white"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.background = "#F9FAFB"; }}
+              />
+
+              {/* Approve */}
+              <button onClick={() => handleBatch("approved")}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: "#059669", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, transition: "opacity 0.15s" }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>
+                ✅ 批次核准
+              </button>
+
+              {/* Reject */}
+              <button onClick={() => handleBatch("rejected")}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: "#DC2626", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, transition: "opacity 0.15s" }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>
+                ❌ 批次駁回
+              </button>
+
+              {/* Deselect */}
+              <button onClick={() => setSelectedIds(new Set())}
+                style={{ padding: "9px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "white", color: "#6B7280", fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#9CA3AF"; e.currentTarget.style.color = "#374151"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.color = "#6B7280"; }}>
+                ✕ 取消
+              </button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ═══ TAB: EMPLOYEES ═══ */}
+      {/* ═══ EMPLOYEES ═══ */}
       {!loading && tab === "employees" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
             <input type="text" value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} placeholder="🔍 搜尋員工姓名或 email..."
-              style={{ flex: 1, minWidth: 200, padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none" }}
+              style={{ flex: 1, minWidth: 200, padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", color: "#111827" }}
               onFocus={(e) => e.currentTarget.style.borderColor = "#7C3AED"}
               onBlur={(e) => e.currentTarget.style.borderColor = "#D1D5DB"} />
             <div style={{ display: "flex", gap: 4 }}>
@@ -686,7 +592,7 @@ export default function AdminDashboard() {
               const lb = emp.leave_balance;
               return (
                 <div key={emp.user_id} style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-                  <div onClick={() => loadEmployeeDetail(emp.user_id)} style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "background 0.15s" }}
+                  <div onClick={() => loadEmployeeDetail(emp.user_id)} style={{ padding: "14px 18px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "#FAFAFA"}
                     onMouseLeave={(e) => e.currentTarget.style.background = "white"}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -735,13 +641,10 @@ export default function AdminDashboard() {
                       )}
                       <div style={{ padding: "14px 18px" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 10 }}>📜 近期申請</div>
-                        {employeeSubmissions.length === 0 ? (
-                          <div style={{ fontSize: 13, color: "#9CA3AF" }}>無申請紀錄</div>
-                        ) : (
+                        {employeeSubmissions.length === 0 ? <div style={{ fontSize: 13, color: "#9CA3AF" }}>無申請紀錄</div> : (
                           <div style={{ display: "grid", gap: 6 }}>
                             {employeeSubmissions.slice(0, 10).map(s => {
-                              const ft = formMeta[s.form_type];
-                              const st = statusConfig[s.status] || statusConfig.pending;
+                              const ft = formMeta[s.form_type]; const st = statusConfig[s.status] || statusConfig.pending;
                               return (
                                 <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#F9FAFB", borderRadius: 8, borderLeft: `3px solid ${ft?.color || "#6B7280"}` }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -767,10 +670,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ═══ TAB: 假期總覽 LEAVE OVERVIEW ═══ */}
+      {/* ═══ LEAVE OVERVIEW ═══ */}
       {!loading && tab === "leave" && (
         <div>
-          {/* Summary stat cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
             {[
               { label: "全勤員工", val: leaveStats.withBalance - leaveStats.exhausted - leaveStats.lowLeave, icon: "✅", color: "#059669", bg: "#D1FAE5" },
@@ -778,9 +680,7 @@ export default function AdminDashboard() {
               { label: "特休已用盡", val: leaveStats.exhausted, icon: "🚨", color: "#DC2626", bg: "#FEE2E2" },
               { label: "待審請假申請", val: pendingLeave.length, icon: "📋", color: "#7C3AED", bg: "#EDE9FE", onClick: () => setTab("pending") },
             ].map(s => (
-              <div key={s.label}
-                onClick={(s as any).onClick}
-                style={{ padding: "16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: (s as any).onClick ? "pointer" : "default" }}>
+              <div key={s.label} onClick={(s as any).onClick} style={{ padding: "16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: (s as any).onClick ? "pointer" : "default" }}>
                 <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
                 <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.val}</div>
                 <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.label}</div>
@@ -788,7 +688,6 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {/* Pending leave that will affect balances */}
           {pendingLeave.length > 0 && (
             <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>⏳ 待審請假 — 通過後將扣減餘額</div>
@@ -806,14 +705,11 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Search */}
-          <input type="text" value={leaveSearch} onChange={(e) => setLeaveSearch(e.target.value)}
-            placeholder="🔍 搜尋員工..."
-            style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 14, boxSizing: "border-box" }}
+          <input type="text" value={leaveSearch} onChange={(e) => setLeaveSearch(e.target.value)} placeholder="🔍 搜尋員工..."
+            style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 14, boxSizing: "border-box", color: "#111827" }}
             onFocus={(e) => e.currentTarget.style.borderColor = "#7C3AED"}
             onBlur={(e) => e.currentTarget.style.borderColor = "#D1D5DB"} />
 
-          {/* Leave table */}
           {leaveOverviewEmployees.length === 0 ? (
             <div style={{ padding: 60, textAlign: "center", background: "white", borderRadius: 12, border: "1px solid #E5E7EB" }}>
               <div style={{ fontSize: 40, marginBottom: 10 }}>🏖️</div>
@@ -822,62 +718,33 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-              {/* Table header */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", gap: 0, padding: "10px 16px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", padding: "10px 16px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
                 {["員工", "特休 Annual", "病假 Sick", "事假 Personal", "家庭照顧"].map((h, i) => (
                   <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textAlign: i === 0 ? "left" : "center" }}>{h}</div>
                 ))}
               </div>
-
-              {/* Table rows */}
               {leaveOverviewEmployees.map((emp, idx) => {
                 const lb = emp.leave_balance!;
                 const annualRemaining = lb.annual_total - lb.annual_used;
                 const isExhausted = annualRemaining <= 0 && lb.annual_total > 0;
                 const isLow = annualRemaining > 0 && annualRemaining <= 2;
                 return (
-                  <div key={emp.user_id} style={{
-                    display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr",
-                    padding: "12px 16px", alignItems: "center",
-                    background: isExhausted ? "#FEF2F2" : isLow ? "#FFFBEB" : idx % 2 === 0 ? "white" : "#FAFAFA",
-                    borderBottom: "1px solid #F3F4F6",
-                  }}>
-                    {/* Employee */}
+                  <div key={emp.user_id} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", padding: "12px 16px", alignItems: "center", background: isExhausted ? "#FEF2F2" : isLow ? "#FFFBEB" : idx % 2 === 0 ? "white" : "#FAFAFA", borderBottom: "1px solid #F3F4F6" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 8, background: isExhausted ? "#FEE2E2" : "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: isExhausted ? "#DC2626" : "#7C3AED", flexShrink: 0 }}>
-                        {(emp.name || "?")[0].toUpperCase()}
-                      </div>
+                      <div style={{ width: 30, height: 30, borderRadius: 8, background: isExhausted ? "#FEE2E2" : "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: isExhausted ? "#DC2626" : "#7C3AED", flexShrink: 0 }}>{(emp.name || "?")[0].toUpperCase()}</div>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{emp.name || emp.email}</div>
                         {isExhausted && <div style={{ fontSize: 10, color: "#DC2626", fontWeight: 600 }}>特休已用盡</div>}
                         {isLow && !isExhausted && <div style={{ fontSize: 10, color: "#D97706", fontWeight: 600 }}>餘額不足</div>}
                       </div>
                     </div>
-
-                    {/* Annual */}
-                    <div style={{ textAlign: "center" }}>
-                      <BalanceBar used={lb.annual_used} total={lb.annual_total} color="#7C3AED" />
-                    </div>
-
-                    {/* Sick */}
-                    <div style={{ textAlign: "center" }}>
-                      <BalanceBar used={lb.sick_used} total={lb.sick_total} color="#2563EB" />
-                    </div>
-
-                    {/* Personal */}
-                    <div style={{ textAlign: "center" }}>
-                      <BalanceBar used={lb.personal_used} total={lb.personal_total} color="#D97706" />
-                    </div>
-
-                    {/* Family care */}
-                    <div style={{ textAlign: "center" }}>
-                      <BalanceBar used={lb.family_care_used} total={lb.family_care_total} color="#059669" />
-                    </div>
+                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.annual_used} total={lb.annual_total} color="#7C3AED" /></div>
+                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.sick_used} total={lb.sick_total} color="#2563EB" /></div>
+                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.personal_used} total={lb.personal_total} color="#D97706" /></div>
+                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.family_care_used} total={lb.family_care_total} color="#059669" /></div>
                   </div>
                 );
               })}
-
-              {/* Footer note */}
               <div style={{ padding: "10px 16px", background: "#F9FAFB", borderTop: "1px solid #E5E7EB", fontSize: 11, color: "#9CA3AF" }}>
                 {new Date().getFullYear()} 年度假期餘額 · 顯示 {leaveOverviewEmployees.length} 位員工 · 餘額即時更新（核准請假後自動扣減）
               </div>
@@ -886,17 +753,14 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ═══ TAB: COMPLIANCE ═══ */}
+      {/* ═══ COMPLIANCE ═══ */}
       {!loading && tab === "compliance" && (
         <div>
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 4 }}>⚖️ 合規規則資料庫</div>
-                <div style={{ fontSize: 12, color: "#6B7280" }}>
-                  {complianceStatus?.total_rules || 0} 條勞基法規則已載入
-                  {complianceStatus?.last_sync ? ` · 上次更新：${new Date(complianceStatus.last_sync).toLocaleDateString("zh-TW", { month: "short", day: "numeric" })}` : " · 尚未同步"}
-                </div>
+                <div style={{ fontSize: 12, color: "#6B7280" }}>{complianceStatus?.total_rules || 0} 條勞基法規則已載入{complianceStatus?.last_sync ? ` · 上次更新：${new Date(complianceStatus.last_sync).toLocaleDateString("zh-TW", { month: "short", day: "numeric" })}` : " · 尚未同步"}</div>
                 <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>資料來源：勞動部開放資料 API（apiservice.mol.gov.tw）</div>
               </div>
               <button onClick={handleSync} disabled={syncing} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: syncing ? "#D1D5DB" : "#7C3AED", color: "white", fontSize: 13, fontWeight: 700, cursor: syncing ? "not-allowed" : "pointer" }}>
@@ -920,21 +784,14 @@ export default function AdminDashboard() {
                     <span style={{ fontSize: 11, fontWeight: 700, color: r.color, whiteSpace: "nowrap" }}>{r.art}</span>
                     <span style={{ fontSize: 13, color: "#374151" }}>{r.rule}</span>
                   </div>
-                  <a href={r.url} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: 10, fontWeight: 600, color: r.color, textDecoration: "none", whiteSpace: "nowrap", padding: "3px 8px", borderRadius: 4, border: `1px solid ${r.color}30`, background: "white", flexShrink: 0 }}>
-                    查看全文 →
-                  </a>
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, fontWeight: 600, color: r.color, textDecoration: "none", whiteSpace: "nowrap", padding: "3px 8px", borderRadius: 4, border: `1px solid ${r.color}30`, background: "white", flexShrink: 0 }}>查看全文 →</a>
                 </div>
               ))}
             </div>
           </div>
           <div style={{ background: "#F8FAFC", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#6B7280", marginBottom: 8 }}>🔗 資料來源</div>
-            <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.8 }}>
-              勞動部開放資料 API: apiservice.mol.gov.tw<br />
-              全國法規資料庫: law.moj.gov.tw<br />
-              更新頻率: 可手動同步，建議每週一次
-            </div>
+            <div style={{ fontSize: 12, color: "#6B7280", lineHeight: 1.8 }}>勞動部開放資料 API: apiservice.mol.gov.tw<br />全國法規資料庫: law.moj.gov.tw<br />更新頻率: 可手動同步，建議每週一次</div>
           </div>
           <ComplianceConflictScanner />
         </div>
