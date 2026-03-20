@@ -10,6 +10,7 @@ interface ConflictItem {
   handbook_text: string;
   law_reference: string;
   article: string;
+  law_url?: string;
   issue_zh: string;
   issue_en: string;
   recommendation_zh: string;
@@ -160,7 +161,17 @@ export default function ComplianceConflictScanner() {
                       {config.label}
                     </span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>
-                      {conflict.article} — {conflict.issue_zh}
+                      {conflict.law_url ? (
+                        <a href={conflict.law_url} target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ color: "#2563EB", textDecoration: "none", fontWeight: 700, marginRight: 4 }}
+                          title="查看全國法規資料庫">
+                          {conflict.article} ↗
+                        </a>
+                      ) : (
+                        <span style={{ fontWeight: 700, marginRight: 4 }}>{conflict.article}</span>
+                      )}
+                      — {conflict.issue_zh}
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

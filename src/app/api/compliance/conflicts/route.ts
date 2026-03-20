@@ -13,11 +13,26 @@ const supabase = createClient(
 );
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ══════════════════════════════════════════════════════════════
-// POST /api/compliance/conflicts
-// Scan company handbook documents against Taiwan labor law
-// Returns conflict report with severity levels
-// ══════════════════════════════════════════════════════════════
+// ── Article → law.moj.gov.tw URL mapping ──
+const LAW_URLS: Record<string, string> = {
+  "LSA Art. 24": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24",
+  "LSA Art. 30": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=30",
+  "LSA Art. 32": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=32",
+  "LSA Art. 38": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=38",
+  "LSA Art. 50": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=50",
+  "LSA Art. 9-1": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030036&flno=9-1",
+};
+
+function getLawUrl(article: string): string {
+  // Try exact match first
+  if (LAW_URLS[article]) return LAW_URLS[article];
+  // Try partial match — e.g. "LSA Art. 24 — Overtime Pay"
+  for (const [key, url] of Object.entries(LAW_URLS)) {
+    if (article.startsWith(key)) return url;
+  }
+  // Default to full LSA
+  return "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001";
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,11 +46,10 @@ export async function POST(req: NextRequest) {
     if (!isAdmin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
     const body = await req.json();
-    const { document_ids } = body; // Optional: scan specific docs, or all if empty
+    const { document_ids } = body;
 
     const orgId = org.organization_id;
 
-    // ── Step 1: Fetch company documents to scan ──
     let query = supabase
       .from("documents")
       .select("doc_id, title, content")
@@ -44,7 +58,6 @@ export async function POST(req: NextRequest) {
     if (document_ids && document_ids.length > 0) {
       query = query.in("doc_id", document_ids);
     } else {
-      // Auto-detect handbook/policy documents by tags or title
       query = query.or(
         "title.ilike.%handbook%,title.ilike.%手冊%,title.ilike.%規章%,title.ilike.%辦法%,title.ilike.%policy%,title.ilike.%規定%,title.ilike.%管理%,tags.cs.{handbook},tags.cs.{policy},tags.cs.{hr},tags.cs.{人事}"
       );
@@ -57,12 +70,11 @@ export async function POST(req: NextRequest) {
         conflicts: [],
         summary: {
           total_scanned: 0,
-          message: "未找到公司手冊或政策文件。請上傳員工手冊後再試。No handbook or policy documents found. Please upload your employee handbook first.",
+          message: "未找到公司手冊或政策文件。請上傳員工手冊後再試。No handbook or policy documents found.",
         },
       });
     }
 
-    // ── Step 2: Fetch current Taiwan labor law rules ──
     const { data: lawRules } = await supabase
       .from("compliance_knowledge")
       .select("id, article_number, title, content, content_zh, category")
@@ -76,31 +88,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // ── Step 3: Build law reference for GPT ──
     const lawReference = lawRules
       .map(r => `[${r.article_number || "Rule"}] ${r.title || ""}: ${r.content_zh || r.content}`)
       .join("\n");
 
-    // ── Step 4: Analyze each document for conflicts ──
     const allConflicts: ConflictItem[] = [];
 
     for (const doc of docs) {
       if (!doc.content || doc.content.trim().length < 50) continue;
-
-      // Chunk long documents (GPT context limit)
       const chunks = chunkText(doc.content, 3000);
-
       for (const chunk of chunks) {
         const conflicts = await analyzeChunk(doc.doc_id, doc.title, chunk, lawReference);
         allConflicts.push(...conflicts);
       }
     }
 
-    // ── Step 5: Deduplicate and sort by severity ──
     const severityOrder: Record<string, number> = { red: 0, yellow: 1, green: 2 };
     allConflicts.sort((a, b) => (severityOrder[a.severity] || 99) - (severityOrder[b.severity] || 99));
 
-    // ── Step 6: Save report ──
     const reportId = crypto.randomUUID();
     await supabase.from("compliance_reports").upsert({
       id: reportId,
@@ -137,11 +142,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// GET /api/compliance/conflicts
-// Fetch latest conflict report for the organization
-// ══════════════════════════════════════════════════════════════
-
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -162,19 +162,12 @@ export async function GET() {
       .limit(1)
       .single();
 
-    if (!report) {
-      return NextResponse.json({ report: null, message: "No scan report found. Run a scan first." });
-    }
-
+    if (!report) return NextResponse.json({ report: null });
     return NextResponse.json({ report });
   } catch {
     return NextResponse.json({ report: null });
   }
 }
-
-// ══════════════════════════════════════════════════════════════
-// AI ANALYSIS
-// ══════════════════════════════════════════════════════════════
 
 interface ConflictItem {
   severity: "red" | "yellow" | "green";
@@ -184,6 +177,7 @@ interface ConflictItem {
   handbook_text: string;
   law_reference: string;
   article: string;
+  law_url: string;
   issue_zh: string;
   issue_en: string;
   recommendation_zh: string;
@@ -204,45 +198,49 @@ async function analyzeChunk(
       messages: [
         {
           role: "system",
-          content: `You are a Taiwan labor law compliance expert. Your task is to compare a company's internal policy document against current Taiwan Labor Standards Act (勞動基準法) rules and identify any conflicts, risks, or outdated provisions.
+          content: `You are a Taiwan labor law compliance expert. Compare company policy against Taiwan Labor Standards Act (勞動基準法) and identify violations.
 
-CURRENT TAIWAN LABOR LAW REFERENCE (2026):
+CURRENT TAIWAN LABOR LAW (2026):
 ${lawReference}
 
-ADDITIONAL 2026 RULES TO CHECK:
-- Minimum wage: NT$29,500/month, NT$196/hour (effective Jan 2026)
-- Family care leave: 7 days = 56 hours, can be taken by hour, employer cannot refuse
-- Attendance bonus: Must be prorated, not fully forfeited for minor leave
-- Overtime: Max 46hr/month (can extend to 54hr with union agreement)
-- Annual leave: 6mo=3d, 1yr=7d, 2yr=10d, 3yr=14d, 5yr=15d, 10yr+=1d/yr up to 30d
-- Marriage leave: 8 days
-- Maternity leave: 56 days (8 weeks), full pay if employed 6mo+
-- Paternity leave: 7 days
-- Sick leave: 30 days/year at half pay
+CRITICAL COMPLIANCE RULES — READ CAREFULLY:
 
-SOURCE OF TRUTH HIERARCHY:
-1. If company policy is MORE generous than law → GREEN (compliant, company exceeds minimum)
-2. If company policy MATCHES law → GREEN (compliant)
-3. If company policy is LESS generous than law → RED (violation, must fix)
-4. If company policy is ambiguous or outdated → YELLOW (needs review)
-5. If company policy addresses something law doesn't cover → GREEN (additional benefit)
+STEP 1 — IDENTIFY the legal minimum from the law reference above.
+STEP 2 — IDENTIFY the company policy value from the document.
+STEP 3 — COMPARE: company value vs legal minimum.
 
-For each conflict found, respond with a JSON array of objects:
+ARITHMETIC RULE (apply to ALL numeric comparisons):
+  company value >= legal minimum → GREEN (compliant or better)
+  company value < legal minimum → RED (violation)
+
+This applies to ALL numeric fields:
+  - Overtime multipliers: e.g. company=1.45x, law=1.34x → 1.45 >= 1.34 → GREEN
+  - Overtime multipliers: e.g. company=1.30x, law=1.34x → 1.30 < 1.34 → RED
+  - Leave days: e.g. company=10 days, law=7 days → 10 >= 7 → GREEN
+  - Leave days: e.g. company=5 days, law=7 days → 5 < 7 → RED
+  - Pay amounts: e.g. company=NT$32,000, law minimum=NT$29,500 → GREEN
+  - Pay amounts: e.g. company=NT$28,000, law minimum=NT$29,500 → RED
+
+IMPORTANT: Do not assume a number is wrong just because it differs from the legal minimum.
+  A company paying MORE than required is compliant. A company paying LESS is a violation.
+  Always do the comparison explicitly before assigning a severity.
+
+YELLOW = policy wording is genuinely ambiguous, unclear, or missing — not a numeric violation.
+
+Return JSON array only:
 [{
   "severity": "red"|"yellow"|"green",
   "category": "overtime"|"leave"|"salary"|"working_hours"|"benefits"|"other",
-  "handbook_text": "the exact or paraphrased text from the company document",
-  "law_reference": "the relevant law provision",
-  "article": "LSA Art. XX or rule name",
-  "issue_zh": "問題描述（中文）",
-  "issue_en": "Issue description in English",
-  "recommendation_zh": "建議修改方式（中文）",
-  "recommendation_en": "Recommended fix in English"
+  "handbook_text": "exact text from company document",
+  "law_reference": "relevant law provision",
+  "article": "LSA Art. XX",
+  "issue_zh": "問題描述",
+  "issue_en": "Issue description",
+  "recommendation_zh": "建議修改",
+  "recommendation_en": "Recommendation"
 }]
 
-If no conflicts found, return an empty array [].
-Only return conflicts you are CONFIDENT about. Do not guess.
-Respond with JSON array ONLY, no markdown, no explanation.`,
+Return [] if no violations found. Only flag genuine violations. Do not guess. JSON only, no markdown.`,
         },
         {
           role: "user",
@@ -265,6 +263,8 @@ Respond with JSON array ONLY, no markdown, no explanation.`,
       handbook_text: item.handbook_text || "",
       law_reference: item.law_reference || "",
       article: item.article || "",
+      // ── Fix: Add law URL for each conflict ──
+      law_url: getLawUrl(item.article || ""),
       issue_zh: item.issue_zh || "",
       issue_en: item.issue_en || "",
       recommendation_zh: item.recommendation_zh || "",
@@ -275,10 +275,6 @@ Respond with JSON array ONLY, no markdown, no explanation.`,
     return [];
   }
 }
-
-// ══════════════════════════════════════════════════════════════
-// HELPERS
-// ══════════════════════════════════════════════════════════════
 
 function chunkText(text: string, maxChars: number): string[] {
   const chunks: string[] = [];
@@ -294,6 +290,5 @@ function chunkText(text: string, maxChars: number): string[] {
     }
   }
   if (current.trim()) chunks.push(current.trim());
-
   return chunks.length > 0 ? chunks : [text.slice(0, maxChars)];
 }
