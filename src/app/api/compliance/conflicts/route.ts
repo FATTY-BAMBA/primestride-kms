@@ -13,25 +13,50 @@ const supabase = createClient(
 );
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ── Article → law.moj.gov.tw URL mapping ──
+// ── Article → law.moj.gov.tw URL mapping ──────────────────────────────────
 const LAW_URLS: Record<string, string> = {
-  "LSA Art. 24": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24",
-  "LSA Art. 30": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=30",
-  "LSA Art. 32": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=32",
-  "LSA Art. 38": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=38",
-  "LSA Art. 50": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=50",
-  "LSA Art. 9-1": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030036&flno=9-1",
+  "LSA Art. 21":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=21",
+  "LSA Art. 24":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24",
+  "LSA Art. 24-2":"https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=24-2",
+  "LSA Art. 30":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=30",
+  "LSA Art. 32":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=32",
+  "LSA Art. 36":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=36",
+  "LSA Art. 38":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=38",
+  "LSA Art. 50":  "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030001&flno=50",
+  "Gender Equality Employment Act Art. 15": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030014&flno=15",
+  "Labor Leave Rules Art. 2": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030008&flno=2",
+  "Labor Leave Rules Art. 7": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=N0030008&flno=7",
 };
 
 function getLawUrl(article: string): string {
-  // Try exact match first
   if (LAW_URLS[article]) return LAW_URLS[article];
-  // Try partial match — e.g. "LSA Art. 24 — Overtime Pay"
   for (const [key, url] of Object.entries(LAW_URLS)) {
     if (article.startsWith(key)) return url;
   }
-  // Default to full LSA
   return "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001";
+}
+
+// ── Build a clean numeric reference string from compliance_rules ───────────
+function buildNumericReference(rules: ComplianceRule[]): string {
+  // Group by article for readability
+  const grouped: Record<string, ComplianceRule[]> = {};
+  for (const r of rules) {
+    if (!grouped[r.article_number]) grouped[r.article_number] = [];
+    grouped[r.article_number].push(r);
+  }
+
+  return Object.entries(grouped)
+    .map(([article, items]) => {
+      const lines = items.map(r => {
+        const comparisonLabel =
+          r.comparison === "gte" ? "最低值（公司值需 >= 此值才合規）" :
+          r.comparison === "lte" ? "上限值（公司值需 <= 此值才合規）" :
+          "精確值（公司值需 = 此值）";
+        return `  - ${r.description_zh}: ${r.minimum_value ?? r.maximum_value} ${r.unit} [${comparisonLabel}]`;
+      });
+      return `[${article}]\n${lines.join("\n")}`;
+    })
+    .join("\n\n");
 }
 
 export async function POST(req: NextRequest) {
@@ -50,6 +75,7 @@ export async function POST(req: NextRequest) {
 
     const orgId = org.organization_id;
 
+    // ── Fetch documents ──────────────────────────────────────────────────────
     let query = supabase
       .from("documents")
       .select("doc_id, title, content")
@@ -75,22 +101,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { data: lawRules } = await supabase
-      .from("compliance_knowledge")
-      .select("id, article_number, title, content, content_zh, category")
+    // ── Fetch structured numeric rules (PRIMARY source for AI comparisons) ──
+    const { data: structuredRules } = await supabase
+      .from("compliance_rules")
+      .select("article_number, field, minimum_value, maximum_value, unit, comparison, description_zh")
       .eq("is_active", true)
       .order("article_number");
 
-    if (!lawRules || lawRules.length === 0) {
+    // ── Fetch full-text law context (SECONDARY — for context only) ──────────
+    const { data: lawRules } = await supabase
+      .from("compliance_knowledge")
+      .select("article_number, title, content_zh")
+      .eq("is_active", true)
+      .order("article_number");
+
+    if (!structuredRules || structuredRules.length === 0) {
       return NextResponse.json({
         conflicts: [],
-        summary: { total_scanned: docs.length, message: "No compliance rules found. Run MOL sync first." },
+        summary: {
+          total_scanned: docs.length,
+          message: "No structured compliance rules found. Run the compliance_rules migration first.",
+        },
       });
     }
 
-    const lawReference = lawRules
-      .map(r => `[${r.article_number || "Rule"}] ${r.title || ""}: ${r.content_zh || r.content}`)
-      .join("\n");
+    // Build the two reference strings
+    const numericReference = buildNumericReference(structuredRules as ComplianceRule[]);
+    const textContext = lawRules
+      ? lawRules.map(r => `[${r.article_number}] ${r.title}: ${r.content_zh}`).join("\n")
+      : "";
 
     const allConflicts: ConflictItem[] = [];
 
@@ -98,7 +137,13 @@ export async function POST(req: NextRequest) {
       if (!doc.content || doc.content.trim().length < 50) continue;
       const chunks = chunkText(doc.content, 3000);
       for (const chunk of chunks) {
-        const conflicts = await analyzeChunk(doc.doc_id, doc.title, chunk, lawReference);
+        const conflicts = await analyzeChunk(
+          doc.doc_id,
+          doc.title,
+          chunk,
+          numericReference,
+          textContext
+        );
         allConflicts.push(...conflicts);
       }
     }
@@ -107,22 +152,25 @@ export async function POST(req: NextRequest) {
     allConflicts.sort((a, b) => (severityOrder[a.severity] || 99) - (severityOrder[b.severity] || 99));
 
     const reportId = crypto.randomUUID();
-    await supabase.from("compliance_reports").upsert({
-      id: reportId,
-      organization_id: orgId,
-      report_type: "handbook_conflict_scan",
-      scanned_documents: docs.map(d => d.doc_id),
-      conflicts: allConflicts,
-      summary: {
-        total_scanned: docs.length,
-        total_conflicts: allConflicts.length,
-        red: allConflicts.filter(c => c.severity === "red").length,
-        yellow: allConflicts.filter(c => c.severity === "yellow").length,
-        green: allConflicts.filter(c => c.severity === "green").length,
+    await supabase.from("compliance_reports").upsert(
+      {
+        id: reportId,
+        organization_id: orgId,
+        report_type: "handbook_conflict_scan",
+        scanned_documents: docs.map(d => d.doc_id),
+        conflicts: allConflicts,
+        summary: {
+          total_scanned: docs.length,
+          total_conflicts: allConflicts.length,
+          red: allConflicts.filter(c => c.severity === "red").length,
+          yellow: allConflicts.filter(c => c.severity === "yellow").length,
+          green: allConflicts.filter(c => c.severity === "green").length,
+        },
+        scanned_by: userId,
+        created_at: new Date().toISOString(),
       },
-      scanned_by: userId,
-      created_at: new Date().toISOString(),
-    }, { onConflict: "id" });
+      { onConflict: "id" }
+    );
 
     return NextResponse.json({
       report_id: reportId,
@@ -131,9 +179,9 @@ export async function POST(req: NextRequest) {
         total_scanned: docs.length,
         documents: docs.map(d => ({ id: d.doc_id, title: d.title })),
         total_conflicts: allConflicts.length,
-        red: allConflicts.filter(c => c.severity === "red").length,
+        red:    allConflicts.filter(c => c.severity === "red").length,
         yellow: allConflicts.filter(c => c.severity === "yellow").length,
-        green: allConflicts.filter(c => c.severity === "green").length,
+        green:  allConflicts.filter(c => c.severity === "green").length,
       },
     });
   } catch (err: any) {
@@ -169,6 +217,17 @@ export async function GET() {
   }
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────
+interface ComplianceRule {
+  article_number: string;
+  field: string;
+  minimum_value: number | null;
+  maximum_value: number | null;
+  unit: string;
+  comparison: string;
+  description_zh: string;
+}
+
 interface ConflictItem {
   severity: "red" | "yellow" | "green";
   category: string;
@@ -184,11 +243,13 @@ interface ConflictItem {
   recommendation_en: string;
 }
 
+// ── Core analysis function ─────────────────────────────────────────────────
 async function analyzeChunk(
   docId: string,
   docTitle: string,
   chunk: string,
-  lawReference: string
+  numericReference: string,
+  textContext: string
 ): Promise<ConflictItem[]> {
   try {
     const response = await openai.chat.completions.create({
@@ -198,49 +259,57 @@ async function analyzeChunk(
       messages: [
         {
           role: "system",
-          content: `You are a Taiwan labor law compliance expert. Compare company policy against Taiwan Labor Standards Act (勞動基準法) and identify violations.
+          content: `You are a Taiwan labor law compliance expert. Compare company policy text against Taiwan Labor Standards Act (勞動基準法) thresholds and identify violations.
 
-CURRENT TAIWAN LABOR LAW (2026):
-${lawReference}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION A — NUMERIC THRESHOLDS (authoritative)
+Use these exact values for all numeric comparisons. Do not interpret fractions.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${numericReference}
 
-CRITICAL COMPLIANCE RULES — READ CAREFULLY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION B — LAW CONTEXT (background only)
+For understanding intent. Do NOT use for numeric comparisons — use Section A instead.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${textContext}
 
-STEP 1 — IDENTIFY the legal minimum from the law reference above.
-STEP 2 — IDENTIFY the company policy value from the document.
-STEP 3 — COMPARE: company value vs legal minimum.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HOW TO EVALUATE EACH CLAUSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+For every numeric value found in the company document:
 
-ARITHMETIC RULE (apply to ALL numeric comparisons):
-  company value >= legal minimum → GREEN (compliant or better)
-  company value < legal minimum → RED (violation)
+  STEP 1 — Find the matching threshold in Section A.
+  STEP 2 — Extract the company value as a number.
+  STEP 3 — Apply the comparison rule:
+    • "gte" rule → company value >= threshold → GREEN; company value < threshold → RED
+    • "lte" rule → company value <= threshold → GREEN; company value > threshold → RED
 
-This applies to ALL numeric fields:
-  - Overtime multipliers: e.g. company=1.45x, law=1.34x → 1.45 >= 1.34 → GREEN
-  - Overtime multipliers: e.g. company=1.30x, law=1.34x → 1.30 < 1.34 → RED
-  - Leave days: e.g. company=10 days, law=7 days → 10 >= 7 → GREEN
-  - Leave days: e.g. company=5 days, law=7 days → 5 < 7 → RED
-  - Pay amounts: e.g. company=NT$32,000, law minimum=NT$29,500 → GREEN
-  - Pay amounts: e.g. company=NT$28,000, law minimum=NT$29,500 → RED
+Examples (do not skip this logic):
+  Company pays 1.34x overtime for first 2hrs, threshold = 1.34x (gte) → 1.34 >= 1.34 → GREEN ✓
+  Company pays 1.30x overtime for first 2hrs, threshold = 1.34x (gte) → 1.30 < 1.34  → RED ✗
+  Company allows 60hrs/month overtime, threshold = 54hrs (lte)        → 60 > 54       → RED ✗
+  Company gives 10 days annual leave at 2yrs, threshold = 10 days (gte) → 10 >= 10   → GREEN ✓
 
-IMPORTANT: Do not assume a number is wrong just because it differs from the legal minimum.
-  A company paying MORE than required is compliant. A company paying LESS is a violation.
-  Always do the comparison explicitly before assigning a severity.
+YELLOW = policy wording is ambiguous, unclear, or missing — not a numeric violation.
+GREEN  = compliant or better than required.
+RED    = genuine violation where company value is worse than the legal minimum.
 
-YELLOW = policy wording is genuinely ambiguous, unclear, or missing — not a numeric violation.
+Only flag genuine violations. Do not guess. If no violation exists, return [].
 
-Return JSON array only:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT — JSON array only, no markdown
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [{
   "severity": "red"|"yellow"|"green",
   "category": "overtime"|"leave"|"salary"|"working_hours"|"benefits"|"other",
-  "handbook_text": "exact text from company document",
-  "law_reference": "relevant law provision",
+  "handbook_text": "exact text excerpt from company document",
+  "law_reference": "relevant law provision summary",
   "article": "LSA Art. XX",
-  "issue_zh": "問題描述",
-  "issue_en": "Issue description",
-  "recommendation_zh": "建議修改",
-  "recommendation_en": "Recommendation"
-}]
-
-Return [] if no violations found. Only flag genuine violations. Do not guess. JSON only, no markdown.`,
+  "issue_zh": "問題描述（繁體中文）",
+  "issue_en": "Issue description in English",
+  "recommendation_zh": "建議修改（繁體中文）",
+  "recommendation_en": "Recommendation in English"
+}]`,
         },
         {
           role: "user",
@@ -256,19 +325,18 @@ Return [] if no violations found. Only flag genuine violations. Do not guess. JS
     if (!Array.isArray(items)) return [];
 
     return items.map((item: any) => ({
-      severity: item.severity || "yellow",
-      category: item.category || "other",
-      document_id: docId,
-      document_title: docTitle,
-      handbook_text: item.handbook_text || "",
-      law_reference: item.law_reference || "",
-      article: item.article || "",
-      // ── Fix: Add law URL for each conflict ──
-      law_url: getLawUrl(item.article || ""),
-      issue_zh: item.issue_zh || "",
-      issue_en: item.issue_en || "",
-      recommendation_zh: item.recommendation_zh || "",
-      recommendation_en: item.recommendation_en || "",
+      severity:           item.severity || "yellow",
+      category:           item.category || "other",
+      document_id:        docId,
+      document_title:     docTitle,
+      handbook_text:      item.handbook_text || "",
+      law_reference:      item.law_reference || "",
+      article:            item.article || "",
+      law_url:            getLawUrl(item.article || ""),
+      issue_zh:           item.issue_zh || "",
+      issue_en:           item.issue_en || "",
+      recommendation_zh:  item.recommendation_zh || "",
+      recommendation_en:  item.recommendation_en || "",
     }));
   } catch (err) {
     console.error("Chunk analysis error:", err);
@@ -276,6 +344,7 @@ Return [] if no violations found. Only flag genuine violations. Do not guess. JS
   }
 }
 
+// ── Chunk document into overlapping segments ───────────────────────────────
 function chunkText(text: string, maxChars: number): string[] {
   const chunks: string[] = [];
   const paragraphs = text.split(/\n\n+/);
