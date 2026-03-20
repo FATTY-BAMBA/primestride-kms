@@ -63,11 +63,19 @@ const formMeta: Record<string, { icon: string; name_zh: string; name_en: string;
 
 const fieldLabels: Record<string, string> = {
   leave_type: "假別", start_date: "開始日期", end_date: "結束日期",
-  days: "天數", reason: "事由", proxy: "職務代理人",
+  days: "天數", hours_requested: "請假時數", duration_type: "請假方式",
+  reason: "事由", proxy: "職務代理人",
   date: "日期", start_time: "開始時間", end_time: "結束時間",
   hours: "時數", overtime_type: "加班類別", project: "專案",
   destination: "地點", purpose: "目的",
   transport: "交通", budget: "預估費用", accommodation: "住宿",
+};
+
+const durationLabels: Record<string, string> = {
+  full_day: "全天",
+  half_day_am: "上午半天 (AM)",
+  half_day_pm: "下午半天 (PM)",
+  hourly: "按小時請假",
 };
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
@@ -411,11 +419,22 @@ export default function WorkflowsPage() {
             <div style={{ padding: "12px 20px" }}>
               {!showEditMode ? (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
-                  {Object.entries(formData).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
+                  {Object.entries(formData).filter(([key]) => !key.startsWith("_") && key !== "duration_type" && key !== "hours_requested").map(([key, value]) => (
                     <div key={key} style={{ padding: "8px 12px", background: "#F9FAFB", borderRadius: 8 }}>
                       <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
                       <div style={{ fontSize: 14, color: "#111827", fontWeight: 600, marginTop: 2 }}>
-                        {String(value || "—")}
+                        {key === "days" && formData.duration_type && formData.duration_type !== "full_day"
+                          ? (
+                            <span>
+                              {durationLabels[formData.duration_type] || String(value || "—")}
+                              {formData.duration_type === "hourly" && formData.hours_requested
+                                ? <span style={{ marginLeft: 6, padding: "2px 8px", background: "#EDE9FE", color: "#7C3AED", borderRadius: 4, fontSize: 11, fontWeight: 700 }}>{formData.hours_requested} 小時</span>
+                                : formData.duration_type !== "hourly"
+                                ? <span style={{ marginLeft: 6, fontSize: 11, color: "#9CA3AF", fontWeight: 400 }}>({String(value || 0.5)} 天)</span>
+                                : null}
+                            </span>
+                          )
+                          : String(value || "—")}
                         {key === "proxy" && formData._proxy_suggested && (
                           <span style={{ marginLeft: 6, padding: "1px 6px", background: "#EDE9FE", color: "#7C3AED", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>AI 建議</span>
                         )}
@@ -435,7 +454,47 @@ export default function WorkflowsPage() {
                     return (
                       <div key={key}>
                         <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 3 }}>{fieldLabels[key] || key}</label>
-                        {options ? (
+                        {key === "days" && parsedType === "leave" ? (
+                          // Smart duration picker for leave
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                              {[
+                                { value: "full_day", label: "全天", days: formData.end_date && formData.start_date && formData.end_date !== formData.start_date ? undefined : 1 },
+                                { value: "half_day_am", label: "上午半天", days: 0.5 },
+                                { value: "half_day_pm", label: "下午半天", days: 0.5 },
+                                { value: "hourly", label: "按小時", days: undefined },
+                              ].map(opt => (
+                                <button key={opt.value} type="button"
+                                  onClick={() => {
+                                    const newDays = opt.days ?? (formData.hours_requested ? parseFloat(formData.hours_requested) / 8 : 0.25);
+                                    setFormData({ ...formData, duration_type: opt.value, days: newDays });
+                                  }}
+                                  style={{
+                                    padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                    border: `2px solid ${(formData.duration_type || "full_day") === opt.value ? "#7C3AED" : "#E5E7EB"}`,
+                                    background: (formData.duration_type || "full_day") === opt.value ? "#F5F3FF" : "white",
+                                    color: (formData.duration_type || "full_day") === opt.value ? "#7C3AED" : "#6B7280",
+                                  }}>
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                            {(formData.duration_type === "hourly") && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <input type="number" min="1" max="8" step="0.5"
+                                  placeholder="小時數"
+                                  value={formData.hours_requested || ""}
+                                  onChange={e => {
+                                    const hrs = parseFloat(e.target.value) || 0;
+                                    setFormData({ ...formData, hours_requested: hrs, days: Math.round((hrs / 8) * 100) / 100 });
+                                  }}
+                                  style={{ flex: 1, padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none" }}
+                                />
+                                <span style={{ fontSize: 13, color: "#6B7280" }}>小時 (= {formData.hours_requested ? Math.round(parseFloat(formData.hours_requested) / 8 * 100) / 100 : 0} 天)</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : options ? (
                           <select value={String(value || "")} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
                             style={{ width: "100%", padding: "8px 12px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box", background: "white" }}>
                             {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -626,10 +685,18 @@ export default function WorkflowsPage() {
                   </div>
                 ) : (
                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 6, marginBottom: 10 }}>
-                   {Object.entries(s.form_data).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (
+                   {Object.entries(s.form_data)
+                     .filter(([key]) => !key.startsWith("_") && key !== "duration_type" && key !== "hours_requested")
+                     .map(([key, value]) => (
                      <div key={key} style={{ padding: "5px 8px", background: "#F9FAFB", borderRadius: 6 }}>
                        <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</div>
-                       <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{value || "—"}</div>
+                       <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>
+                         {key === "days" && s.form_data.duration_type && s.form_data.duration_type !== "full_day"
+                           ? (s.form_data.duration_type === "hourly"
+                               ? `${s.form_data.hours_requested || value} 小時`
+                               : durationLabels[s.form_data.duration_type] || String(value || "—"))
+                           : String(value || "—")}
+                       </div>
                      </div>
                    ))}
                 </div>

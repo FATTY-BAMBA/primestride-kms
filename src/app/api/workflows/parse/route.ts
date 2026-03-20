@@ -12,8 +12,9 @@ const supabase = createClient(
 
 // ══════════════════════════════════════════════════════════════
 // POST /api/workflows/parse
-// Universal NLP parser v4 — enhanced Taiwanese Mandarin,
-// smart proxy suggestions, Supabase slang dictionary
+// Universal NLP parser v5 — enhanced Taiwanese Mandarin,
+// smart proxy suggestions, Supabase slang dictionary,
+// half-day and hourly leave support
 // ══════════════════════════════════════════════════════════════
 
 export async function POST(req: NextRequest) {
@@ -35,7 +36,6 @@ export async function POST(req: NextRequest) {
         if (org) {
           orgId = org.organization_id;
 
-          // Get team members for proxy suggestion
           const { data: members } = await supabase
             .from("organization_members")
             .select("user_id, display_name")
@@ -54,7 +54,6 @@ export async function POST(req: NextRequest) {
               .filter(Boolean) as string[];
           }
 
-          // Get current user's name
           const { data: profile } = await supabase
             .from("profiles")
             .select("full_name")
@@ -82,7 +81,6 @@ export async function POST(req: NextRequest) {
         .select("expression, maps_to_type, maps_to_subtype, confidence, context_note")
         .eq("is_active", true);
 
-      // Include global entries + org-specific if we have orgId
       const { data: slangEntries } = orgId
         ? await query.or(`organization_id.is.null,organization_id.eq.${orgId}`)
         : await query.is("organization_id", null);
@@ -127,7 +125,7 @@ STEP 2: ` : ""}Parse the text into the correct form fields.
 
 FORM SCHEMAS:
 
-LEAVE: { leave_type, start_date, end_date, days, reason, proxy }
+LEAVE: { leave_type, start_date, end_date, days, duration_type, hours_requested, reason, proxy }
   leave_type options and Taiwanese detection rules:
   ┌──────────────────────────────────────────────────────────────┐
   │ 特休 Annual     │ 特休, 年假, 年休, annual leave, PTO        │
@@ -151,10 +149,26 @@ LEAVE: { leave_type, start_date, end_date, days, reason, proxy }
   │ 育嬰假 Parental │ 育嬰假, 育嬰留停, parental leave            │
   │ 公傷假 Work Injury│ 公傷假, 工傷, 職災, work injury           │
   └──────────────────────────────────────────────────────────────┘
+
+  duration_type field — ALWAYS set this:
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ "full_day"     │ Default for full day(s) of leave              │
+  │ "half_day_am"  │ 上午請假, 早上請假, 請半天 (morning), AM half │
+  │ "half_day_pm"  │ 下午請假, 中午離開, 下午半天, PM half         │
+  │ "hourly"       │ 請N小時, N hours, 家庭照顧假 by hour          │
+  └─────────────────────────────────────────────────────────────────┘
+
+  CRITICAL HALF-DAY / HOURLY RULES:
+  - 半天 or "half day" (no time specified) → duration_type = "half_day_am", days = 0.5
+  - 上午/早上 + 假 → duration_type = "half_day_am", days = 0.5
+  - 下午/午後 + 假 OR 中午就要離開 OR 中午離開 → duration_type = "half_day_pm", days = 0.5
+  - 明天下午要XXX → if leave context: duration_type = "half_day_pm", days = 0.5
+  - N小時假 → duration_type = "hourly", hours_requested = N, days = N/8 (round to 2 decimal)
+  - 家庭照顧假 by hour (2026 law) → duration_type = "hourly", set hours_requested
+  - Default (no time qualifier) → duration_type = "full_day"
+
   Default leave_type: 事假 Personal (if type cannot be determined)
   CRITICAL: 補休 ≠ 特休. Never confuse these two.
-  If user says 半天 or "half day" → days = 0.5
-  If user says 幾個小時/N小時 for 家庭照顧假 → convert to fraction of day (8hr = 1 day)
 ${proxyContext}
 
 OVERTIME: { date, start_time, end_time, hours, overtime_type, reason, project }
@@ -196,6 +210,8 @@ TAIWANESE MANDARIN NUANCES:
 - 處理私事 = handling personal matters → 事假 Personal
 - 要去一趟XX = going to XX → if city name, likely business_trip
 - 不來了/不進公司 = not coming in → leave (ask for type)
+- 中午就要離開 = leaving at noon = afternoon leave → duration_type "half_day_pm"
+- 下午才回來 = returning in afternoon = morning leave → duration_type "half_day_am"
 
 Respond in JSON ONLY, no markdown, no backticks:
 ${isAuto ? '{"form_type": "leave"|"overtime"|"business_trip", "form_data": {...}}' : '{"form_data": {...}}'}`;
