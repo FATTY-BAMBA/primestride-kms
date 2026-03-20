@@ -410,7 +410,6 @@ function DocumentCard({
           </div>
 
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="text-xs text-slate-400 font-mono">{doc.doc_id}</span>
             <span className="text-xs text-slate-400">{doc.current_version}</span>
             <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-50 border-0 text-xs font-normal">
               {doc.status}
@@ -497,7 +496,6 @@ function SearchResultCard({ result, onNavigate }: { result: SearchResult; onNavi
         <div className="min-w-0 flex-1">
           <h3 className="font-medium text-slate-900">{result.title}</h3>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="text-xs text-slate-400 font-mono">{result.doc_id}</span>
             <span className="text-xs text-slate-400">{result.version}</span>
             {result.doc_type && (
               <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
