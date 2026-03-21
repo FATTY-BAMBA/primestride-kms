@@ -539,26 +539,26 @@ export default function AdminDashboard() {
 
               {/* Approve */}
               <button onClick={() => handleBatch("approved")}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: "#059669", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, transition: "opacity 0.15s" }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>
-                ✅ 批次核准
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "1.5px solid #6EE7B7", background: "transparent", color: "#065F46", fontSize: 13, fontWeight: 500, cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#F0FDF4"; e.currentTarget.style.borderColor = "#34D399"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "#6EE7B7"; }}>
+                ✓ 批次核准
               </button>
 
               {/* Reject */}
               <button onClick={() => handleBatch("rejected")}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 18px", borderRadius: 10, border: "none", background: "#DC2626", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0, transition: "opacity 0.15s" }}
-                onMouseEnter={(e) => e.currentTarget.style.opacity = "0.85"}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}>
-                ❌ 批次駁回
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "1.5px solid #FCA5A5", background: "transparent", color: "#991B1B", fontSize: 13, fontWeight: 500, cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.borderColor = "#F87171"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "#FCA5A5"; }}>
+                ✕ 批次駁回
               </button>
 
               {/* Deselect */}
               <button onClick={() => setSelectedIds(new Set())}
-                style={{ padding: "9px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: "white", color: "#6B7280", fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#9CA3AF"; e.currentTarget.style.color = "#374151"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.color = "#6B7280"; }}>
-                ✕ 取消
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "transparent", color: "#6B7280", fontSize: 13, fontWeight: 500, cursor: "pointer", flexShrink: 0, transition: "all 0.15s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#F9FAFB"; e.currentTarget.style.borderColor = "#D1D5DB"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "#E5E7EB"; }}>
+                × 取消
               </button>
             </div>
           )}
