@@ -79,7 +79,6 @@ export default function Sidebar({ children }: SidebarProps) {
   const mainLinks: LinkItem[] = [
     { href: "/home", icon: Home, label: "首頁", labelEn: "Home" },
     { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
-    // { href: "/projects", icon: FolderKanban, label: "專案", labelEn: "Projects" }, // Hidden until pilots validate need
     { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent" },
     { href: "/search", icon: Search, label: "搜尋", labelEn: "Search" },
     { href: "/workflows", icon: FileText, label: "表單申請", labelEn: "Forms", badge: true },
@@ -105,6 +104,13 @@ export default function Sidebar({ children }: SidebarProps) {
   };
 
   const primaryColor = branding?.primary_color || "#7C3AED";
+
+  // Dynamic font size based on org name length
+  const getOrgNameFontSize = (name: string) => {
+    if (name.length > 16) return "11px";
+    if (name.length > 10) return "12px";
+    return "14px";
+  };
 
   const NavLink = ({ link }: { link: LinkItem }) => {
     if (link.adminOnly && !isAdmin) return null;
@@ -161,6 +167,8 @@ export default function Sidebar({ children }: SidebarProps) {
     );
   };
 
+  const orgName = branding?.org_name || "Atlas EIP";
+
   const SidebarContent = () => (
     <>
       {/* Logo */}
@@ -177,11 +185,16 @@ export default function Sidebar({ children }: SidebarProps) {
           <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
         </div>
         {!collapsed && (
-          <div>
-            <h1 className="font-semibold text-slate-900 text-sm">
-              {branding?.org_name || "Atlas EIP"}
+          <div className="min-w-0 flex-1">
+            <h1
+              className="font-semibold text-slate-900 leading-tight truncate"
+              style={{ fontSize: getOrgNameFontSize(orgName) }}
+            >
+              {orgName}
             </h1>
-            <p className="text-xs text-slate-400">{branding?.tagline || "Enterprise Intelligence"}</p>
+            <p className="text-xs text-slate-400">
+              {branding?.tagline || "EIP"}
+            </p>
           </div>
         )}
       </div>
@@ -266,7 +279,7 @@ export default function Sidebar({ children }: SidebarProps) {
         </button>
         <div className="flex items-center gap-2">
           <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
-          <span className="font-semibold text-sm">{branding?.org_name || "Atlas EIP"}</span>
+          <span className="font-semibold text-sm truncate max-w-[160px]">{orgName}</span>
         </div>
         <UserMenu />
       </div>
