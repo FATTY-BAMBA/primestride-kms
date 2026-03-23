@@ -4,6 +4,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AuthProvider } from "@/lib/AuthContext";
 import AppShell from "@/components/AppShell";
+import { Analytics } from '@vercel/analytics/react';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,6 +25,7 @@ export default function RootLayout({
           <AuthProvider>
             <AppShell>{children}</AppShell>
           </AuthProvider>
+          <Analytics />
         </body>
       </html>
     </ClerkProvider>
