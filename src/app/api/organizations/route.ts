@@ -45,6 +45,13 @@ export async function GET() {
           .eq("id", m.organization_id)
           .single();
 
+        // Get branding override — use org_name from branding if set
+        const { data: branding } = await supabase
+          .from("organization_branding")
+          .select("org_name")
+          .eq("organization_id", m.organization_id)
+          .single();
+
         // Get document count
         const { count } = await supabase
           .from("documents")
@@ -58,9 +65,13 @@ export async function GET() {
           .eq("organization_id", m.organization_id)
           .eq("is_active", true);
 
+        // Prefer branding org_name over Clerk org name
+        const displayName =
+          branding?.org_name?.trim() || org?.name || "Unknown Organization";
+
         return {
           id: m.organization_id,
-          name: org?.name || "Unknown Organization",
+          name: displayName,
           role: m.role,
           joined_at: m.joined_at,
           document_count: count || 0,
