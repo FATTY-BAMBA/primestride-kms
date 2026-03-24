@@ -192,7 +192,7 @@ export default function Sidebar({ children }: SidebarProps) {
             >
               {orgName}
             </h1>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs font-semibold text-slate-500 tracking-wide">
               {branding?.tagline || "EIP"}
             </p>
           </div>
