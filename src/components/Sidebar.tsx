@@ -85,8 +85,9 @@ export default function Sidebar({ children }: SidebarProps) {
   ];
 
   const analyticsLinks: LinkItem[] = [
-    { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
-    { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph" },
+  { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
+  { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph" },
+  { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Metrics" },
   ];
 
   const adminLinks: LinkItem[] = [
