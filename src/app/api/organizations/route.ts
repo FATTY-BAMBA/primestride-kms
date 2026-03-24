@@ -45,9 +45,9 @@ export async function GET() {
           .eq("id", m.organization_id)
           .single();
 
-        // Get branding override — use org_name from branding if set
+        // Get branding override — use org_name from org_branding if set
         const { data: branding } = await supabase
-          .from("organization_branding")
+          .from("org_branding")
           .select("org_name")
           .eq("organization_id", m.organization_id)
           .single();
