@@ -46,7 +46,6 @@ function useDebounce<T>(value: T, delay: number): T {
   return dv;
 }
 
-// Hydration-safe localStorage hook
 function useLocalStorage<T>(key: string, initial: T): [T, (v: T) => void] {
   const [val, setVal] = useState<T>(initial);
   useEffect(() => { try { const item = window.localStorage.getItem(key); if (item) setVal(JSON.parse(item)); } catch {} }, [key]);
@@ -161,7 +160,6 @@ function BalanceBar({ used, total, color }: { used: number; total: number; color
   );
 }
 
-// ── Compliance result panel — reusable for pending cards ──
 function CompliancePanel({ result, id, expandedId, setExpandedId }: {
   result: Submission["compliance_result"]; id: string; expandedId: string | null; setExpandedId: (v: string | null) => void;
 }) {
@@ -224,7 +222,7 @@ function ShortcutsHelp({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000 }} onClick={onClose}>
       <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 450, width: "90%" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 16 }}>⌨️ 鍵盤快捷鍵</div>
-        {[["⌘/Ctrl + 1-5", "切換分頁"], ["⌘/Ctrl + A", "全選待審"], ["Shift + 點擊", "範圍選取"], ["Esc", "取消選取/關閉"], ["?", "顯示說明"]].map(([k, a]) => (
+        {[["⌘/Ctrl + 1-6", "切換分頁"], ["⌘/Ctrl + A", "全選待審"], ["Shift + 點擊", "範圍選取"], ["Esc", "取消選取/關閉"], ["?", "顯示說明"]].map(([k, a]) => (
           <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <kbd style={{ padding: "4px 10px", background: "#F3F4F6", border: "1px solid #E5E7EB", borderRadius: 6, fontSize: 12, fontFamily: "monospace", fontWeight: 600, color: "#374151" }}>{k}</kbd>
             <span style={{ fontSize: 13, color: "#6B7280" }}>{a}</span>
@@ -240,7 +238,7 @@ function ShortcutsHelp({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AdminDashboard() {
-  const [tab, setTab] = useLocalStorage<"overview"|"pending"|"employees"|"leave"|"compliance">("admin_last_tab", "overview");
+  const [tab, setTab] = useLocalStorage<"overview"|"pending"|"employees"|"leave"|"compliance"|"esg">("admin_last_tab", "overview");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
@@ -301,7 +299,7 @@ export default function AdminDashboard() {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "?") { setShowShortcuts(true); return; }
       if (e.key === "Escape") { setSelectedIds(new Set()); setReviewingId(null); setShowShortcuts(false); return; }
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "5") { const tabs = ["overview","pending","employees","leave","compliance"] as const; setTab(tabs[parseInt(e.key)-1]); return; }
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") { const tabs = ["overview","pending","employees","leave","compliance","esg"] as const; setTab(tabs[parseInt(e.key)-1]); return; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && tab === "pending") { e.preventDefault(); setSelectedIds(new Set(submissions.map(s => s.id))); }
     };
     window.addEventListener("keydown", handler);
@@ -396,9 +394,12 @@ export default function AdminDashboard() {
       {/* Tab Bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "2px solid #E5E7EB", overflowX: "auto", position: "sticky", top: 0, background: "white", zIndex: 20, paddingTop: 8 }}>
         {[
-          { key: "overview", label: "📊 總覽" }, { key: "pending", label: `📋 待審核 (${pendingCount})` },
-          { key: "employees", label: `👥 員工 (${employees.length})` }, { key: "leave", label: "🏖️ 假期總覽" },
+          { key: "overview", label: "📊 總覽" },
+          { key: "pending", label: `📋 待審核 (${pendingCount})` },
+          { key: "employees", label: `👥 員工 (${employees.length})` },
+          { key: "leave", label: "🏖️ 假期總覽" },
           { key: "compliance", label: "⚖️ 合規" },
+          { key: "esg", label: "🌿 ESG 報告" },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key as typeof tab)} style={{ padding: "10px 18px", border: "none", background: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", color: tab === t.key ? "#7C3AED" : "#6B7280", borderBottom: tab === t.key ? "2px solid #7C3AED" : "2px solid transparent", marginBottom: -2, transition: "all 0.15s" }}>{t.label}</button>
         ))}
@@ -431,7 +432,6 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {/* Today absences */}
           <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>🏖️ 今日請假人員</div>
@@ -452,7 +452,6 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          {/* Quick alerts row */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12, marginBottom: 16 }}>
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -475,7 +474,6 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            {/* RESTORED: Low leave alerts */}
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>⚠️ 假期餘額不足提醒</div>
@@ -497,7 +495,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Shadow Audit */}
           {shadowRisks.length > 0 && (
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #FECACA", marginBottom: 16, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", background: "#FEF2F2", borderBottom: "1px solid #FECACA", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -534,7 +531,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* RESTORED: Subsidy Hunter */}
           {subsidies.length > 0 && (
             <div style={{ background: "white", borderRadius: 12, border: "1px solid #BBF7D0", marginBottom: 16, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", background: "linear-gradient(135deg,#F0FDF4,#ECFDF5)", borderBottom: "1px solid #BBF7D0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -620,8 +616,6 @@ export default function AdminDashboard() {
                     )}
 
                     {s.original_text && <div style={{ fontSize: 11, color: "#6B7280", padding: "4px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>💬 {s.original_text}</div>}
-
-                    {/* RESTORED: Compliance result */}
                     <CompliancePanel result={s.compliance_result} id={s.id} expandedId={expandedCompliance} setExpandedId={setExpandedCompliance} />
 
                     {reviewingId === s.id ? (
@@ -640,7 +634,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Sticky batch bar */}
           {selectedIds.size > 0 && (
             <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 50, width: "calc(100% - 48px)", maxWidth: 700, background: "white", borderRadius: 16, border: "1px solid #E5E7EB", boxShadow: "0 8px 32px rgba(0,0,0,0.12)", padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", animation: "slideIn 0.3s ease-out" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "#EDE9FE", flexShrink: 0 }}>
@@ -729,8 +722,6 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         )}
-
-                        {/* RESTORED: Recent submissions */}
                         <div style={{ padding: "14px 18px" }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 10 }}>📜 近期申請</div>
                           {employeeSubmissions.length === 0 ? <div style={{ fontSize: 13, color: "#9CA3AF" }}>無申請紀錄</div> : (
@@ -874,6 +865,174 @@ export default function AdminDashboard() {
           <ComplianceConflictScanner />
         </div>
       )}
+
+      {/* ═══ ESG S-PILLAR REPORT ═══ */}
+      {!loading && tab === "esg" && (
+        <div style={{ animation: "fadeIn 0.4s" }}>
+
+          {/* Header + Export */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#111827" }}>🌿 ESG 社會面報告 — S-Pillar</div>
+              <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>資料來源：Atlas EIP 即時工作流程與合規記錄 · 自動彙整，無需人工填報</div>
+            </div>
+            <button
+              onClick={() => window.print()}
+              style={{ padding: "8px 18px", borderRadius: 8, border: "1.5px solid #059669", background: "#F0FDF4", color: "#065F46", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+            >
+              📄 匯出報告
+            </button>
+          </div>
+
+          {/* Section 1: Workforce Overview */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 14 }}>👥 勞動力概況 Workforce Overview</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+              {[
+                { label: "全體員工數", val: employees.length, unit: "人", color: "#7C3AED", bg: "#EDE9FE" },
+                { label: "本月核准申請", val: thisMonthApproved, unit: "件", color: "#2563EB", bg: "#DBEAFE" },
+                { label: "本月加班時數", val: thisMonthOvertime, unit: "小時", color: "#D97706", bg: "#FEF3C7" },
+                { label: "加班超標人數", val: shadowRisks.filter(r => r.risk_level === "critical").length, unit: "人", color: "#DC2626", bg: "#FEE2E2" },
+              ].map(s => (
+                <div key={s.label} style={{ padding: "14px 16px", background: s.bg, borderRadius: 10, textAlign: "center" }}>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.val}<span style={{ fontSize: 13, fontWeight: 600 }}> {s.unit}</span></div>
+                  <div style={{ fontSize: 11, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Overtime Compliance */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>🕐 加班合規率 Overtime Compliance</div>
+              <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, background: "#F0FDF4", color: "#059669", fontWeight: 700, border: "1px solid #BBF7D0" }}>依 LSA Art. 32</span>
+            </div>
+            {(() => {
+              const total = employees.length;
+              const critical = shadowRisks.filter(r => r.risk_level === "critical").length;
+              const warning = shadowRisks.filter(r => r.risk_level === "warning").length;
+              const compliant = Math.max(0, total - critical - warning);
+              const complianceRate = total > 0 ? Math.round((compliant / total) * 100) : 100;
+              return (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div style={{ flex: 1, height: 12, background: "#F3F4F6", borderRadius: 6, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${complianceRate}%`, background: complianceRate >= 90 ? "#10B981" : complianceRate >= 70 ? "#F59E0B" : "#EF4444", borderRadius: 6, transition: "width 0.6s ease" }} />
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: complianceRate >= 90 ? "#059669" : "#D97706", minWidth: 60 }}>{complianceRate}%</div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                    {[
+                      { label: "✅ 合規", val: compliant, color: "#059669", bg: "#D1FAE5" },
+                      { label: "⚠️ 接近上限", val: warning, color: "#D97706", bg: "#FEF3C7" },
+                      { label: "🚨 超標", val: critical, color: "#DC2626", bg: "#FEE2E2" },
+                    ].map(s => (
+                      <div key={s.label} style={{ padding: "10px", background: s.bg, borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: 11, color: s.color, opacity: 0.85 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Section 3: Leave Approval Rates */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 14 }}>📝 請假核准率 Leave Approval Rates</div>
+            {(() => {
+              const leaveSubmissions = allSubmissions.filter(s => s.form_type === "leave");
+              const approved = leaveSubmissions.filter(s => s.status === "approved").length;
+              const total = leaveSubmissions.length;
+              const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
+              const byType: Record<string, { approved: number; total: number }> = {};
+              leaveSubmissions.forEach(s => {
+                const t = s.form_data.leave_type || "其他";
+                if (!byType[t]) byType[t] = { approved: 0, total: 0 };
+                byType[t].total++;
+                if (s.status === "approved") byType[t].approved++;
+              });
+              return (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 14 }}>
+                    {[
+                      { label: "總申請數", val: total, color: "#7C3AED", bg: "#EDE9FE" },
+                      { label: "已核准", val: approved, color: "#059669", bg: "#D1FAE5" },
+                      { label: "核准率", val: `${approvalRate}%`, color: "#2563EB", bg: "#DBEAFE" },
+                    ].map(s => (
+                      <div key={s.label} style={{ padding: "12px", background: s.bg, borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {Object.keys(byType).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", marginBottom: 8 }}>假別核准率明細</div>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        {Object.entries(byType).map(([type, data]) => {
+                          const rate = data.total > 0 ? Math.round((data.approved / data.total) * 100) : 0;
+                          return (
+                            <div key={type} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#F9FAFB", borderRadius: 8 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", minWidth: 80 }}>{type}</div>
+                              <div style={{ flex: 1, height: 6, background: "#E5E7EB", borderRadius: 3, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${rate}%`, background: "#7C3AED", borderRadius: 3 }} />
+                              </div>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", minWidth: 40, textAlign: "right" }}>{rate}%</div>
+                              <div style={{ fontSize: 11, color: "#9CA3AF", minWidth: 50, textAlign: "right" }}>{data.approved}/{data.total} 件</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Section 4: Compliance Health */}
+          <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 20, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 14 }}>⚖️ 合規健康度 Compliance Health</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 10 }}>
+              {[
+                { label: "勞基法規則已載入", val: complianceStatus?.total_rules || 0, unit: "條", icon: "📖", color: "#7C3AED", bg: "#EDE9FE", note: "全條文即時比對" },
+                { label: "合規引擎狀態", val: complianceStatus?.status === "synced" ? "正常" : "待同步", unit: "", icon: complianceStatus?.status === "synced" ? "✅" : "⚠️", color: complianceStatus?.status === "synced" ? "#059669" : "#D97706", bg: complianceStatus?.status === "synced" ? "#D1FAE5" : "#FEF3C7", note: complianceStatus?.last_sync ? `上次同步：${new Date(complianceStatus.last_sync).toLocaleDateString("zh-TW")}` : "尚未同步" },
+                { label: "加班預警人數", val: shadowRisks.length, unit: "人", icon: "🔍", color: shadowRisks.length === 0 ? "#059669" : "#DC2626", bg: shadowRisks.length === 0 ? "#D1FAE5" : "#FEE2E2", note: shadowRisks.length === 0 ? "無超標員工" : `${shadowRisks.filter(r => r.risk_level === "critical").length} 人超標` },
+              ].map(s => (
+                <div key={s.label} style={{ padding: "16px", background: s.bg, borderRadius: 10 }}>
+                  <div style={{ fontSize: 20, marginBottom: 6 }}>{s.icon}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.val}<span style={{ fontSize: 13, fontWeight: 600 }}> {s.unit}</span></div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: s.color, marginTop: 2 }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: s.color, opacity: 0.7, marginTop: 4 }}>{s.note}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 5: Audit Trail */}
+          <div style={{ background: "#F0FDF4", borderRadius: 12, border: "1px solid #BBF7D0", padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#065F46", marginBottom: 8 }}>🔒 資料可稽核性聲明 Audit Trail</div>
+            <div style={{ fontSize: 12, color: "#065F46", lineHeight: 1.8 }}>
+              本報告所有數據均源自 Atlas EIP 系統內的即時結構化記錄，包含：工作流程申請記錄（workflow_submissions）、員工假期餘額（leave_balances）、加班監控記錄（shadow_audit_logs）及合規掃描結果（compliance_checks）。每筆資料均附有時間戳記與操作人員資訊，可供內部稽核或外部查核使用。
+              <br /><br />
+              <strong>注意：</strong>本報告由 Atlas EIP 自動彙整產出，企業對報告內容之準確性與法律責任負最終責任。
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: "12px 16px", background: "#F9FAFB", borderRadius: 8, border: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontSize: 11, color: "#9CA3AF" }}>
+              報告產生時間：{new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })} · 由 Atlas EIP 自動產出
+            </div>
+            <div style={{ fontSize: 11, color: "#9CA3AF" }}>PrimeStride AI · primestrideatlas.com</div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }
