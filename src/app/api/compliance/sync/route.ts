@@ -10,10 +10,11 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ══════════════════════════════════════════════════════════════
-// POST /api/compliance/sync
+// /api/compliance/sync
 // Fetches latest data from Taiwan MOL Open Data API
 // and syncs relevant labor law updates to compliance_knowledge
-// Admin-only endpoint, can also be called via cron
+// Admin-only endpoint, also called via Vercel cron (GET)
+// vercel.json schedule: "0 3 1,15 * *" (1st & 15th at 03:00 UTC)
 // ══════════════════════════════════════════════════════════════
 
 const MOL_API_BASE = "https://apiservice.mol.gov.tw/OdService/rest";
@@ -46,6 +47,7 @@ const LAW_SOURCES = [
   },
 ];
 
+// ── Core sync logic ──────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     // Auth: Vercel cron sends Authorization header automatically
@@ -174,8 +176,17 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ── GET: Check sync status ──
-export async function GET() {
+// ── GET: Called by Vercel cron OR used to check sync status ──
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const isVercelCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+
+  // If called by Vercel cron → run the full sync
+  if (isVercelCron) {
+    return POST(req);
+  }
+
+  // Otherwise → just return current sync status
   const { data } = await supabase
     .from("compliance_knowledge")
     .select("metadata, updated_at")
