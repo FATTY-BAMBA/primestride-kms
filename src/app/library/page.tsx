@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import DocumentAccessToggle from "@/components/DocumentAccessToggle"; // ← NEW
 
 type Team = {
   id: string;
@@ -73,6 +74,7 @@ type DocRow = {
   teams?: Team | null;
   updated_at?: string;
   review_by?: string | null;
+  access_level?: "all_members" | "admin_only"; // ← NEW
   feedback_counts: {
     helped: number;
     not_confident: number;
@@ -438,6 +440,13 @@ function DocumentCard({
                 {folders.find(f => f.id === doc.folder_id)?.name}
               </Badge>
             )}
+
+            {/* ── Access Level Toggle (visible to admins only) ── */}
+            <DocumentAccessToggle
+              docId={doc.doc_id}
+              currentLevel={doc.access_level || "all_members"}
+              isAdmin={isAdmin}
+            />
             
             {totalFeedback > 0 && (
               <div className="flex items-center gap-2 ml-auto text-xs">

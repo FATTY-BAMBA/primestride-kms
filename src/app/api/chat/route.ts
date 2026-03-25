@@ -47,6 +47,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
+    // ── ACCESS CONTROL: get user role to filter restricted documents ──
+    const { data: memberRecord } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("organization_id", membership.organization_id)
+      .eq("is_active", true)
+      .single();
+
+    const isAdminOrOwner = ["owner", "admin"].includes(memberRecord?.role || "");
+
     // Step 1: Generate embedding for the user's question
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
@@ -90,14 +101,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Fetch the actual document content
-    const { data: documents } = await supabase
+    // ── ACCESS CONTROL: regular members cannot see admin_only documents ──
+    let docQuery = supabase
       .from("documents")
       .select("doc_id, title, content, doc_type")
       .in("doc_id", topDocs.map(d => d.doc_id));
 
+    if (!isAdminOrOwner) {
+      docQuery = docQuery.eq("access_level", "all_members");
+    }
+
+    const { data: documents } = await docQuery;
+
     if (!documents || documents.length === 0) {
       return NextResponse.json({
-        answer: "I found some relevant documents but couldn't retrieve their content. Please try again.",
+        answer: "I couldn't find any relevant documents for your question. Try rephrasing or asking about a different topic.",
         sources: [],
       });
     }

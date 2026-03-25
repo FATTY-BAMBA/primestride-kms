@@ -487,6 +487,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Filter out admin_only documents for regular members
+    if (!isOrgAdmin) {
+      filteredDocs = filteredDocs.filter(doc => 
+        !doc.access_level || doc.access_level === "all_members"
+
+      );
+    }
+
     const { data: teams } = await supabase
       .from("teams")
       .select("id, name, color")
