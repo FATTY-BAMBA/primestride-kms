@@ -23,12 +23,56 @@ const industries = [
 ];
 
 const companySizes = [
-  { value: "1-10", label: "1-10 人" },
-  { value: "11-50", label: "11-50 人" },
-  { value: "51-200", label: "51-200 人" },
-  { value: "201-500", label: "201-500 人" },
+  { value: "1-10", label: "1–10 人" },
+  { value: "11-50", label: "11–50 人" },
+  { value: "51-200", label: "51–200 人" },
+  { value: "201-500", label: "201–500 人" },
   { value: "500+", label: "500+ 人" },
 ];
+
+// ── Brand constants matching the app ──────────────────────────────────────────
+const PRIMARY = "#7C3AED";
+const PRIMARY_LIGHT = "#A78BFA";
+const PRIMARY_DIM = "rgba(124,58,237,0.12)";
+const PRIMARY_BORDER = "rgba(124,58,237,0.25)";
+
+// ── Logo mark ─────────────────────────────────────────────────────────────────
+function LogoMark({ size = 48 }: { size?: number }) {
+  const r = Math.round(size * 0.27);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: r,
+      background: "#4C1D95",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+      boxShadow: "0 0 0 1px rgba(167,139,250,0.2), 0 8px 24px rgba(76,29,149,0.4)",
+    }}>
+      <svg width={size * 0.52} height={size * 0.52} viewBox="0 0 26 26" fill="none">
+        <path d="M13 2 L7 14 L12 14 L6 24 L20 12 L14.5 12 L21 2 Z" fill="white" fillOpacity="0.95"/>
+      </svg>
+    </div>
+  );
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#94a3b8", marginBottom: 6, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+        {label}
+      </label>
+      {hint && <p style={{ fontSize: 11, color: "#4b5563", marginBottom: 6, marginTop: -2 }}>{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "11px 14px", borderRadius: 10,
+  border: "1.5px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)",
+  color: "#e8e6e1", fontSize: 14, outline: "none", boxSizing: "border-box",
+  fontFamily: "system-ui, sans-serif", transition: "border-color 0.15s",
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -36,6 +80,7 @@ export default function OnboardingPage() {
   const { organization } = useOrganization();
   const { createOrganization, setActive, isLoaded, userMemberships } = useOrganizationList({ userMemberships: true });
 
+  // step: 1 = company info, 2 = your role, 3 = success/welcome
   const [step, setStep] = useState(1);
   const [companyName, setCompanyName] = useState("");
   const [companySize, setCompanySize] = useState("");
@@ -45,44 +90,32 @@ export default function OnboardingPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  // If user already has an active org, redirect to library
+  // If already has active org, go home
   useEffect(() => {
-    if (organization) {
-      router.replace("/home");
-    }
+    if (organization) router.replace("/home");
   }, [organization, router]);
 
-  // If user has org memberships but no active org, set the first one active
+  // If has memberships but no active org, activate first one
   useEffect(() => {
     if (isLoaded && userMemberships?.data && userMemberships.data.length > 0 && !organization) {
       const firstOrg = userMemberships.data[0].organization;
-      if (setActive) {
-        setActive({ organization: firstOrg.id }).then(() => {
-          router.replace("/home");
-        });
-      }
+      if (setActive) setActive({ organization: firstOrg.id }).then(() => router.replace("/home"));
     }
   }, [isLoaded, userMemberships, organization, setActive, router]);
 
   const handleCreateOrg = async () => {
     if (!companyName.trim()) { setError("請輸入公司名稱 Company name is required"); return; }
     if (!companySize) { setError("請選擇公司規模 Please select company size"); return; }
-    if (!taxId || taxId.length !== 8) { setError("請輸入 8 位統一編號 Tax ID is required (8 digits)"); return; }
-    if (!isLoaded || !createOrganization) { setError("系統載入中，請稍候 Loading..."); return; }
+    if (!isLoaded || !createOrganization) { setError("系統載入中，請稍候..."); return; }
+    if (taxId && taxId.length > 0 && taxId.length !== 8) { setError("統一編號必須為 8 位數字"); return; }
 
     setCreating(true);
     setError("");
 
     try {
-      // Create the organization in Clerk
       const org = await createOrganization({ name: companyName.trim() });
+      if (setActive) await setActive({ organization: org.id });
 
-      // Set it as the active organization
-      if (setActive) {
-        await setActive({ organization: org.id });
-      }
-
-      // Store company metadata in our database
       await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,262 +125,359 @@ export default function OnboardingPage() {
           company_size: companySize,
           industry,
           admin_role: role,
-          tax_id: taxId,
+          tax_id: taxId || null,
         }),
       });
 
-      // Small delay to let Clerk session update, then hard redirect
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      window.location.href = "/home";
+      // Show success screen instead of immediately redirecting
+      setStep(3);
+      setCreating(false);
     } catch (err: any) {
       console.error("Failed to create organization:", err);
-      setError(err.message || "建立組織失敗，請重試 Failed to create organization");
+      setError(err.message || "建立組織失敗，請重試");
       setCreating(false);
     }
   };
 
-  // Show minimal loading while Clerk initializes
   if (!isLoaded) {
     return (
       <div style={{ minHeight: "100vh", background: "#0a0e17", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg, #2563eb, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18, fontWeight: 700, margin: "0 auto 16px" }}>P</div>
-          <div style={{ color: "#64748b", fontSize: 14 }}>載入中 Loading...</div>
+          <LogoMark size={40} />
+          <div style={{ color: "#4b5563", fontSize: 13, marginTop: 14 }}>載入中...</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0e17", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ maxWidth: 520, width: "100%", background: "#111827", borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
-        
-        {/* Header */}
-        <div style={{ padding: "32px 32px 0", textAlign: "center" }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: "linear-gradient(135deg, #2563eb, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20, fontWeight: 700, margin: "0 auto 16px", fontFamily: "system-ui" }}>P</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#e8e6e1", marginBottom: 6, fontFamily: "system-ui, sans-serif" }}>
-            歡迎使用 Atlas EIP
-          </h1>
-          <p style={{ fontSize: 14, color: "#64748b", marginBottom: 24 }}>
-            Welcome! Let&apos;s set up your company workspace.
-          </p>
+    <div style={{
+      minHeight: "100vh",
+      background: "#0a0e17",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24,
+      fontFamily: "system-ui, -apple-system, sans-serif",
+    }}>
+      {/* Subtle background glow */}
+      <div style={{
+        position: "fixed", top: "20%", left: "50%", transform: "translateX(-50%)",
+        width: 600, height: 400, borderRadius: "50%",
+        background: "radial-gradient(ellipse, rgba(124,58,237,0.08) 0%, transparent 70%)",
+        pointerEvents: "none",
+      }} />
 
-          {/* Progress Steps */}
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 24 }}>
-            {[1, 2].map(s => (
-              <div key={s} style={{
-                width: s === step ? 32 : 12, height: 6, borderRadius: 3,
-                background: s <= step ? "#2563eb" : "rgba(255,255,255,0.1)",
-                transition: "all 0.3s",
-              }} />
-            ))}
+      <div style={{
+        maxWidth: 500, width: "100%",
+        background: "#111827",
+        borderRadius: 20,
+        border: "1px solid rgba(255,255,255,0.07)",
+        overflow: "hidden",
+        position: "relative",
+      }}>
+
+        {/* ── HEADER (all steps) ──────────────────────────────────── */}
+        {step < 3 && (
+          <div style={{ padding: "32px 32px 0", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+              <LogoMark size={52} />
+            </div>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", margin: "0 0 4px" }}>
+              歡迎使用 Atlas EIP
+            </h1>
+            <p style={{ fontSize: 13, color: "#4b5563", margin: "0 0 24px" }}>
+              設定您的企業工作空間，全程只需 2 分鐘。
+            </p>
+
+            {/* Progress bar */}
+            <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 28 }}>
+              {[1, 2].map(s => (
+                <div key={s} style={{
+                  height: 4, borderRadius: 2,
+                  width: s === step ? 36 : 16,
+                  background: s <= step ? PRIMARY : "rgba(255,255,255,0.08)",
+                  transition: "all 0.3s ease",
+                }} />
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, color: "#374151", marginBottom: 24 }}>
+              步驟 {step} / 2 — {step === 1 ? "公司基本資料" : "您的職務"}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Step 1: Company Info */}
+        {/* ── STEP 1: Company Info ─────────────────────────────────── */}
         {step === 1 && (
           <div style={{ padding: "0 32px 32px" }}>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
-                公司名稱 Company Name *
-              </label>
+
+            <Field label="公司名稱 Company Name *" hint="請輸入貴公司的正式名稱">
               <input
                 type="text"
                 value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
+                onChange={e => setCompanyName(e.target.value)}
                 placeholder="例如：台灣科技股份有限公司"
-                style={{
-                  width: "100%", padding: "12px 16px", borderRadius: 10,
-                  border: "1.5px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)",
-                  color: "#e8e6e1", fontSize: 15, outline: "none", boxSizing: "border-box",
-                  fontFamily: "system-ui, sans-serif",
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "#2563eb"}
-                onBlur={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}
+                style={inputStyle}
+                onFocus={e => e.currentTarget.style.borderColor = PRIMARY}
+                onBlur={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"}
                 autoFocus
               />
-            </div>
+            </Field>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
-                統一編號 Tax ID (統編) *
-              </label>
-              <input
-                type="text"
-                value={taxId}
-                onChange={(e) => setTaxId(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                placeholder="8 位數字 e.g. 12345678"
-                maxLength={8}
-                style={{
-                  width: "100%", padding: "12px 16px", borderRadius: 10,
-                  border: `1.5px solid ${taxId && taxId.length === 8 ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  background: "rgba(255,255,255,0.03)",
-                  color: "#e8e6e1", fontSize: 15, outline: "none", boxSizing: "border-box",
-                  fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em",
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "#2563eb"}
-                onBlur={(e) => e.currentTarget.style.borderColor = taxId && taxId.length === 8 ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.1)"}
-              />
-              {taxId && taxId.length > 0 && taxId.length < 8 && (
-                <div style={{ marginTop: 4, fontSize: 11, color: "#FCA5A5" }}>
-                  統編必須為 8 位數字 ({taxId.length}/8)
-                </div>
+            <Field
+              label="統一編號 Tax ID"
+              hint="可稍後補填。用於政府補助資格自動比對。"
+            >
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  value={taxId}
+                  onChange={e => setTaxId(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  placeholder="8 位數字（選填）"
+                  maxLength={8}
+                  style={{
+                    ...inputStyle,
+                    borderColor: taxId.length === 8 ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.08)",
+                    fontFamily: "monospace", letterSpacing: "0.08em",
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = PRIMARY}
+                  onBlur={e => e.currentTarget.style.borderColor = taxId.length === 8 ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.08)"}
+                />
+                {taxId.length === 8 && (
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#10b981" }}>✓</span>
+                )}
+              </div>
+              {taxId.length > 0 && taxId.length < 8 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: "#f87171" }}>{taxId.length}/8 位</div>
               )}
-              {taxId && taxId.length === 8 && (
-                <div style={{ marginTop: 4, fontSize: 11, color: "#10b981" }}>
-                  ✓ 格式正確
-                </div>
-              )}
-            </div>
+            </Field>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
-                公司規模 Company Size *
-              </label>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            <Field label="公司規模 Company Size *" hint="選擇最接近的員工人數範圍">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
                 {companySizes.map(s => (
-                  <button key={s.value} onClick={() => setCompanySize(s.value)}
-                    style={{
-                      padding: "10px 8px", borderRadius: 8, border: `1.5px solid ${companySize === s.value ? "#2563eb" : "rgba(255,255,255,0.1)"}`,
-                      background: companySize === s.value ? "rgba(37,99,235,0.1)" : "rgba(255,255,255,0.02)",
-                      color: companySize === s.value ? "#60a5fa" : "#94a3b8",
-                      fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
-                      fontFamily: "system-ui, sans-serif",
-                    }}>
+                  <button key={s.value} onClick={() => setCompanySize(s.value)} style={{
+                    padding: "10px 6px", borderRadius: 8,
+                    border: `1.5px solid ${companySize === s.value ? PRIMARY : "rgba(255,255,255,0.08)"}`,
+                    background: companySize === s.value ? PRIMARY_DIM : "rgba(255,255,255,0.02)",
+                    color: companySize === s.value ? PRIMARY_LIGHT : "#64748b",
+                    fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+                  }}>
                     {s.label}
                   </button>
                 ))}
               </div>
-            </div>
+            </Field>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
-                產業別 Industry
-              </label>
+            <Field label="產業別 Industry" hint="用於比對適合的政府補助方案">
               <select
                 value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
+                onChange={e => setIndustry(e.target.value)}
                 style={{
-                  width: "100%", padding: "12px 16px", borderRadius: 10,
-                  border: "1.5px solid rgba(255,255,255,0.1)", background: "#111827",
-                  color: industry ? "#e8e6e1" : "#64748b", fontSize: 14, outline: "none",
-                  boxSizing: "border-box", fontFamily: "system-ui, sans-serif",
-                }}>
+                  ...inputStyle,
+                  background: "#111827",
+                  color: industry ? "#e8e6e1" : "#4b5563",
+                }}
+              >
                 <option value="">選擇產業 Select industry...</option>
                 {industries.map(i => (
                   <option key={i.value} value={i.value}>{i.label}</option>
                 ))}
               </select>
-            </div>
+            </Field>
+
+            {error && (
+              <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#fca5a5", fontSize: 13, textAlign: "center" }}>
+                {error}
+              </div>
+            )}
 
             <button
               onClick={() => {
                 if (!companyName.trim()) { setError("請輸入公司名稱"); return; }
-                if (!taxId || taxId.length !== 8) { setError("請輸入 8 位統一編號 Tax ID is required (8 digits)"); return; }
                 if (!companySize) { setError("請選擇公司規模"); return; }
-                setError("");
-                setStep(2);
+                if (taxId && taxId.length > 0 && taxId.length !== 8) { setError("統一編號必須為 8 位數字（或留空）"); return; }
+                setError(""); setStep(2);
               }}
               style={{
-                width: "100%", padding: "14px", borderRadius: 10, border: "none",
-                background: "#2563eb", color: "white", fontSize: 16, fontWeight: 700,
-                cursor: "pointer", transition: "all 0.2s", fontFamily: "system-ui, sans-serif",
-              }}>
+                width: "100%", padding: "13px", borderRadius: 10, border: "none",
+                background: PRIMARY, color: "white", fontSize: 15, fontWeight: 700,
+                cursor: "pointer", transition: "opacity 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+            >
               下一步 Continue →
             </button>
-
-            {error && (
-              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.2)", color: "#FCA5A5", fontSize: 13, textAlign: "center" }}>
-                {error}
-              </div>
-            )}
           </div>
         )}
 
-        {/* Step 2: Your Role + Create */}
+        {/* ── STEP 2: Role + Create ────────────────────────────────── */}
         {step === 2 && (
           <div style={{ padding: "0 32px 32px" }}>
-            <div style={{ padding: "16px 20px", background: "rgba(37,99,235,0.06)", borderRadius: 12, border: "1px solid rgba(37,99,235,0.12)", marginBottom: 20 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#e8e6e1" }}>{companyName}</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                {companySizes.find(s => s.value === companySize)?.label} · {industries.find(i => i.value === industry)?.label || "未選擇產業"} · 統編: {taxId}
+
+            {/* Summary card */}
+            <div style={{ padding: "14px 18px", background: PRIMARY_DIM, borderRadius: 12, border: `1px solid ${PRIMARY_BORDER}`, marginBottom: 22 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{companyName}</div>
+              <div style={{ fontSize: 12, color: "#64748b", marginTop: 3 }}>
+                {companySizes.find(s => s.value === companySize)?.label}
+                {industry && ` · ${industries.find(i => i.value === industry)?.label}`}
+                {taxId && ` · 統編 ${taxId}`}
               </div>
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#94a3b8", marginBottom: 6 }}>
-                你的職務 Your Role
-              </label>
+            <Field label="您的職務 Your Role" hint="幫助我們為您顯示最相關的功能">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
-                  { value: "hr", label: "HR 人資" },
-                  { value: "ceo", label: "CEO / 老闆" },
-                  { value: "manager", label: "部門主管 Manager" },
-                  { value: "it", label: "IT / 技術" },
+                  { value: "hr", label: "👤 HR 人資" },
+                  { value: "ceo", label: "👔 CEO / 老闆" },
+                  { value: "manager", label: "📊 部門主管" },
+                  { value: "it", label: "💻 IT / 技術" },
                 ].map(r => (
-                  <button key={r.value} onClick={() => setRole(r.value)}
-                    style={{
-                      padding: "12px", borderRadius: 8,
-                      border: `1.5px solid ${role === r.value ? "#2563eb" : "rgba(255,255,255,0.1)"}`,
-                      background: role === r.value ? "rgba(37,99,235,0.1)" : "rgba(255,255,255,0.02)",
-                      color: role === r.value ? "#60a5fa" : "#94a3b8",
-                      fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
-                      fontFamily: "system-ui, sans-serif",
-                    }}>
+                  <button key={r.value} onClick={() => setRole(r.value)} style={{
+                    padding: "12px", borderRadius: 8,
+                    border: `1.5px solid ${role === r.value ? PRIMARY : "rgba(255,255,255,0.08)"}`,
+                    background: role === r.value ? PRIMARY_DIM : "rgba(255,255,255,0.02)",
+                    color: role === r.value ? PRIMARY_LIGHT : "#64748b",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s",
+                    textAlign: "center",
+                  }}>
                     {r.label}
                   </button>
                 ))}
               </div>
-            </div>
+            </Field>
 
-            {/* What You Get */}
-            <div style={{ marginBottom: 24, padding: "16px 18px", background: "rgba(16,185,129,0.04)", borderRadius: 12, border: "1px solid rgba(16,185,129,0.1)" }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#10b981", marginBottom: 8 }}>✨ 您的工作空間包含</div>
-              <div style={{ display: "grid", gap: 6 }}>
+            {/* What you get */}
+            <div style={{ marginBottom: 22, padding: "14px 16px", background: "rgba(16,185,129,0.04)", borderRadius: 12, border: "1px solid rgba(16,185,129,0.1)" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#10b981", marginBottom: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                工作空間包含
+              </div>
+              <div style={{ display: "grid", gap: 7 }}>
                 {[
-                  "📚 知識庫 — 上傳文件，AI 自動整理搜尋",
-                  "💬 Ask Atlas — 員工 AI 問答助手",
-                  "📝 智慧表單 — 自然語言請假/加班",
-                  "🛡️ 2026 合規引擎 — 自動勞基法檢查",
-                ].map(f => (
-                  <div key={f} style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5 }}>{f}</div>
+                  ["📚", "知識庫", "上傳文件，AI 自動整理與搜尋"],
+                  ["💬", "Ask Atlas", "員工 AI 問答，來源引用透明"],
+                  ["📝", "智慧表單", "自然語言請假、加班申請"],
+                  ["🛡️", "合規引擎", "2026 勞基法自動檢查"],
+                ].map(([icon, title, desc]) => (
+                  <div key={title as string} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
+                    <div>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#94a3b8" }}>{title}</span>
+                      <span style={{ fontSize: 12, color: "#4b5563" }}> — {desc}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
 
+            {error && (
+              <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#fca5a5", fontSize: 13, textAlign: "center" }}>
+                {error}
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 10 }}>
               <button
-                onClick={() => setStep(1)}
+                onClick={() => { setStep(1); setError(""); }}
                 style={{
-                  padding: "14px 20px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)",
-                  background: "transparent", color: "#94a3b8", fontSize: 14, cursor: "pointer",
-                  fontFamily: "system-ui, sans-serif",
-                }}>
+                  padding: "13px 18px", borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "transparent", color: "#64748b",
+                  fontSize: 14, cursor: "pointer",
+                }}
+              >
                 ← 返回
               </button>
               <button
                 onClick={handleCreateOrg}
                 disabled={creating}
                 style={{
-                  flex: 1, padding: "14px", borderRadius: 10, border: "none",
-                  background: creating ? "#374151" : "linear-gradient(135deg, #2563eb, #7c3aed)",
-                  color: "white", fontSize: 16, fontWeight: 700,
+                  flex: 1, padding: "13px", borderRadius: 10, border: "none",
+                  background: creating ? "#1f2937" : PRIMARY,
+                  color: creating ? "#4b5563" : "white",
+                  fontSize: 15, fontWeight: 700,
                   cursor: creating ? "not-allowed" : "pointer",
-                  boxShadow: creating ? "none" : "0 4px 20px rgba(37,99,235,0.3)",
-                  transition: "all 0.2s", fontFamily: "system-ui, sans-serif",
-                }}>
-                {creating ? "建立中 Creating..." : "建立工作空間 Create Workspace →"}
+                  transition: "all 0.2s",
+                  boxShadow: creating ? "none" : `0 4px 20px rgba(124,58,237,0.3)`,
+                }}
+              >
+                {creating ? "建立中..." : "建立工作空間 →"}
               </button>
             </div>
 
-            {error && (
-              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.2)", color: "#FCA5A5", fontSize: 13, textAlign: "center" }}>
-                {error}
-              </div>
-            )}
+            <div style={{ marginTop: 14, textAlign: "center", fontSize: 11, color: "#374151" }}>
+              建立後您將成為管理員，可邀請團隊成員加入。
+            </div>
+          </div>
+        )}
 
-            <div style={{ marginTop: 16, textAlign: "center", fontSize: 11, color: "#4b5563" }}>
-              建立後您將成為管理員（Owner），可以邀請團隊成員加入。
+        {/* ── STEP 3: Success / Welcome ────────────────────────────── */}
+        {step === 3 && (
+          <div style={{ padding: "40px 32px 36px", textAlign: "center" }}>
+
+            {/* Success icon */}
+            <div style={{
+              width: 64, height: 64, borderRadius: 18, background: "rgba(16,185,129,0.1)",
+              border: "1px solid rgba(16,185,129,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 20px", fontSize: 28,
+            }}>
+              ✅
+            </div>
+
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9", margin: "0 0 6px" }}>
+              工作空間已建立！
+            </h2>
+            <p style={{ fontSize: 13, color: "#4b5563", margin: "0 0 28px" }}>
+              {companyName} 的 Atlas EIP 已準備就緒。
+            </p>
+
+            {/* Next steps */}
+            <div style={{ textAlign: "left", marginBottom: 28 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>
+                建議第一步
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {[
+                  { num: "1", title: "上傳員工手冊", desc: "讓 Ask Atlas 能回答員工的政策問題", href: "/library" },
+                  { num: "2", title: "邀請 HR 或主管", desc: "讓他們開始審核請假與加班申請", href: "/team" },
+                  { num: "3", title: "試用 Ask Atlas", desc: '例如：「加班費怎麼計算？」', href: "/agent" },
+                ].map(item => (
+                  <div key={item.num} style={{
+                    display: "flex", gap: 12, alignItems: "flex-start",
+                    padding: "12px 14px", borderRadius: 10,
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                      background: PRIMARY_DIM, border: `1px solid ${PRIMARY_BORDER}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, color: PRIMARY_LIGHT,
+                    }}>
+                      {item.num}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>{item.title}</div>
+                      <div style={{ fontSize: 11, color: "#4b5563" }}>{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => { window.location.href = "/home"; }}
+              style={{
+                width: "100%", padding: "14px", borderRadius: 10, border: "none",
+                background: PRIMARY, color: "white", fontSize: 15, fontWeight: 700,
+                cursor: "pointer", boxShadow: `0 4px 20px rgba(124,58,237,0.35)`,
+              }}
+            >
+              進入工作空間 Enter Workspace →
+            </button>
+
+            <div style={{ marginTop: 14, fontSize: 11, color: "#374151" }}>
+              您可以隨時在設定中補填統一編號與品牌資訊。
             </div>
           </div>
         )}
