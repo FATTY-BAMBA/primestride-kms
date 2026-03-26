@@ -166,7 +166,6 @@ export default function WorkflowsPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [viewMode, setViewMode] = useState<"my" | "all">("my");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [reviewNote, setReviewNote] = useState("");
@@ -187,7 +186,7 @@ export default function WorkflowsPage() {
 
   const fetchSubmissions = async () => {
     try {
-      let url = `/api/workflows?view=${viewMode}`;
+      let url = `/api/workflows?view=my`;
       if (statusFilter) url += `&status=${statusFilter}`;
       const res = await fetch(url);
       const data = await res.json();
