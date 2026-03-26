@@ -105,13 +105,7 @@ export default function Sidebar({ children }: SidebarProps) {
   };
 
   const primaryColor = branding?.primary_color || "#7C3AED";
-
-  // Dynamic font size based on org name length
-  const getOrgNameFontSize = (name: string) => {
-    if (name.length > 16) return "11px";
-    if (name.length > 10) return "12px";
-    return "14px";
-  };
+  const accentColor = branding?.accent_color || "#A78BFA";
 
   const NavLink = ({ link }: { link: LinkItem }) => {
     if (link.adminOnly && !isAdmin) return null;
@@ -168,11 +162,11 @@ export default function Sidebar({ children }: SidebarProps) {
     );
   };
 
-  const orgName = branding?.org_name || "Atlas EIP";
-
   const SidebarContent = () => (
     <>
-      {/* Logo */}
+      {/* ── Logo / Product Identity ── */}
+      {/* Always shows "Atlas EIP" — the product name, not the org name.        */}
+      {/* The org name lives at the bottom in OrgSwitcher (like Linear/Vercel). */}
       <div className={cn(
         "border-b border-slate-100 flex items-center gap-3",
         collapsed ? "p-4 justify-center" : "p-4"
@@ -180,21 +174,18 @@ export default function Sidebar({ children }: SidebarProps) {
         <div 
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
           style={{ 
-            background: `linear-gradient(135deg, ${primaryColor} 0%, ${branding?.accent_color || "#A78BFA"} 100%)` 
+            background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` 
           }}
         >
-          <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
+          <span className="text-lg">⚡</span>
         </div>
         {!collapsed && (
           <div className="min-w-0 flex-1">
-            <h1
-              className="font-semibold text-slate-900 leading-tight truncate"
-              style={{ fontSize: getOrgNameFontSize(orgName) }}
-            >
-              {orgName}
+            <h1 className="font-bold text-slate-900 leading-tight tracking-tight" style={{ fontSize: "15px" }}>
+              Atlas EIP
             </h1>
-            <p className="text-xs font-semibold text-slate-500 tracking-wide">
-              {branding?.tagline || "EIP"}
+            <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: primaryColor, opacity: 0.7 }}>
+              Enterprise Intelligence
             </p>
           </div>
         )}
@@ -228,7 +219,8 @@ export default function Sidebar({ children }: SidebarProps) {
         )}
       </div>
 
-      {/* Bottom */}
+      {/* ── Bottom: Org switcher + User menu ── */}
+      {/* Org name lives here — this is the "account" zone, not the product zone */}
       <div className="p-4 border-t border-slate-100 relative z-50">
         {!collapsed && <OrgSwitcher />}
         <div className={cn(
@@ -279,8 +271,8 @@ export default function Sidebar({ children }: SidebarProps) {
           <Menu className="w-5 h-5 text-slate-600" />
         </button>
         <div className="flex items-center gap-2">
-          <span className="text-lg">{branding?.logo_emoji || "📚"}</span>
-          <span className="font-semibold text-sm truncate max-w-[160px]">{orgName}</span>
+          <span className="text-lg">⚡</span>
+          <span className="font-bold text-sm">Atlas EIP</span>
         </div>
         <UserMenu />
       </div>
@@ -294,7 +286,10 @@ export default function Sidebar({ children }: SidebarProps) {
           />
           <aside className="absolute top-0 left-0 bottom-0 w-64 bg-white flex flex-col shadow-xl">
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <span className="font-semibold">Menu</span>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚡</span>
+                <span className="font-bold text-sm">Atlas EIP</span>
+              </div>
               <button 
                 onClick={() => setMobileOpen(false)}
                 className="p-2 hover:bg-slate-100 rounded-lg"
