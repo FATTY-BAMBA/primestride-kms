@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { AuthProvider } from "@/lib/AuthContext";
 import AppShell from "@/components/AppShell";
 import { Analytics } from '@vercel/analytics/react';
+import Script from 'next/script';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,6 +27,7 @@ export default function RootLayout({
             <AppShell>{children}</AppShell>
           </AuthProvider>
           <Analytics />
+          <Script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" strategy="beforeInteractive" />
         </body>
       </html>
     </ClerkProvider>

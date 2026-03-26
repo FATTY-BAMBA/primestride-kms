@@ -1950,42 +1950,36 @@ export default function AdminDashboard() {
     [allSubmissions, in7Days]
   );
 
-  const exportMonthlyCSV = () => {
+  const exportMonthlyExcel = () => {
+    const XLSX = (window as any).XLSX;
+    if (!XLSX) { alert("匯出功能載入中，請稍後再試"); return; }
+
     const monthSubs = allSubmissions.filter((s) => s.created_at.startsWith(activeFilter));
-    const headers = [
-      "申請日期",
-      "申請人",
-      "類型",
-      "假別/類別",
-      "開始日期",
-      "結束日期",
-      "天數/時數",
-      "狀態",
-      "事由",
-      "審核人",
-      "審核日期",
-      "備註",
-    ];
-    const rows = monthSubs.map((s) => [
-      new Date(s.created_at).toLocaleDateString("zh-TW"),
-      s.submitter_name,
-      s.form_type === "leave" ? "請假" : s.form_type === "overtime" ? "加班" : "出差",
-      s.form_data.leave_type || s.form_data.overtime_type || "-",
-      s.form_data.start_date || s.form_data.date || "-",
-      s.form_data.end_date || "-",
-      s.form_data.days || s.form_data.hours || "-",
-      s.status === "approved" ? "已核准" : s.status === "rejected" ? "已駁回" : s.status === "pending" ? "待審核" : "已取消",
-      s.form_data.reason || s.form_data.purpose || "-",
-      s.reviewer_name || "-",
-      s.reviewed_at ? new Date(s.reviewed_at).toLocaleDateString("zh-TW") : "-",
-      s.review_note || "-",
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `假勤報表_${activeFilter}.csv`;
-    link.click();
+    const leaveSubs = monthSubs.filter((s) => s.form_type === "leave");
+    const overtimeSubs = monthSubs.filter((s) => s.form_type === "overtime");
+    const tripSubs = monthSubs.filter((s) => s.form_type === "business_trip");
+
+    const toRow = (s: Submission) => ({
+      "申請日期": new Date(s.created_at).toLocaleDateString("zh-TW"),
+      "申請人": s.submitter_name,
+      "類型": s.form_type === "leave" ? "請假" : s.form_type === "overtime" ? "加班" : "出差",
+      "假別/類別": s.form_data.leave_type || s.form_data.overtime_type || "-",
+      "開始日期": s.form_data.start_date || s.form_data.date || "-",
+      "結束日期": s.form_data.end_date || "-",
+      "天數/時數": String(s.form_data.days || s.form_data.hours || "-"),
+      "狀態": s.status === "approved" ? "已核准" : s.status === "rejected" ? "已駁回" : s.status === "pending" ? "待審核" : "已取消",
+      "事由": s.form_data.reason || s.form_data.purpose || "-",
+      "審核人": s.reviewer_name || "-",
+      "審核日期": s.reviewed_at ? new Date(s.reviewed_at).toLocaleDateString("zh-TW") : "-",
+      "備註": s.review_note || "-",
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(monthSubs.map(toRow)), "總覽");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leaveSubs.length ? leaveSubs.map(toRow) : [{}]), "請假");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overtimeSubs.length ? overtimeSubs.map(toRow) : [{}]), "加班");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(tripSubs.length ? tripSubs.map(toRow) : [{}]), "出差");
+    XLSX.writeFile(wb, `假勤報表_${activeFilter}.xlsx`);
   };
 
   const fmt = (d: string) =>
@@ -3629,8 +3623,8 @@ export default function AdminDashboard() {
                   </select>
                 )}
               </div>
-              <Button variant="secondary" onClick={exportMonthlyCSV} leftIcon="📥">
-                匯出 {activeFilter} 報表 (CSV)
+              <Button variant="secondary" onClick={exportMonthlyExcel} leftIcon="📥">
+                📊 匯出 {activeFilter} 報表 (Excel)
               </Button>
             </div>
           </Card>
