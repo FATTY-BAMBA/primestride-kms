@@ -813,7 +813,7 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              <input type="text" value={leaveSearch} onChange={e => setLeaveSearch(e.target.value)} placeholder="🔍 搜尋員工..." style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 14, boxSizing: "border-box", color: "#111827" }}
+              <input type="text" value={leaveSearch} onChange={e => setLeaveSearch(e.target.value)} placeholder="🔍 搜尋員工..." style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 14, boxSizing: "border-box", color: "#111827", background: "white" }}
                 onFocus={e => e.currentTarget.style.borderColor="#7C3AED"} onBlur={e => e.currentTarget.style.borderColor="#D1D5DB"} />
 
               {leaveOverviewEmployees.length === 0 ? <EmptyState icon="🏖️" title="尚無假期資料" subtitle="員工登入後系統會自動建立假期餘額" /> : (

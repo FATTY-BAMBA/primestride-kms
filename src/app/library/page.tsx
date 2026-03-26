@@ -769,7 +769,7 @@ function LibraryContent() {
                     ? "Search by exact keyword..."
                     : "Search documents..."
                 }
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 bg-white"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
