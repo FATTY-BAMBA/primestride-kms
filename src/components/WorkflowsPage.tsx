@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { FormTemplate } from "@/components/FormTemplates";
 
 interface Submission {
@@ -55,6 +55,19 @@ interface ComplianceResult {
   ai_analysis_zh?: string;
 }
 
+// Team member interface for admin view
+interface TeamMember {
+  user_id: string;
+  name: string;
+  department?: string;
+  leave_balance: LeaveBalance;
+  monthly_usage: {
+    leave_days: number;
+    overtime_hours: number;
+  };
+  risk_flags: ('exhausted' | 'high_usage' | 'pending_expired')[];
+}
+
 const formMeta: Record<string, { icon: string; name_zh: string; name_en: string; color: string }> = {
   leave:         { icon: "📝", name_zh: "請假申請", name_en: "Leave Request",    color: "#7C3AED" },
   overtime:      { icon: "🕐", name_zh: "加班申請", name_en: "Overtime Request", color: "#D97706" },
@@ -92,6 +105,7 @@ const quickHints = [
 ];
 
 type TypeFilter = "all" | "leave" | "overtime" | "business_trip";
+type ViewMode = "personal" | "team";
 
 function ComplianceSummary({ result, expanded, onToggle }: {
   result: Submission["compliance_result"];
@@ -153,7 +167,6 @@ function ComplianceSummary({ result, expanded, onToggle }: {
   );
 }
 
-// NEW: RecordRow Component for improved collapsible design
 function RecordRow({ 
   submission, 
   isExpanded, 
@@ -240,7 +253,6 @@ function RecordRow({
         boxShadow: isExpanded ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
       }}
     >
-      {/* Collapsed Header Row */}
       <div 
         onClick={onToggle}
         style={{
@@ -360,14 +372,12 @@ function RecordRow({
         </div>
       </div>
 
-      {/* Expanded Details */}
       {isExpanded && (
         <div style={{
           padding: '0 16px 16px 64px',
           background: '#FAFAFA',
           borderTop: '1px solid #F3F4F6',
         }}>
-          {/* Detail Grid */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
@@ -388,7 +398,6 @@ function RecordRow({
               ))}
           </div>
 
-          {/* Original Text Quote */}
           {submission.original_text && (
             <div style={{
               padding: '8px 12px',
@@ -404,7 +413,6 @@ function RecordRow({
             </div>
           )}
 
-          {/* Compliance Section */}
           {submission.compliance_result && (
             <div style={{ marginBottom: 12 }}>
               <ComplianceSummary 
@@ -415,7 +423,6 @@ function RecordRow({
             </div>
           )}
 
-          {/* Reviewer Info */}
           {submission.reviewed_at && (
             <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 12 }}>
               審核：{submission.reviewer_name || submission.reviewed_by} · {new Date(submission.reviewed_at).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -423,7 +430,6 @@ function RecordRow({
             </div>
           )}
 
-          {/* Action Bar */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleTemplate(); }}
@@ -557,7 +563,6 @@ function RecordRow({
             )}
           </div>
 
-          {/* Form Template View */}
           {showTemplate && (
             <div style={{ marginTop: 12 }}>
               <FormTemplate submission={submission} />
@@ -591,12 +596,70 @@ export default function WorkflowsPage() {
   const [leaveBalanceExpanded, setLeaveBalanceExpanded] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // NEW: State for expanded rows and template view
+  // NEW: Monthly reporting and team view states
+  const [monthFilter, setMonthFilter] = useState<string>(
+    new Date().toISOString().slice(0, 7)
+  );
+  const [viewMode, setViewMode] = useState<ViewMode>("personal");
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [templateView, setTemplateView] = useState<Set<string>>(new Set());
   const [expandedCompliance, setExpandedCompliance] = useState<Set<string>>(new Set());
 
-  // NEW: Toggle functions
+  // Computed monthly statistics
+  const monthlyStats = useMemo(() => {
+    const monthSubmissions = submissions.filter(s => 
+      s.created_at.startsWith(monthFilter)
+    );
+    
+    const leaveByType: Record<string, number> = {};
+    monthSubmissions
+      .filter(s => s.form_type === 'leave')
+      .forEach(s => {
+        const type = s.form_data.leave_type || '其他';
+        leaveByType[type] = (leaveByType[type] || 0) + (s.form_data.days || 0);
+      });
+
+    return {
+      leave: {
+        total: monthSubmissions.filter(s => s.form_type === 'leave').length,
+        totalDays: monthSubmissions
+          .filter(s => s.form_type === 'leave')
+          .reduce((sum, s) => sum + (s.form_data.days || 0), 0),
+        byType: leaveByType
+      },
+      overtime: {
+        total: monthSubmissions.filter(s => s.form_type === 'overtime').length,
+        totalHours: monthSubmissions
+          .filter(s => s.form_type === 'overtime')
+          .reduce((sum, s) => sum + (s.form_data.hours || 0), 0),
+        approvedHours: monthSubmissions
+          .filter(s => s.form_type === 'overtime' && s.status === 'approved')
+          .reduce((sum, s) => sum + (s.form_data.hours || 0), 0),
+      },
+      businessTrip: {
+        total: monthSubmissions.filter(s => s.form_type === 'business_trip').length,
+      }
+    };
+  }, [submissions, monthFilter]);
+
+  // Team aggregation stats
+  const teamStats = useMemo(() => {
+    if (!teamMembers.length) return null;
+    
+    const exhausted = teamMembers.filter(m => 
+      m.risk_flags.includes('exhausted')
+    ).length;
+    
+    const highUsage = teamMembers.filter(m => 
+      m.risk_flags.includes('high_usage')
+    ).length;
+
+    return { exhausted, highUsage, total: teamMembers.length };
+  }, [teamMembers]);
+
   const toggleExpand = (id: string) => {
     const newSet = new Set(expandedIds);
     if (newSet.has(id)) newSet.delete(id);
@@ -629,6 +692,7 @@ export default function WorkflowsPage() {
     try {
       let url = `/api/workflows?view=my`;
       if (statusFilter) url += `&status=${statusFilter}`;
+      if (monthFilter) url += `&month=${monthFilter}`;
       const res = await fetch(url);
       const data = await res.json();
       setSubmissions(data.submissions || []);
@@ -641,7 +705,25 @@ export default function WorkflowsPage() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchSubmissions(); }, [statusFilter]);
+  // Fetch team data for admin view
+  const fetchTeamData = async () => {
+    if (!isAdmin) return;
+    setTeamLoading(true);
+    try {
+      const res = await fetch(`/api/workflows/team?month=${monthFilter}`);
+      const data = await res.json();
+      setTeamMembers(data.team_members || []);
+    } catch {
+      setTeamMembers([]);
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchSubmissions(); }, [statusFilter, monthFilter]);
+  useEffect(() => { 
+    if (viewMode === 'team') fetchTeamData(); 
+  }, [viewMode, monthFilter, isAdmin]);
 
   const handleParse = async () => {
     if (!nlpInput.trim()) return;
@@ -758,6 +840,44 @@ export default function WorkflowsPage() {
     w.document.close(); w.print();
   };
 
+  // NEW: Export monthly report as CSV
+  const exportMonthlyReport = () => {
+    const monthSubmissions = submissions.filter(s => 
+      s.created_at.startsWith(monthFilter)
+    );
+
+    const headers = [
+      '申請日期', '申請人', '類型', '假別/類別', '開始日期', '結束日期', 
+      '天數/時數', '狀態', '事由', '審核人', '審核日期', '備註'
+    ];
+    
+    const rows = monthSubmissions.map(s => [
+      new Date(s.created_at).toLocaleDateString('zh-TW'),
+      s.submitter_name,
+      formMeta[s.form_type]?.name_zh || s.form_type,
+      s.form_data.leave_type || s.form_data.overtime_type || '-',
+      s.form_data.start_date || s.form_data.date || '-',
+      s.form_data.end_date || '-',
+      s.form_data.days || s.form_data.hours || '-',
+      statusConfig[s.status]?.label || s.status,
+      s.form_data.reason || s.form_data.purpose || '-',
+      s.reviewer_name || '-',
+      s.reviewed_at ? new Date(s.reviewed_at).toLocaleDateString('zh-TW') : '-',
+      s.review_note || '-'
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `假勤報表_${monthFilter}.csv`;
+    link.click();
+  };
+
   const formatDate = (d: string) => new Date(d).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const meta = parsedType ? formMeta[parsedType] : null;
 
@@ -774,6 +894,50 @@ export default function WorkflowsPage() {
   };
 
   const annualRemaining = leaveBalance ? leaveBalance.annual_total - leaveBalance.annual_used : null;
+
+  // Leave balance data with monthly usage
+  const leaveBalanceData = [
+    { 
+      label: "特休", 
+      used: leaveBalance?.annual_used || 0, 
+      total: leaveBalance?.annual_total || 0, 
+      color: "#7C3AED", 
+      tag: "有薪", 
+      tagColor: "#059669",
+      monthlyUsed: monthlyStats.leave.byType['特休 Annual'] || 0,
+      monthlyKey: '特休 Annual'
+    },
+    { 
+      label: "病假", 
+      used: leaveBalance?.sick_used || 0, 
+      total: leaveBalance?.sick_total || 0, 
+      color: "#2563EB", 
+      tag: "半薪", 
+      tagColor: "#D97706",
+      monthlyUsed: monthlyStats.leave.byType['病假 Sick'] || 0,
+      monthlyKey: '病假 Sick'
+    },
+    { 
+      label: "事假", 
+      used: leaveBalance?.personal_used || 0, 
+      total: leaveBalance?.personal_total || 0, 
+      color: "#D97706", 
+      tag: "無薪", 
+      tagColor: "#DC2626",
+      monthlyUsed: monthlyStats.leave.byType['事假 Personal'] || 0,
+      monthlyKey: '事假 Personal'
+    },
+    { 
+      label: "家庭照顧", 
+      used: leaveBalance?.family_care_used || 0, 
+      total: leaveBalance?.family_care_total || 7, 
+      color: "#059669", 
+      tag: "有薪", 
+      tagColor: "#059669",
+      monthlyUsed: monthlyStats.leave.byType['家庭照顧假 Family Care'] || 0,
+      monthlyKey: '家庭照顧假 Family Care'
+    },
+  ];
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 16px 48px", fontFamily: "system-ui, sans-serif" }}>
@@ -980,57 +1144,419 @@ export default function WorkflowsPage() {
         )}
       </div>
 
-      {/* ZONE 2 — LEAVE BALANCE */}
+      {/* ZONE 2 — LEAVE BALANCE WITH MONTHLY REPORTING */}
       {leaveBalance && (
         <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", marginBottom: 20, overflow: "hidden" }}>
-          <button
-            onClick={() => setLeaveBalanceExpanded(!leaveBalanceExpanded)}
-            style={{
-              width: "100%", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: "none", border: "none", cursor: "pointer", textAlign: "left",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Header with month selector and view toggle */}
+          <div style={{ 
+            padding: "12px 16px", 
+            borderBottom: "1px solid #F3F4F6",
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 8
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 16 }}>🏖️</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>假期餘額</span>
-              <span style={{ padding: "2px 10px", borderRadius: 20, background: "#EDE9FE", color: "#7C3AED", fontSize: 12, fontWeight: 700 }}>
-                特休還剩 {annualRemaining} 天
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                {viewMode === 'personal' ? '我的假期' : '團隊假期概覽'}
               </span>
+              <input 
+                type="month" 
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                style={{
+                  padding: "4px 8px",
+                  border: "1px solid #D1D5DB",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  outline: "none"
+                }}
+              />
             </div>
-            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{leaveBalanceExpanded ? "▲ 收合" : "▼ 展開全部"}</span>
-          </button>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {isAdmin && (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button
+                    onClick={() => setViewMode('personal')}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: viewMode === 'personal' ? "#7C3AED" : "#F3F4F6",
+                      color: viewMode === 'personal' ? "white" : "#6B7280",
+                    }}
+                  >
+                    個人
+                  </button>
+                  <button
+                    onClick={() => setViewMode('team')}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: viewMode === 'team' ? "#7C3AED" : "#F3F4F6",
+                      color: viewMode === 'team' ? "white" : "#6B7280",
+                    }}
+                  >
+                    團隊
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setLeaveBalanceExpanded(!leaveBalanceExpanded)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "1px solid #E5E7EB",
+                  background: "white",
+                  fontSize: 11,
+                  color: "#6B7280",
+                  cursor: "pointer"
+                }}
+              >
+                {leaveBalanceExpanded ? "▲ 收合" : "▼ 展開"}
+              </button>
+            </div>
+          </div>
 
-          {leaveBalanceExpanded && (
-            <div style={{ padding: "0 16px 16px", borderTop: "1px solid #F3F4F6" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8, marginTop: 12 }}>
-                {[
-                  { label: "特休", used: leaveBalance.annual_used, total: leaveBalance.annual_total, color: "#7C3AED", tag: "有薪", tagColor: "#059669" },
-                  { label: "病假", used: leaveBalance.sick_used, total: leaveBalance.sick_total, color: "#2563EB", tag: "半薪", tagColor: "#D97706" },
-                  { label: "事假", used: leaveBalance.personal_used, total: leaveBalance.personal_total, color: "#D97706", tag: "無薪", tagColor: "#DC2626" },
-                  { label: "家庭照顧", used: leaveBalance.family_care_used || 0, total: leaveBalance.family_care_total || 7, color: "#059669", tag: "有薪", tagColor: "#059669" },
-                ].map(b => (
-                  <div key={b.label} style={{ padding: "8px 10px", background: "#F9FAFB", borderRadius: 8 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 600 }}>{b.label}</div>
-                      <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: b.tagColor === "#059669" ? "#D1FAE5" : b.tagColor === "#D97706" ? "#FEF3C7" : "#FEE2E2", color: b.tagColor }}>{b.tag}</span>
-                    </div>
-                    <div style={{ height: 4, background: "#E5E7EB", borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${Math.min((b.used / b.total) * 100, 100)}%`, background: b.used / b.total > 0.8 ? "#DC2626" : b.color, borderRadius: 2 }} />
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginTop: 3 }}>
-                      {b.total - b.used}<span style={{ fontWeight: 400, color: "#9CA3AF", fontSize: 10 }}>/{b.total}</span>
-                    </div>
-                  </div>
-                ))}
+          {/* Monthly Summary Cards - Always visible */}
+          <div style={{ padding: 16, borderBottom: "1px solid #F3F4F6" }}>
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", 
+              gap: 12 
+            }}>
+              <div style={{ 
+                padding: 12, 
+                background: "#FEF3C7", 
+                borderRadius: 8,
+                border: "1px solid #FCD34D"
+              }}>
+                <div style={{ fontSize: 11, color: "#92400E", fontWeight: 600, marginBottom: 4 }}>
+                  {monthFilter} 請假天數
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "#92400E" }}>
+                  {monthlyStats.leave.totalDays}
+                  <span style={{ fontSize: 12, fontWeight: 400 }}> 天</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#B45309", marginTop: 2 }}>
+                  {monthlyStats.leave.total} 筆申請
+                </div>
               </div>
+
+              <div style={{ 
+                padding: 12, 
+                background: "#DBEAFE", 
+                borderRadius: 8,
+                border: "1px solid #93C5FD"
+              }}>
+                <div style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, marginBottom: 4 }}>
+                  {monthFilter} 加班時數
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "#1E40AF" }}>
+                  {monthlyStats.overtime.totalHours}
+                  <span style={{ fontSize: 12, fontWeight: 400 }}> 小時</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#3B82F6", marginTop: 2 }}>
+                  已核准 {monthlyStats.overtime.approvedHours} 小時
+                </div>
+              </div>
+
+              <div style={{ 
+                padding: 12, 
+                background: "#D1FAE5", 
+                borderRadius: 8,
+                border: "1px solid #86EFAC"
+              }}>
+                <div style={{ fontSize: 11, color: "#065F46", fontWeight: 600, marginBottom: 4 }}>
+                  特休剩餘 (即時)
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "#065F46" }}>
+                  {annualRemaining}
+                  <span style={{ fontSize: 12, fontWeight: 400 }}> 天</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>
+                  年度配額 {leaveBalance.annual_total} 天
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Expanded Content */}
+          {leaveBalanceExpanded && (
+            <div style={{ padding: "0 16px 16px" }}>
+              {viewMode === 'personal' ? (
+                <>
+                  {/* Personal Leave Balance Grid */}
+                  <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", 
+                    gap: 8, 
+                    marginTop: 12 
+                  }}>
+                    {leaveBalanceData.map(b => {
+                      const usageRate = b.total > 0 ? b.used / b.total : 0;
+                      const isHighUsage = b.monthlyUsed >= 3;
+                      
+                      return (
+                        <div key={b.label} style={{ 
+                          padding: "10px", 
+                          background: "#F9FAFB", 
+                          borderRadius: 8,
+                          border: isHighUsage ? '1px solid #FCA5A5' : '1px solid transparent'
+                        }}>
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between", 
+                            alignItems: "center", 
+                            marginBottom: 6 
+                          }}>
+                            <span style={{ fontSize: 11, color: "#6B7280", fontWeight: 600 }}>
+                              {b.label}
+                            </span>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              {isHighUsage && (
+                                <span style={{ 
+                                  fontSize: 9, 
+                                  color: "#DC2626",
+                                  fontWeight: 700 
+                                }}>
+                                  本月高
+                                </span>
+                              )}
+                              <span style={{ 
+                                fontSize: 9, 
+                                fontWeight: 700, 
+                                padding: "1px 5px", 
+                                borderRadius: 3, 
+                                background: b.tagColor === "#059669" ? "#D1FAE5" : b.tagColor === "#D97706" ? "#FEF3C7" : "#FEE2E2", 
+                                color: b.tagColor 
+                              }}>
+                                {b.tag}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div style={{ 
+                            height: 4, 
+                            background: "#E5E7EB", 
+                            borderRadius: 2, 
+                            overflow: "hidden",
+                            marginBottom: 6
+                          }}>
+                            <div style={{ 
+                              height: "100%", 
+                              width: `${Math.min(usageRate * 100, 100)}%`, 
+                              background: usageRate > 0.8 ? "#DC2626" : b.color, 
+                              borderRadius: 2 
+                            }} />
+                          </div>
+                          
+                          <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between",
+                            alignItems: "baseline"
+                          }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                              {b.total - b.used}
+                              <span style={{ fontWeight: 400, color: "#9CA3AF", fontSize: 10 }}>
+                                /{b.total}
+                              </span>
+                            </span>
+                            <span style={{ 
+                              fontSize: 10, 
+                              color: b.monthlyUsed > 0 ? "#D97706" : "#9CA3AF",
+                              fontWeight: 500
+                            }}>
+                              本月用 {b.monthlyUsed} 天
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Export Button */}
+                  <button
+                    onClick={exportMonthlyReport}
+                    style={{
+                      marginTop: 16,
+                      width: "100%",
+                      padding: "10px",
+                      borderRadius: 8,
+                      border: "1px solid #7C3AED",
+                      background: "white",
+                      color: "#7C3AED",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6
+                    }}
+                  >
+                    📥 匯出 {monthFilter} 假勤報表 (CSV)
+                  </button>
+                </>
+              ) : (
+                /* Team View */
+                <div style={{ marginTop: 12 }}>
+                  {teamStats && (
+                    <div style={{ 
+                      display: "grid", 
+                      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", 
+                      gap: 12,
+                      marginBottom: 16 
+                    }}>
+                      <div style={{ padding: 16, background: "#FEE2E2", borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: "#991B1B", fontWeight: 600 }}>
+                          特休即將用盡
+                        </div>
+                        <div style={{ fontSize: 28, fontWeight: 700, color: "#DC2626" }}>
+                          {teamStats.exhausted}
+                          <span style={{ fontSize: 14, fontWeight: 400 }}> 人</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#B91C1C", marginTop: 4 }}>
+                          剩餘 ≤ 3 天，需關注
+                        </div>
+                      </div>
+                      
+                      <div style={{ padding: 16, background: "#FEF3C7", borderRadius: 8 }}>
+                        <div style={{ fontSize: 11, color: "#92400E", fontWeight: 600 }}>
+                          本月高用量員工
+                        </div>
+                        <div style={{ fontSize: 28, fontWeight: 700, color: "#D97706" }}>
+                          {teamStats.highUsage}
+                          <span style={{ fontSize: 14, fontWeight: 400 }}> 人</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#B45309", marginTop: 4 }}>
+                          請假 &gt; 5 天或加班 &gt; 20 小時
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {teamLoading ? (
+                    <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF" }}>
+                      載入團隊資料中...
+                    </div>
+                  ) : (
+                    <div style={{ 
+                      maxHeight: 400, 
+                      overflow: "auto",
+                      border: "1px solid #E5E7EB",
+                      borderRadius: 8
+                    }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                        <thead style={{ 
+                          position: "sticky", 
+                          top: 0, 
+                          background: "#F9FAFB",
+                          borderBottom: "1px solid #E5E7EB"
+                        }}>
+                          <tr>
+                            <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "#374151" }}>員工</th>
+                            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600, color: "#374151" }}>特休</th>
+                            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600, color: "#374151" }}>本月請假</th>
+                            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600, color: "#374151" }}>本月加班</th>
+                            <th style={{ padding: "10px 12px", textAlign: "center", fontWeight: 600, color: "#374151" }}>狀態</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamMembers.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#9CA3AF" }}>
+                                暫無團隊資料
+                              </td>
+                            </tr>
+                          ) : (
+                            teamMembers.map((member) => {
+                              const annualRemaining = member.leave_balance.annual_total - member.leave_balance.annual_used;
+                              const isExhausted = annualRemaining <= 0;
+                              const isLow = annualRemaining <= 3 && annualRemaining > 0;
+                              
+                              return (
+                                <tr key={member.user_id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                                  <td style={{ padding: "10px 12px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      <div style={{ 
+                                        width: 28, 
+                                        height: 28, 
+                                        borderRadius: "50%", 
+                                        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "white",
+                                        fontSize: 11,
+                                        fontWeight: 700
+                                      }}>
+                                        {member.name.charAt(0)}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight: 500, color: "#111827" }}>{member.name}</div>
+                                        {member.department && (
+                                          <div style={{ fontSize: 10, color: "#9CA3AF" }}>{member.department}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                    <span style={{ 
+                                      padding: "2px 8px", 
+                                      borderRadius: 10,
+                                      background: isExhausted ? "#FEE2E2" : isLow ? "#FEF3C7" : "#D1FAE5",
+                                      color: isExhausted ? "#DC2626" : isLow ? "#D97706" : "#059669",
+                                      fontSize: 11,
+                                      fontWeight: 600
+                                    }}>
+                                      {annualRemaining}/{member.leave_balance.annual_total}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "10px 12px", textAlign: "center", color: "#6B7280" }}>
+                                    {member.monthly_usage.leave_days} 天
+                                  </td>
+                                  <td style={{ padding: "10px 12px", textAlign: "center", color: "#6B7280" }}>
+                                    {member.monthly_usage.overtime_hours} 小時
+                                  </td>
+                                  <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                                    {isExhausted ? (
+                                      <span style={{ color: "#DC2626", fontSize: 11, fontWeight: 600 }}>🚨 用盡</span>
+                                    ) : isLow ? (
+                                      <span style={{ color: "#D97706", fontSize: 11, fontWeight: 600 }}>⚠️ 偏低</span>
+                                    ) : member.risk_flags.includes('high_usage') ? (
+                                      <span style={{ color: "#D97706", fontSize: 11, fontWeight: 600 }}>📊 高用量</span>
+                                    ) : (
+                                      <span style={{ color: "#059669", fontSize: 11 }}>✓ 正常</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* ZONE 3 — RECORDS (IMPROVED DESIGN) */}
+      {/* ZONE 3 — RECORDS */}
       <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-        {/* Records header */}
         <div style={{ padding: "14px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>📜 申請紀錄</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -1044,7 +1570,6 @@ export default function WorkflowsPage() {
           </div>
         </div>
 
-        {/* Type Filter Tabs */}
         <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #F1F5F9", overflowX: "auto" }}>
           {([
             { key: "all", label: "全部", icon: "📋" },
@@ -1071,7 +1596,6 @@ export default function WorkflowsPage() {
           ))}
         </div>
 
-        {/* Batch action bar */}
         {isAdmin && selectedIds.size > 0 && (
           <div style={{ padding: "8px 16px", background: "#EDE9FE", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#5B21B6" }}>已選 {selectedIds.size} 筆</span>
@@ -1083,7 +1607,6 @@ export default function WorkflowsPage() {
           </div>
         )}
 
-        {/* Records List - Using NEW RecordRow Component */}
         <div style={{ padding: "8px" }}>
           {loading && <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>載入中...</div>}
 
