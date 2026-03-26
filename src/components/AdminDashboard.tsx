@@ -263,6 +263,7 @@ export default function AdminDashboard() {
   const [expandedCompliance, setExpandedCompliance] = useState<string | null>(null);
   const [templateView, setTemplateView] = useState<Set<string>>(new Set());
   const [leaveSearch, setLeaveSearch] = useState("");
+  const [requestSubTab, setRequestSubTab] = useState<"leave"|"overtime"|"business_trip">("leave");
   const debouncedLeaveSearch = useDebounce(leaveSearch, 300);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; action: string; count: number }>({ isOpen: false, action: "", count: 0 });
@@ -364,6 +365,8 @@ export default function AdminDashboard() {
   const leaveOverviewEmployees = useMemo(() => { let r = employees.filter(e => e.leave_balance); if (debouncedLeaveSearch.trim()) { const q = debouncedLeaveSearch.toLowerCase(); r = r.filter(e => (e.name||"").toLowerCase().includes(q)||(e.email||"").toLowerCase().includes(q)); } return [...r].sort((a,b) => (a.name||"").localeCompare(b.name||"")); }, [employees, debouncedLeaveSearch]);
   const leaveStats = useMemo(() => { const w = employees.filter(e => e.leave_balance); const ex = w.filter(e => e.leave_balance!.annual_used >= e.leave_balance!.annual_total && e.leave_balance!.annual_total > 0); const lo = w.filter(e => { const r = e.leave_balance!.annual_total - e.leave_balance!.annual_used; return r > 0 && r <= 2; }); return { exhausted: ex.length, lowLeave: lo.length, withBalance: w.length }; }, [employees]);
   const pendingLeave = useMemo(() => submissions.filter(s => s.form_type === "leave"), [submissions]);
+  const allOvertime = useMemo(() => allSubmissions.filter(s => s.form_type === "overtime"), [allSubmissions]);
+  const allTrips = useMemo(() => allSubmissions.filter(s => s.form_type === "business_trip"), [allSubmissions]);
   const fmt = (d: string) => new Date(d).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
@@ -397,7 +400,7 @@ export default function AdminDashboard() {
           { key: "overview", label: "📊 總覽" },
           { key: "pending", label: `📋 待審核 (${pendingCount})` },
           { key: "employees", label: `👥 員工 (${employees.length})` },
-          { key: "leave", label: "🏖️ 假期總覽" },
+          { key: "leave", label: "📋 申請總覽" },
           { key: "compliance", label: "⚖️ 合規" },
           { key: "esg", label: "🌿 ESG 報告" },
         ].map(t => (
@@ -754,73 +757,190 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ═══ LEAVE OVERVIEW ═══ */}
+      {/* ═══ REQUESTS OVERVIEW ═══ */}
       {!loading && tab === "leave" && (
         <div style={{ animation: "fadeIn 0.4s" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
-            {[
-              { label: "全勤員工", val: leaveStats.withBalance-leaveStats.exhausted-leaveStats.lowLeave, icon: "✅", color: "#059669", bg: "#D1FAE5" },
-              { label: "餘額不足 (≤2天)", val: leaveStats.lowLeave, icon: "⚠️", color: "#D97706", bg: "#FEF3C7" },
-              { label: "特休已用盡", val: leaveStats.exhausted, icon: "🚨", color: "#DC2626", bg: "#FEE2E2" },
-              { label: "待審請假申請", val: pendingLeave.length, icon: "📋", color: "#7C3AED", bg: "#EDE9FE", onClick: () => setTab("pending") },
-            ].map(s => (
-              <div key={s.label} onClick={(s as any).onClick} style={{ padding: "16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: (s as any).onClick?"pointer":"default" }}>
-                <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.label}</div>
-              </div>
+
+          {/* Sub-tabs */}
+          <div style={{ display: "flex", gap: 0, marginBottom: 20, borderBottom: "2px solid #E5E7EB" }}>
+            {([
+              { key: "leave" as const, label: "📝 請假", count: allSubmissions.filter(s => s.form_type === "leave").length, color: "#7C3AED" },
+              { key: "overtime" as const, label: "🕐 加班", count: allOvertime.length, color: "#2563EB" },
+              { key: "business_trip" as const, label: "✈️ 出差", count: allTrips.length, color: "#059669" },
+            ]).map(t => (
+              <button key={t.key} onClick={() => setRequestSubTab(t.key)}
+                style={{ flex: 1, padding: "10px 16px", border: "none", background: "none", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  color: requestSubTab === t.key ? t.color : "#6B7280",
+                  borderBottom: requestSubTab === t.key ? "2px solid " + t.color : "2px solid transparent",
+                  marginBottom: -2, transition: "all 0.15s" }}>
+                {t.label}
+                <span style={{ marginLeft: 6, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700,
+                  background: requestSubTab === t.key ? t.color + "15" : "#F3F4F6",
+                  color: requestSubTab === t.key ? t.color : "#9CA3AF" }}>{t.count}</span>
+              </button>
             ))}
           </div>
 
-          {pendingLeave.length > 0 && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>⏳ 待審請假 — 通過後將扣減餘額</div>
-              <div style={{ display: "grid", gap: 6 }}>
-                {pendingLeave.map(s => (
-                  <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "white", borderRadius: 8 }}>
-                    <div><span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.submitter_name}</span><span style={{ fontSize: 12, color: "#6B7280", marginLeft: 8 }}>{s.form_data.leave_type} · {s.form_data.days} 天</span></div>
-                    <button onClick={() => setTab("pending")} style={{ fontSize: 11, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>審核 →</button>
+          {/* ── 請假 sub-tab ── */}
+          {requestSubTab === "leave" && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
+                {[
+                  { label: "全勤員工", val: leaveStats.withBalance-leaveStats.exhausted-leaveStats.lowLeave, icon: "✅", color: "#059669", bg: "#D1FAE5" },
+                  { label: "餘額不足 (≤2天)", val: leaveStats.lowLeave, icon: "⚠️", color: "#D97706", bg: "#FEF3C7" },
+                  { label: "特休已用盡", val: leaveStats.exhausted, icon: "🚨", color: "#DC2626", bg: "#FEE2E2" },
+                  { label: "待審請假申請", val: pendingLeave.length, icon: "📋", color: "#7C3AED", bg: "#EDE9FE", onClick: () => setTab("pending") },
+                ].map(s => (
+                  <div key={s.label} onClick={(s as any).onClick} style={{ padding: "16px", background: s.bg, borderRadius: 12, textAlign: "center", cursor: (s as any).onClick?"pointer":"default" }}>
+                    <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
 
-          <input type="text" value={leaveSearch} onChange={e => setLeaveSearch(e.target.value)} placeholder="🔍 搜尋員工..." style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 14, boxSizing: "border-box", color: "#111827" }}
-            onFocus={e => e.currentTarget.style.borderColor="#7C3AED"} onBlur={e => e.currentTarget.style.borderColor="#D1D5DB"} />
-
-          {leaveOverviewEmployees.length === 0 ? <EmptyState icon="🏖️" title="尚無假期資料" subtitle="員工登入後系統會自動建立假期餘額" /> : (
-            <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", padding: "10px 16px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-                {["員工","特休 Annual","病假 Sick","事假 Personal","家庭照顧"].map((h,i) => (
-                  <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textAlign: i===0?"left":"center" }}>{h}</div>
-                ))}
-              </div>
-              {leaveOverviewEmployees.map((emp, idx) => {
-                const lb = emp.leave_balance!; const rem = lb.annual_total-lb.annual_used;
-                const isEx = rem<=0 && lb.annual_total>0; const isLo = rem>0 && rem<=2;
-                return (
-                  <div key={emp.user_id} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", padding: "12px 16px", alignItems: "center", background: isEx?"#FEF2F2":isLo?"#FFFBEB":idx%2===0?"white":"#FAFAFA", borderBottom: "1px solid #F3F4F6" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 8, background: isEx?"#FEE2E2":"#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: isEx?"#DC2626":"#7C3AED", flexShrink: 0 }}>{(emp.name||"?")[0].toUpperCase()}</div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{emp.name||emp.email}</div>
-                        {isEx && <div style={{ fontSize: 10, color: "#DC2626", fontWeight: 600 }}>特休已用盡</div>}
-                        {isLo && !isEx && <div style={{ fontSize: 10, color: "#D97706", fontWeight: 600 }}>餘額不足</div>}
+              {pendingLeave.length > 0 && (
+                <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "14px 18px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>⏳ 待審請假 — 通過後將扣減餘額</div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {pendingLeave.map(s => (
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "white", borderRadius: 8 }}>
+                        <div><span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.submitter_name}</span><span style={{ fontSize: 12, color: "#6B7280", marginLeft: 8 }}>{s.form_data.leave_type} · {s.form_data.days} 天</span></div>
+                        <button onClick={() => setTab("pending")} style={{ fontSize: 11, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>審核 →</button>
                       </div>
-                    </div>
-                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.annual_used} total={lb.annual_total} color="#7C3AED" /></div>
-                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.sick_used} total={lb.sick_total} color="#2563EB" /></div>
-                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.personal_used} total={lb.personal_total} color="#D97706" /></div>
-                    <div style={{ textAlign: "center" }}><BalanceBar used={lb.family_care_used} total={lb.family_care_total} color="#059669" /></div>
+                    ))}
                   </div>
-                );
-              })}
-              <div style={{ padding: "10px 16px", background: "#F9FAFB", borderTop: "1px solid #E5E7EB", fontSize: 11, color: "#9CA3AF" }}>
-                {new Date().getFullYear()} 年度假期餘額 · 顯示 {leaveOverviewEmployees.length} 位員工 · 餘額即時更新（核准請假後自動扣減）
-              </div>
+                </div>
+              )}
+
+              <input type="text" value={leaveSearch} onChange={e => setLeaveSearch(e.target.value)} placeholder="🔍 搜尋員工..." style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 14, boxSizing: "border-box", color: "#111827" }}
+                onFocus={e => e.currentTarget.style.borderColor="#7C3AED"} onBlur={e => e.currentTarget.style.borderColor="#D1D5DB"} />
+
+              {leaveOverviewEmployees.length === 0 ? <EmptyState icon="🏖️" title="尚無假期資料" subtitle="員工登入後系統會自動建立假期餘額" /> : (
+                <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", padding: "10px 16px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                    {["員工","特休 Annual","病假 Sick","事假 Personal","家庭照顧"].map((h,i) => (
+                      <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textAlign: i===0?"left":"center" }}>{h}</div>
+                    ))}
+                  </div>
+                  {leaveOverviewEmployees.map((emp, idx) => {
+                    const lb = emp.leave_balance!; const rem = lb.annual_total-lb.annual_used;
+                    const isEx = rem<=0 && lb.annual_total>0; const isLo = rem>0 && rem<=2;
+                    return (
+                      <div key={emp.user_id} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr", padding: "12px 16px", alignItems: "center", background: isEx?"#FEF2F2":isLo?"#FFFBEB":idx%2===0?"white":"#FAFAFA", borderBottom: "1px solid #F3F4F6" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 8, background: isEx?"#FEE2E2":"#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: isEx?"#DC2626":"#7C3AED", flexShrink: 0 }}>{(emp.name||"?")[0].toUpperCase()}</div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{emp.name||emp.email}</div>
+                            {isEx && <div style={{ fontSize: 10, color: "#DC2626", fontWeight: 600 }}>特休已用盡</div>}
+                            {isLo && !isEx && <div style={{ fontSize: 10, color: "#D97706", fontWeight: 600 }}>餘額不足</div>}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "center" }}><BalanceBar used={lb.annual_used} total={lb.annual_total} color="#7C3AED" /></div>
+                        <div style={{ textAlign: "center" }}><BalanceBar used={lb.sick_used} total={lb.sick_total} color="#2563EB" /></div>
+                        <div style={{ textAlign: "center" }}><BalanceBar used={lb.personal_used} total={lb.personal_total} color="#D97706" /></div>
+                        <div style={{ textAlign: "center" }}><BalanceBar used={lb.family_care_used} total={lb.family_care_total} color="#059669" /></div>
+                      </div>
+                    );
+                  })}
+                  <div style={{ padding: "10px 16px", background: "#F9FAFB", borderTop: "1px solid #E5E7EB", fontSize: 11, color: "#9CA3AF" }}>
+                    {new Date().getFullYear()} 年度假期餘額 · 顯示 {leaveOverviewEmployees.length} 位員工
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {/* ── 加班 sub-tab ── */}
+          {requestSubTab === "overtime" && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: "總加班申請", val: allOvertime.length, color: "#2563EB", bg: "#DBEAFE" },
+                  { label: "已核准", val: allOvertime.filter(s => s.status === "approved").length, color: "#059669", bg: "#D1FAE5" },
+                  { label: "本月加班時數", val: thisMonthOvertime, color: "#D97706", bg: "#FEF3C7" },
+                ].map(s => (
+                  <div key={s.label} style={{ padding: "14px", background: s.bg, borderRadius: 12, textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: 11, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              {allOvertime.length === 0 ? (
+                <EmptyState icon="🕐" title="尚無加班申請" subtitle="員工提交加班申請後會顯示在這裡" />
+              ) : (
+                <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+                  {allOvertime.map((s, idx) => {
+                    const st = statusConfig[s.status] || statusConfig.pending;
+                    return (
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: idx < allOvertime.length-1 ? "1px solid #F3F4F6" : "none", background: idx%2===0?"white":"#FAFAFA", borderLeft: "3px solid #2563EB" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 18 }}>🕐</span>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.submitter_name}</div>
+                            <div style={{ fontSize: 11, color: "#6B7280" }}>
+                              {s.form_data.date || s.form_data.start_date || "—"} · {s.form_data.hours ? `${s.form_data.hours} 小時` : "—"}
+                              {s.form_data.overtime_type && <span style={{ marginLeft: 8, color: "#9CA3AF" }}>{s.form_data.overtime_type}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: "#6B7280" }}>{fmt(s.created_at)}</span>
+                          <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: st.bg, color: st.color }}>{st.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── 出差 sub-tab ── */}
+          {requestSubTab === "business_trip" && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: "總出差申請", val: allTrips.length, color: "#059669", bg: "#D1FAE5" },
+                  { label: "已核准", val: allTrips.filter(s => s.status === "approved").length, color: "#059669", bg: "#D1FAE5" },
+                  { label: "待審核", val: allTrips.filter(s => s.status === "pending").length, color: "#D97706", bg: "#FEF3C7" },
+                ].map(s => (
+                  <div key={s.label} style={{ padding: "14px", background: s.bg, borderRadius: 12, textAlign: "center" }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.val}</div>
+                    <div style={{ fontSize: 11, color: s.color, opacity: 0.8, marginTop: 2 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              {allTrips.length === 0 ? (
+                <EmptyState icon="✈️" title="尚無出差申請" subtitle="員工提交出差申請後會顯示在這裡" />
+              ) : (
+                <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+                  {allTrips.map((s, idx) => {
+                    const st = statusConfig[s.status] || statusConfig.pending;
+                    return (
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: idx < allTrips.length-1 ? "1px solid #F3F4F6" : "none", background: idx%2===0?"white":"#FAFAFA", borderLeft: "3px solid #059669" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 18 }}>✈️</span>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.submitter_name}</div>
+                            <div style={{ fontSize: 11, color: "#6B7280" }}>
+                              {s.form_data.destination || "—"} · {s.form_data.start_date || "—"} → {s.form_data.end_date || "—"}
+                              {s.form_data.transport && <span style={{ marginLeft: 8, color: "#9CA3AF" }}>{s.form_data.transport}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: "#6B7280" }}>{fmt(s.created_at)}</span>
+                          <span style={{ padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: st.bg, color: st.color }}>{st.label}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 
