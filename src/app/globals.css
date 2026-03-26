@@ -276,9 +276,9 @@ input, textarea {
   font-size: 14px;
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
+  border: 1px solid #E5E7EB;
   background: white;
-  color: var(--text-primary);
+  color: #111827;
   width: 100%;
   transition: all 0.2s ease;
 }
