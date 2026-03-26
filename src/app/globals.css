@@ -271,7 +271,7 @@ a:hover { color: var(--text-primary); }
 }
 
 /* Legacy form elements */
-input, textarea {
+input, textarea, select {
   font-family: inherit;
   font-size: 14px;
   padding: 12px 16px;
