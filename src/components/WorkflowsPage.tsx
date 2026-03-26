@@ -200,7 +200,7 @@ export default function WorkflowsPage() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchSubmissions(); }, [viewMode, statusFilter]);
+  useEffect(() => { fetchSubmissions(); }, [statusFilter]);
 
   const handleParse = async () => {
     if (!nlpInput.trim()) return;
@@ -616,8 +616,6 @@ export default function WorkflowsPage() {
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             {isAdmin && (
               <>
-                <button onClick={() => setViewMode("my")} style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid #D1D5DB", fontSize: 12, cursor: "pointer", background: viewMode === "my" ? "#7C3AED" : "white", color: viewMode === "my" ? "white" : "#374151" }}>我的</button>
-                <button onClick={() => setViewMode("all")} style={{ padding: "4px 12px", borderRadius: 7, border: "1px solid #D1D5DB", fontSize: 12, cursor: "pointer", background: viewMode === "all" ? "#7C3AED" : "white", color: viewMode === "all" ? "white" : "#374151" }}>全部</button>
               </>
             )}
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
@@ -714,7 +712,6 @@ export default function WorkflowsPage() {
                         {s.ai_parsed && <span style={{ marginLeft: 5, padding: "1px 5px", background: "#EDE9FE", color: "#7C3AED", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>AI</span>}
                       </div>
                       <div style={{ fontSize: 11, color: "#9CA3AF" }}>
-                        {viewMode === "all" ? `${s.submitter_name || s.submitted_by.slice(0, 12)} · ` : ""}{formatDate(s.created_at)}
                       </div>
                     </div>
                   </div>
