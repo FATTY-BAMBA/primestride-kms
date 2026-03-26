@@ -4079,13 +4079,14 @@ export default function AdminDashboard() {
                 leftIcon="🔍"
               />
 
-              {allOvertime.filter(
+              {allOvertime.filter(s => s.created_at.startsWith(adminMonthFilter)).filter(
                 (s) => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase())
               ).length === 0 ? (
                 <EmptyState icon="🕐" title="尚無加班申請" subtitle="員工提交加班申請後會顯示在這裡" />
               ) : (
                 <Card padding="sm" style={{ padding: 0, overflow: "hidden" }}>
                   {allOvertime
+                    .filter(s => s.created_at.startsWith(adminMonthFilter))
                     .filter(
                       (s) => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase())
                     )
@@ -4183,7 +4184,7 @@ export default function AdminDashboard() {
                 leftIcon="🔍"
               />
 
-              {allTrips.filter(
+              {allTrips.filter(s => s.created_at.startsWith(adminMonthFilter)).filter(
                 (s) =>
                   !tripSearch ||
                   s.submitter_name?.toLowerCase().includes(tripSearch.toLowerCase()) ||
@@ -4193,6 +4194,7 @@ export default function AdminDashboard() {
               ) : (
                 <Card padding="sm" style={{ padding: 0, overflow: "hidden" }}>
                   {allTrips
+                    .filter(s => s.created_at.startsWith(adminMonthFilter))
                     .filter(
                       (s) =>
                         !tripSearch ||
