@@ -1155,7 +1155,7 @@ function LibraryContent() {
               {(folderFilter || searchQuery) && (
                 <Button 
                   variant="outline" 
-                  className="mt-4 gap-2"
+                  className="mt-4 gap-2 text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
                   onClick={() => {
                     if (folderFilter) router.push("/library");
                     setSearchQuery("");

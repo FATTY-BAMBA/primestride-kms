@@ -284,11 +284,11 @@ input, textarea {
 }
 input:focus, textarea:focus {
   outline: none;
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 3px var(--accent-blue-soft);
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
 }
 input::placeholder, textarea::placeholder {
-  color: var(--text-muted);
+  color: #9CA3AF;
 }
 
 /* Legacy badge */
