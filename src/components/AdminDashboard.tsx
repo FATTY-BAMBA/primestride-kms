@@ -266,6 +266,7 @@ export default function AdminDashboard() {
   const [requestSubTab, setRequestSubTab] = useState<"leave"|"overtime"|"business_trip">("leave");
   const [overtimeSearch, setOvertimeSearch] = useState("");
   const [tripSearch, setTripSearch] = useState("");
+  const [adminMonthFilter, setAdminMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
   const debouncedLeaveSearch = useDebounce(leaveSearch, 300);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; action: string; count: number }>({ isOpen: false, action: "", count: 0 });
@@ -369,6 +370,35 @@ export default function AdminDashboard() {
   const pendingLeave = useMemo(() => submissions.filter(s => s.form_type === "leave"), [submissions]);
   const allOvertime = useMemo(() => allSubmissions.filter(s => s.form_type === "overtime"), [allSubmissions]);
   const allTrips = useMemo(() => allSubmissions.filter(s => s.form_type === "business_trip"), [allSubmissions]);
+  const monthlyLeaveDays = useMemo(() => allSubmissions.filter(s => s.form_type === "leave" && s.created_at.startsWith(adminMonthFilter)).reduce((sum, s) => sum + (Number(s.form_data.days) || 0), 0), [allSubmissions, adminMonthFilter]);
+  const monthlyLeaveCount = useMemo(() => allSubmissions.filter(s => s.form_type === "leave" && s.created_at.startsWith(adminMonthFilter)).length, [allSubmissions, adminMonthFilter]);
+  const monthlyOTHours = useMemo(() => allSubmissions.filter(s => s.form_type === "overtime" && s.created_at.startsWith(adminMonthFilter) && s.status === "approved").reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0), [allSubmissions, adminMonthFilter]);
+
+  const exportMonthlyCSV = () => {
+    const monthSubs = allSubmissions.filter(s => s.created_at.startsWith(adminMonthFilter));
+    const headers = ["申請日期","申請人","類型","假別/類別","開始日期","結束日期","天數/時數","狀態","事由","審核人","審核日期","備註"];
+    const rows = monthSubs.map(s => [
+      new Date(s.created_at).toLocaleDateString("zh-TW"),
+      s.submitter_name,
+      s.form_type === "leave" ? "請假" : s.form_type === "overtime" ? "加班" : "出差",
+      s.form_data.leave_type || s.form_data.overtime_type || "-",
+      s.form_data.start_date || s.form_data.date || "-",
+      s.form_data.end_date || "-",
+      s.form_data.days || s.form_data.hours || "-",
+      s.status === "approved" ? "已核准" : s.status === "rejected" ? "已駁回" : s.status === "pending" ? "待審核" : "已取消",
+      s.form_data.reason || s.form_data.purpose || "-",
+      s.reviewer_name || "-",
+      s.reviewed_at ? new Date(s.reviewed_at).toLocaleDateString("zh-TW") : "-",
+      s.review_note || "-",
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `假勤報表_${adminMonthFilter}.csv`;
+    link.click();
+  };
+
   const fmt = (d: string) => new Date(d).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
@@ -786,6 +816,39 @@ export default function AdminDashboard() {
           {/* ── 請假 sub-tab ── */}
           {requestSubTab === "leave" && (
             <div>
+
+              {/* Month picker + CSV export */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>📅 月份</span>
+                  <input type="month" value={adminMonthFilter} onChange={e => setAdminMonthFilter(e.target.value)}
+                    style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 13, outline: "none", color: "#111827", background: "white" }} />
+                </div>
+                <button onClick={exportMonthlyCSV}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: "1px solid #7C3AED", background: "white", color: "#7C3AED", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  📥 匯出 {adminMonthFilter} 報表 (CSV)
+                </button>
+              </div>
+
+              {/* Monthly stats cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
+                <div style={{ padding: "14px", background: "#FEF3C7", borderRadius: 12, border: "1px solid #FCD34D", textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: "#92400E", fontWeight: 600, marginBottom: 4 }}>{adminMonthFilter} 請假天數</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: "#92400E" }}>{monthlyLeaveDays}<span style={{ fontSize: 13, fontWeight: 400 }}> 天</span></div>
+                  <div style={{ fontSize: 10, color: "#B45309", marginTop: 2 }}>{monthlyLeaveCount} 筆申請</div>
+                </div>
+                <div style={{ padding: "14px", background: "#DBEAFE", borderRadius: 12, border: "1px solid #93C5FD", textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: "#1E40AF", fontWeight: 600, marginBottom: 4 }}>{adminMonthFilter} 加班時數</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: "#1E40AF" }}>{monthlyOTHours}<span style={{ fontSize: 13, fontWeight: 400 }}> 小時</span></div>
+                  <div style={{ fontSize: 10, color: "#3B82F6", marginTop: 2 }}>已核准加班</div>
+                </div>
+                <div style={{ padding: "14px", background: "#D1FAE5", borderRadius: 12, border: "1px solid #86EFAC", textAlign: "center" }}>
+                  <div style={{ fontSize: 11, color: "#065F46", fontWeight: 600, marginBottom: 4 }}>特休用盡員工</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: "#065F46" }}>{leaveStats.exhausted}<span style={{ fontSize: 13, fontWeight: 400 }}> 人</span></div>
+                  <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>餘額不足 {leaveStats.lowLeave} 人</div>
+                </div>
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
                 {[
                   { label: "全勤員工", val: leaveStats.withBalance-leaveStats.exhausted-leaveStats.lowLeave, icon: "✅", color: "#059669", bg: "#D1FAE5" },
