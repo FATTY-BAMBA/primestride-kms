@@ -374,6 +374,19 @@ export default function AdminDashboard() {
   const monthlyLeaveCount = useMemo(() => allSubmissions.filter(s => s.form_type === "leave" && s.created_at.startsWith(adminMonthFilter)).length, [allSubmissions, adminMonthFilter]);
   const monthlyOTHours = useMemo(() => allSubmissions.filter(s => s.form_type === "overtime" && s.created_at.startsWith(adminMonthFilter) && s.status === "approved").reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0), [allSubmissions, adminMonthFilter]);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const in7Days = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0, 10);
+
+  const todayOut = useMemo(() => allSubmissions.filter(s =>
+    s.form_type === "leave" && s.status === "approved" &&
+    s.form_data.start_date <= todayStr && (s.form_data.end_date || s.form_data.start_date) >= todayStr
+  ), [allSubmissions]);
+
+  const upcomingLeave = useMemo(() => allSubmissions.filter(s =>
+    s.form_type === "leave" && s.status === "approved" &&
+    s.form_data.start_date > todayStr && s.form_data.start_date <= in7Days
+  ).sort((a, b) => a.form_data.start_date.localeCompare(b.form_data.start_date)), [allSubmissions]);
+
   const exportMonthlyCSV = () => {
     const monthSubs = allSubmissions.filter(s => s.created_at.startsWith(adminMonthFilter));
     const headers = ["申請日期","申請人","類型","假別/類別","開始日期","結束日期","天數/時數","狀態","事由","審核人","審核日期","備註"];
@@ -847,6 +860,67 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: 26, fontWeight: 800, color: "#065F46" }}>{leaveStats.exhausted}<span style={{ fontSize: 13, fontWeight: 400 }}> 人</span></div>
                   <div style={{ fontSize: 10, color: "#059669", marginTop: 2 }}>餘額不足 {leaveStats.lowLeave} 人</div>
                 </div>
+              </div>
+
+              {/* 今日動態 */}
+              <div style={{ marginBottom: 20, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>📍</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>今日請假</span>
+                    <span style={{ padding: "1px 8px", borderRadius: 10, background: todayOut.length > 0 ? "#FEE2E2" : "#D1FAE5", color: todayOut.length > 0 ? "#DC2626" : "#059669", fontSize: 11, fontWeight: 700 }}>
+                      {todayOut.length} 人
+                    </span>
+                  </div>
+                  {upcomingLeave.length > 0 && (
+                    <span style={{ fontSize: 11, color: "#6B7280" }}>未來7天還有 {upcomingLeave.length} 人請假</span>
+                  )}
+                </div>
+
+                {todayOut.length === 0 ? (
+                  <div style={{ padding: "20px 16px", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
+                    ✅ 今日全員出勤
+                  </div>
+                ) : (
+                  <div style={{ padding: "8px 12px", display: "grid", gap: 6 }}>
+                    {todayOut.map(s => (
+                      <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: 8, background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#DC2626" }}>
+                            {(s.submitter_name||"?")[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{s.submitter_name}</div>
+                            <div style={{ fontSize: 11, color: "#6B7280" }}>{s.form_data.leave_type} · {s.form_data.start_date} → {s.form_data.end_date || s.form_data.start_date}</div>
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "#DC2626", background: "#FEE2E2", padding: "2px 8px", borderRadius: 6 }}>請假中</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {upcomingLeave.length > 0 && (
+                  <div style={{ borderTop: "1px solid #F3F4F6" }}>
+                    <div style={{ padding: "10px 16px 6px", fontSize: 11, fontWeight: 700, color: "#6B7280" }}>📅 即將請假 (7天內)</div>
+                    <div style={{ padding: "0 12px 10px", display: "grid", gap: 4 }}>
+                      {upcomingLeave.slice(0, 5).map(s => (
+                        <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#FFFBEB", borderRadius: 8, borderLeft: "3px solid #F59E0B" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ width: 28, height: 28, borderRadius: 7, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#D97706" }}>
+                              {(s.submitter_name||"?")[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{s.submitter_name}</div>
+                              <div style={{ fontSize: 11, color: "#6B7280" }}>{s.form_data.leave_type} · {s.form_data.start_date} → {s.form_data.end_date || s.form_data.start_date}</div>
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 11, color: "#D97706", fontWeight: 600 }}>{s.form_data.days}天</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 20 }}>
