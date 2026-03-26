@@ -57,7 +57,7 @@ interface ComplianceResult {
 
 const formMeta: Record<string, { icon: string; name_zh: string; name_en: string; color: string }> = {
   leave:         { icon: "📝", name_zh: "請假申請", name_en: "Leave Request",    color: "#7C3AED" },
-  overtime:      { icon: "🕐", name_zh: "加班申請", name_en: "Overtime Request", color: "#2563EB" },
+  overtime:      { icon: "🕐", name_zh: "加班申請", name_en: "Overtime Request", color: "#D97706" },
   business_trip: { icon: "✈️", name_zh: "出差申請", name_en: "Business Trip",    color: "#059669" },
 };
 
@@ -153,6 +153,422 @@ function ComplianceSummary({ result, expanded, onToggle }: {
   );
 }
 
+// NEW: RecordRow Component for improved collapsible design
+function RecordRow({ 
+  submission, 
+  isExpanded, 
+  onToggle, 
+  isAdmin, 
+  isSelected, 
+  onSelect,
+  onCancel,
+  onReview,
+  reviewingId,
+  setReviewingId,
+  reviewNote,
+  setReviewNote,
+  expandedCompliance,
+  onToggleCompliance,
+  onExportPdf,
+  showTemplate,
+  onToggleTemplate,
+}: {
+  submission: Submission;
+  isExpanded: boolean;
+  onToggle: () => void;
+  isAdmin: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  onCancel: (id: string) => void;
+  onReview: (id: string, action: string) => void;
+  reviewingId: string | null;
+  setReviewingId: (id: string | null) => void;
+  reviewNote: string;
+  setReviewNote: (note: string) => void;
+  expandedCompliance: Set<string>;
+  onToggleCompliance: (id: string) => void;
+  onExportPdf: (s: Submission) => void;
+  showTemplate: boolean;
+  onToggleTemplate: () => void;
+}) {
+  const ft = formMeta[submission.form_type];
+  const st = statusConfig[submission.status] || statusConfig.pending;
+  const isReviewing = reviewingId === submission.id;
+
+  const getCompactTitle = () => {
+    const data = submission.form_data;
+    if (submission.form_type === 'leave') {
+      return `${data.leave_type || '請假'} · ${data.days || 1}天`;
+    }
+    if (submission.form_type === 'overtime') {
+      return `${data.overtime_type || '加班'} · ${data.hours || 1}小時`;
+    }
+    if (submission.form_type === 'business_trip') {
+      return `出差 · ${data.days || 1}天${data.destination ? ` · ${data.destination}` : ''}`;
+    }
+    return ft?.name_zh || submission.form_type;
+  };
+
+  const getDateDisplay = () => {
+    const data = submission.form_data;
+    if (data.start_date && data.end_date && data.start_date !== data.end_date) {
+      const start = new Date(data.start_date);
+      const end = new Date(data.end_date);
+      return `${start.getMonth() + 1}月${start.getDate()}日 → ${end.getMonth() + 1}月${end.getDate()}日`;
+    }
+    const date = new Date(data.start_date || data.date || submission.created_at);
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  };
+
+  const typeStyles = {
+    leave: { borderLeft: '4px solid #7C3AED', iconBg: '#EDE9FE' },
+    overtime: { borderLeft: '4px solid #2563EB', iconBg: '#DBEAFE' },
+    business_trip: { borderLeft: '4px solid #059669', iconBg: '#D1FAE5' },
+  };
+  const style = typeStyles[submission.form_type as keyof typeof typeStyles] || typeStyles.leave;
+
+  return (
+    <div 
+      style={{
+        background: isSelected ? '#F5F3FF' : 'white',
+        borderRadius: 12,
+        border: '1px solid #E5E7EB',
+        borderLeft: style.borderLeft,
+        marginBottom: 8,
+        overflow: 'hidden',
+        transition: 'all 0.2s ease',
+        boxShadow: isExpanded ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
+      }}
+    >
+      {/* Collapsed Header Row */}
+      <div 
+        onClick={onToggle}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '14px 16px',
+          cursor: 'pointer',
+          gap: 12,
+        }}
+      >
+        {isAdmin && submission.status === 'pending' && (
+          <input 
+            type="checkbox" 
+            checked={isSelected} 
+            onChange={(e) => { e.stopPropagation(); onSelect(); }}
+            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#7C3AED' }}
+          />
+        )}
+
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: style.iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 16,
+          flexShrink: 0,
+        }}>
+          {ft?.icon}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>
+              {getCompactTitle()}
+            </span>
+            {submission.ai_parsed && (
+              <span style={{
+                padding: '1px 5px',
+                background: '#EDE9FE',
+                color: '#7C3AED',
+                borderRadius: 4,
+                fontSize: 9,
+                fontWeight: 700,
+              }}>AI</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              {getDateDisplay()}
+            </span>
+            {submission.original_text && (
+              <span style={{
+                fontSize: 11,
+                color: '#9CA3AF',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 200,
+              }}>
+                {submission.original_text}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <span style={{
+          padding: '4px 12px',
+          borderRadius: 20,
+          fontSize: 11,
+          fontWeight: 700,
+          background: st.bg,
+          color: st.color,
+          flexShrink: 0,
+        }}>
+          {st.label}
+        </span>
+
+        <div style={{
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontSize: 10,
+          fontWeight: 700,
+          flexShrink: 0,
+        }}>
+          {submission.submitter_name?.charAt(0) || 'U'}
+        </div>
+
+        <div style={{
+          width: 24,
+          height: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.2s ease',
+          color: '#9CA3AF',
+          flexShrink: 0,
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+      </div>
+
+      {/* Expanded Details */}
+      {isExpanded && (
+        <div style={{
+          padding: '0 16px 16px 64px',
+          background: '#FAFAFA',
+          borderTop: '1px solid #F3F4F6',
+        }}>
+          {/* Detail Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+            gap: 12,
+            padding: '16px 0',
+          }}>
+            {Object.entries(submission.form_data)
+              .filter(([k]) => !k.startsWith('_') && fieldLabels[k])
+              .map(([key, value]) => (
+                <div key={key}>
+                  <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    {fieldLabels[key]}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#111827', fontWeight: 500, marginTop: 2 }}>
+                    {String(value || '—')}
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          {/* Original Text Quote */}
+          {submission.original_text && (
+            <div style={{
+              padding: '8px 12px',
+              background: 'white',
+              borderRadius: 8,
+              border: '1px solid #E5E7EB',
+              fontSize: 12,
+              color: '#6B7280',
+              fontStyle: 'italic',
+              marginBottom: 12,
+            }}>
+              💬 "{submission.original_text}"
+            </div>
+          )}
+
+          {/* Compliance Section */}
+          {submission.compliance_result && (
+            <div style={{ marginBottom: 12 }}>
+              <ComplianceSummary 
+                result={submission.compliance_result}
+                expanded={expandedCompliance.has(submission.id)}
+                onToggle={() => onToggleCompliance(submission.id)}
+              />
+            </div>
+          )}
+
+          {/* Reviewer Info */}
+          {submission.reviewed_at && (
+            <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 12 }}>
+              審核：{submission.reviewer_name || submission.reviewed_by} · {new Date(submission.reviewed_at).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {submission.review_note && ` · ${submission.review_note}`}
+            </div>
+          )}
+
+          {/* Action Bar */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleTemplate(); }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid #E5E7EB',
+                background: showTemplate ? '#EDE9FE' : 'white',
+                fontSize: 12,
+                fontWeight: 600,
+                color: showTemplate ? '#7C3AED' : '#6B7280',
+                cursor: 'pointer',
+              }}
+            >
+              {showTemplate ? '📄 收起表單' : '📋 表單格式'}
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); onExportPdf(submission); }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid #E5E7EB',
+                background: 'white',
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#6B7280',
+                cursor: 'pointer',
+              }}
+            >
+              📥 匯出 PDF
+            </button>
+
+            {submission.status === 'pending' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onCancel(submission.id); }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #FCA5A5',
+                  background: 'white',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#DC2626',
+                  cursor: 'pointer',
+                  marginLeft: 'auto',
+                }}
+              >
+                🚫 取消申請
+              </button>
+            )}
+
+            {isAdmin && submission.status === 'pending' && (
+              isReviewing ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
+                  <input
+                    type="text"
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                    placeholder="備註"
+                    style={{
+                      flex: 1,
+                      padding: '6px 10px',
+                      border: '1px solid #D1D5DB',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onReview(submission.id, 'approved'); }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#059669',
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✅ 核准
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onReview(submission.id, 'rejected'); }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#DC2626',
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ❌ 駁回
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setReviewingId(null); }}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #D1D5DB',
+                      background: 'white',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    取消
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setReviewingId(submission.id); }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #7C3AED',
+                    background: '#EDE9FE',
+                    color: '#7C3AED',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📋 審核
+                </button>
+              )
+            )}
+          </div>
+
+          {/* Form Template View */}
+          {showTemplate && (
+            <div style={{ marginTop: 12 }}>
+              <FormTemplate submission={submission} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WorkflowsPage() {
   const [nlpInput, setNlpInput] = useState("");
   const [parsing, setParsing] = useState(false);
@@ -174,14 +590,39 @@ export default function WorkflowsPage() {
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [leaveBalanceExpanded, setLeaveBalanceExpanded] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // NEW: State for expanded rows and template view
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [templateView, setTemplateView] = useState<Set<string>>(new Set());
   const [expandedCompliance, setExpandedCompliance] = useState<Set<string>>(new Set());
 
-  const toggleTemplate = (id: string) => {
-    const n = new Set(templateView); n.has(id) ? n.delete(id) : n.add(id); setTemplateView(n);
+  // NEW: Toggle functions
+  const toggleExpand = (id: string) => {
+    const newSet = new Set(expandedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setExpandedIds(newSet);
   };
+
+  const toggleTemplate = (id: string) => {
+    const newSet = new Set(templateView);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setTemplateView(newSet);
+  };
+
   const toggleCompliance = (id: string) => {
-    const n = new Set(expandedCompliance); n.has(id) ? n.delete(id) : n.add(id); setExpandedCompliance(n);
+    const newSet = new Set(expandedCompliance);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setExpandedCompliance(newSet);
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedIds(newSet);
   };
 
   const fetchSubmissions = async () => {
@@ -304,8 +745,6 @@ export default function WorkflowsPage() {
     } catch { setMessage("⚠️ 批次操作失敗。"); setTimeout(() => setMessage(""), 4000); }
   };
 
-  const toggleSelect = (id: string) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
-
   const exportPdf = (s: Submission) => {
     const ft = formMeta[s.form_type];
     const w = window.open("", "_blank");
@@ -322,13 +761,11 @@ export default function WorkflowsPage() {
   const formatDate = (d: string) => new Date(d).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const meta = parsedType ? formMeta[parsedType] : null;
 
-  // ── Filter submissions by type + status ──
   const filteredSubmissions = submissions.filter(s => {
     if (typeFilter !== "all" && s.form_type !== typeFilter) return false;
     return true;
   });
 
-  // ── Type tab counts ──
   const typeCounts = {
     all: submissions.length,
     leave: submissions.filter(s => s.form_type === "leave").length,
@@ -336,7 +773,6 @@ export default function WorkflowsPage() {
     business_trip: submissions.filter(s => s.form_type === "business_trip").length,
   };
 
-  // ── Leave balance summary line ──
   const annualRemaining = leaveBalance ? leaveBalance.annual_total - leaveBalance.annual_used : null;
 
   return (
@@ -346,7 +782,6 @@ export default function WorkflowsPage() {
         .wf-card { animation: fadeIn 0.25s ease forwards; }
       `}</style>
 
-      {/* ── Toast message ── */}
       {message && (
         <div style={{
           padding: "10px 16px", borderRadius: 10, marginBottom: 16, fontSize: 14, fontWeight: 600,
@@ -355,12 +790,8 @@ export default function WorkflowsPage() {
         }}>{message}</div>
       )}
 
-      {/* ══════════════════════════════════════════ */}
-      {/* ZONE 1 — SUBMIT                           */}
-      {/* ══════════════════════════════════════════ */}
+      {/* ZONE 1 — SUBMIT */}
       <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden", marginBottom: 20, boxShadow: "0 2px 12px rgba(0,0,0,0.04)" }}>
-
-        {/* Header */}
         <div style={{ padding: "14px 20px", background: "linear-gradient(135deg, rgba(124,58,237,0.05), rgba(124,58,237,0.02))", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>💬</div>
           <div>
@@ -370,7 +801,6 @@ export default function WorkflowsPage() {
         </div>
 
         <div style={{ padding: 20 }}>
-          {/* Quick hint buttons */}
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             {quickHints.map(h => (
               <button key={h.label} onClick={() => setNlpInput(h.text)}
@@ -389,7 +819,6 @@ export default function WorkflowsPage() {
             ))}
           </div>
 
-          {/* NLP input */}
           <div style={{ position: "relative" }}>
             <textarea
               value={nlpInput}
@@ -421,10 +850,8 @@ export default function WorkflowsPage() {
           </div>
         </div>
 
-        {/* ── AI Parsed Result ── */}
         {formData && meta && (
           <div style={{ borderTop: "1px solid #E5E7EB" }}>
-            {/* Type header */}
             <div style={{ padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", background: `${meta.color}08` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: `${meta.color}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{meta.icon}</div>
@@ -488,7 +915,6 @@ export default function WorkflowsPage() {
               )}
             </div>
 
-            {/* Compliance panel */}
             {(checkingCompliance || compliance) && (
               <div style={{ margin: "0 20px 12px", borderRadius: 10, overflow: "hidden", border: `1px solid ${compliance?.status === "blocked" ? "#FCA5A5" : compliance?.status === "warning" ? "#FCD34D" : "#86EFAC"}` }}>
                 <div style={{
@@ -534,7 +960,6 @@ export default function WorkflowsPage() {
               </div>
             )}
 
-            {/* Submit / Cancel */}
             <div style={{ padding: "12px 20px 16px", display: "flex", gap: 10 }}>
               <button onClick={handleSubmit}
                 disabled={submitting || checkingCompliance || compliance?.status === "blocked"}
@@ -555,9 +980,7 @@ export default function WorkflowsPage() {
         )}
       </div>
 
-      {/* ══════════════════════════════════════════ */}
-      {/* ZONE 2 — LEAVE BALANCE (collapsed)        */}
-      {/* ══════════════════════════════════════════ */}
+      {/* ZONE 2 — LEAVE BALANCE */}
       {leaveBalance && (
         <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", marginBottom: 20, overflow: "hidden" }}>
           <button
@@ -605,19 +1028,12 @@ export default function WorkflowsPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════ */}
-      {/* ZONE 3 — RECORDS                          */}
-      {/* ══════════════════════════════════════════ */}
+      {/* ZONE 3 — RECORDS (IMPROVED DESIGN) */}
       <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-
         {/* Records header */}
         <div style={{ padding: "14px 16px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>📜 申請紀錄</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            {isAdmin && (
-              <>
-              </>
-            )}
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
               style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid #D1D5DB", fontSize: 12, outline: "none", background: "white" }}>
               <option value="">全部狀態</option>
@@ -628,13 +1044,13 @@ export default function WorkflowsPage() {
           </div>
         </div>
 
-        {/* ── TYPE FILTER TABS ── */}
+        {/* Type Filter Tabs */}
         <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #F1F5F9", overflowX: "auto" }}>
           {([
-            { key: "all",           label: "全部",  icon: "📋" },
-            { key: "leave",         label: "請假",  icon: "📝" },
-            { key: "overtime",      label: "加班",  icon: "🕐" },
-            { key: "business_trip", label: "出差",  icon: "✈️" },
+            { key: "all", label: "全部", icon: "📋" },
+            { key: "leave", label: "請假", icon: "📝" },
+            { key: "overtime", label: "加班", icon: "🕐" },
+            { key: "business_trip", label: "出差", icon: "✈️" },
           ] as { key: TypeFilter; label: string; icon: string }[]).map(tab => (
             <button
               key={tab.key}
@@ -667,8 +1083,8 @@ export default function WorkflowsPage() {
           </div>
         )}
 
-        {/* Records list */}
-        <div style={{ padding: "8px 0" }}>
+        {/* Records List - Using NEW RecordRow Component */}
+        <div style={{ padding: "8px" }}>
           {loading && <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>載入中...</div>}
 
           {!loading && filteredSubmissions.length === 0 && (
@@ -683,118 +1099,28 @@ export default function WorkflowsPage() {
             </div>
           )}
 
-          {filteredSubmissions.map((s, idx) => {
-            const ft = formMeta[s.form_type];
-            const st = statusConfig[s.status] || statusConfig.pending;
-            const isSelected = selectedIds.has(s.id);
-            return (
-              <div
-                key={s.id}
-                className="wf-card"
-                style={{
-                  padding: "14px 16px",
-                  borderBottom: idx < filteredSubmissions.length - 1 ? "1px solid #F3F4F6" : "none",
-                  background: isSelected ? "#F5F3FF" : "white",
-                  borderLeft: `3px solid ${ft?.color || "#6B7280"}`,
-                  transition: "background 0.15s",
-                }}
-              >
-                {/* Card header row */}
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {isAdmin && s.status === "pending" && (
-                      <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(s.id)} style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#7C3AED" }} />
-                    )}
-                    <span style={{ fontSize: 18 }}>{ft?.icon}</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>
-                        {ft?.name_zh}
-                        {s.ai_parsed && <span style={{ marginLeft: 5, padding: "1px 5px", background: "#EDE9FE", color: "#7C3AED", borderRadius: 4, fontSize: 9, fontWeight: 600 }}>AI</span>}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#9CA3AF" }}>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
-                    <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: st.bg, color: st.color }}>{st.label}</span>
-                    <button onClick={() => exportPdf(s)} title="匯出 PDF" style={{ width: 26, height: 26, borderRadius: 6, border: "1px solid #E5E7EB", background: "white", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>📥</button>
-                  </div>
-                </div>
-
-                {/* Key fields — compact summary row */}
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-                  {Object.entries(s.form_data)
-                    .filter(([k]) => !k.startsWith("_") && k !== "duration_type" && k !== "hours_requested" && ["leave_type", "start_date", "end_date", "days", "hours", "date", "destination", "overtime_type"].includes(k))
-                    .map(([key, value]) => (
-                      <div key={key} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 600 }}>{fieldLabels[key] || key}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>{String(value || "—")}</span>
-                      </div>
-                    ))}
-                </div>
-
-                {/* Original NLP text */}
-                {s.original_text && (
-                  <div style={{ fontSize: 11, color: "#6B7280", padding: "4px 8px", background: "#F5F3FF", borderRadius: 6, marginBottom: 8 }}>
-                    💬 {s.original_text}
-                  </div>
-                )}
-
-                {/* Compliance badge (collapsed by default) */}
-                <ComplianceSummary
-                  result={s.compliance_result}
-                  expanded={expandedCompliance.has(s.id)}
-                  onToggle={() => toggleCompliance(s.id)}
-                />
-
-                {/* Reviewer info */}
-                {s.reviewed_at && (
-                  <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 6 }}>
-                    審核：{s.reviewer_name || s.reviewed_by} · {formatDate(s.reviewed_at)}{s.review_note && ` · ${s.review_note}`}
-                  </div>
-                )}
-
-                {/* Template toggle + actions */}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                  <button onClick={() => toggleTemplate(s.id)}
-                    style={{ padding: "3px 10px", borderRadius: 5, border: "1px solid #E5E7EB", background: templateView.has(s.id) ? "#EDE9FE" : "#F9FAFB", fontSize: 10, fontWeight: 600, cursor: "pointer", color: templateView.has(s.id) ? "#7C3AED" : "#6B7280" }}>
-                    {templateView.has(s.id) ? "📄 收起" : "📋 表單格式"}
-                  </button>
-
-                  {s.status === "pending" && (
-                    <button onClick={() => handleCancel(s.id)}
-                      style={{ padding: "3px 10px", borderRadius: 5, border: "1px solid #D1D5DB", background: "white", color: "#6B7280", fontSize: 10, cursor: "pointer" }}>
-                      🚫 取消
-                    </button>
-                  )}
-
-                  {isAdmin && s.status === "pending" && (
-                    reviewingId === s.id ? (
-                      <div style={{ display: "flex", gap: 4, alignItems: "center", flex: 1 }}>
-                        <input type="text" value={reviewNote} onChange={e => setReviewNote(e.target.value)} placeholder="備註"
-                          style={{ flex: 1, padding: "3px 8px", border: "1px solid #D1D5DB", borderRadius: 5, fontSize: 11, outline: "none" }} />
-                        <button onClick={() => handleReview(s.id, "approved")} style={{ padding: "3px 10px", borderRadius: 5, border: "none", background: "#059669", color: "white", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>✅ 核准</button>
-                        <button onClick={() => handleReview(s.id, "rejected")} style={{ padding: "3px 10px", borderRadius: 5, border: "none", background: "#DC2626", color: "white", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>❌ 駁回</button>
-                        <button onClick={() => setReviewingId(null)} style={{ padding: "3px 8px", borderRadius: 5, border: "1px solid #D1D5DB", background: "white", fontSize: 11, cursor: "pointer" }}>取消</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setReviewingId(s.id)}
-                        style={{ padding: "3px 10px", borderRadius: 5, border: "1px solid #7C3AED", background: "#EDE9FE", color: "#7C3AED", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
-                        📋 審核
-                      </button>
-                    )
-                  )}
-                </div>
-
-                {/* Template expanded view */}
-                {templateView.has(s.id) && (
-                  <div style={{ marginTop: 10 }}>
-                    <FormTemplate submission={s} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {filteredSubmissions.map((s) => (
+            <RecordRow
+              key={s.id}
+              submission={s}
+              isExpanded={expandedIds.has(s.id)}
+              onToggle={() => toggleExpand(s.id)}
+              isAdmin={isAdmin}
+              isSelected={selectedIds.has(s.id)}
+              onSelect={() => toggleSelect(s.id)}
+              onCancel={handleCancel}
+              onReview={handleReview}
+              reviewingId={reviewingId}
+              setReviewingId={setReviewingId}
+              reviewNote={reviewNote}
+              setReviewNote={setReviewNote}
+              expandedCompliance={expandedCompliance}
+              onToggleCompliance={toggleCompliance}
+              onExportPdf={exportPdf}
+              showTemplate={templateView.has(s.id)}
+              onToggleTemplate={() => toggleTemplate(s.id)}
+            />
+          ))}
         </div>
       </div>
     </div>
