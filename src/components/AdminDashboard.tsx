@@ -793,6 +793,19 @@ export default function AdminDashboard() {
       {!loading && tab === "leave" && (
         <div style={{ animation: "fadeIn 0.4s" }}>
 
+          {/* Month picker + CSV export — applies to all sub-tabs */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>📅</span>
+              <input type="month" value={adminMonthFilter} onChange={e => setAdminMonthFilter(e.target.value)}
+                style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 13, outline: "none", color: "#111827", background: "white" }} />
+            </div>
+            <button onClick={exportMonthlyCSV}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: "1px solid #7C3AED", background: "white", color: "#7C3AED", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              📥 匯出 {adminMonthFilter} 報表 (CSV)
+            </button>
+          </div>
+
           {/* Sub-tabs */}
           <div style={{ display: "flex", gap: 0, marginBottom: 20, borderBottom: "2px solid #E5E7EB" }}>
             {([
@@ -816,19 +829,6 @@ export default function AdminDashboard() {
           {/* ── 請假 sub-tab ── */}
           {requestSubTab === "leave" && (
             <div>
-
-              {/* Month picker + CSV export */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>📅 月份</span>
-                  <input type="month" value={adminMonthFilter} onChange={e => setAdminMonthFilter(e.target.value)}
-                    style={{ padding: "6px 10px", border: "1px solid #D1D5DB", borderRadius: 8, fontSize: 13, outline: "none", color: "#111827", background: "white" }} />
-                </div>
-                <button onClick={exportMonthlyCSV}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: "1px solid #7C3AED", background: "white", color: "#7C3AED", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                  📥 匯出 {adminMonthFilter} 報表 (CSV)
-                </button>
-              </div>
 
               {/* Monthly stats cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
