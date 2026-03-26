@@ -1623,6 +1623,8 @@ export default function AdminDashboard() {
   const [overtimeSearch, setOvertimeSearch] = useState("");
   const [tripSearch, setTripSearch] = useState("");
   const [adminMonthFilter, setAdminMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [filterMode, setFilterMode] = useState<"month" | "year">("month");
+  const activeFilter = filterMode === "month" ? adminMonthFilter : adminMonthFilter.slice(0, 4);
   const debouncedLeaveSearch = useDebounce(leaveSearch, 300);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; action: string; count: number }>({
@@ -1918,20 +1920,20 @@ export default function AdminDashboard() {
   const monthlyLeaveDays = useMemo(
     () =>
       allSubmissions
-        .filter((s) => s.form_type === "leave" && s.created_at.startsWith(adminMonthFilter))
+        .filter((s) => s.form_type === "leave" && s.created_at.startsWith(activeFilter))
         .reduce((sum, s) => sum + (Number(s.form_data.days) || 0), 0),
     [allSubmissions, adminMonthFilter]
   );
 
   const monthlyLeaveCount = useMemo(
-    () => allSubmissions.filter((s) => s.form_type === "leave" && s.created_at.startsWith(adminMonthFilter)).length,
+    () => allSubmissions.filter((s) => s.form_type === "leave" && s.created_at.startsWith(activeFilter)).length,
     [allSubmissions, adminMonthFilter]
   );
 
   const monthlyOTHours = useMemo(
     () =>
       allSubmissions
-        .filter((s) => s.form_type === "overtime" && s.created_at.startsWith(adminMonthFilter) && s.status === "approved")
+        .filter((s) => s.form_type === "overtime" && s.created_at.startsWith(activeFilter) && s.status === "approved")
         .reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0),
     [allSubmissions, adminMonthFilter]
   );
@@ -1949,7 +1951,7 @@ export default function AdminDashboard() {
   );
 
   const exportMonthlyCSV = () => {
-    const monthSubs = allSubmissions.filter((s) => s.created_at.startsWith(adminMonthFilter));
+    const monthSubs = allSubmissions.filter((s) => s.created_at.startsWith(activeFilter));
     const headers = [
       "申請日期",
       "申請人",
@@ -1982,7 +1984,7 @@ export default function AdminDashboard() {
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `假勤報表_${adminMonthFilter}.csv`;
+    link.download = `假勤報表_${activeFilter}.csv`;
     link.click();
   };
 
@@ -3599,34 +3601,36 @@ export default function AdminDashboard() {
         <main role="tabpanel" id="panel-leave" aria-labelledby="tab-leave" style={{ animation: "fadeIn 0.4s" }}>
           {/* Month picker + CSV export */}
           <Card style={{ marginBottom: "20px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: "12px",
-              }}
-            >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "14px", fontWeight: 600, color: tokens.colors.gray[700] }}>📅</span>
-                <input
-                  type="month"
-                  value={adminMonthFilter}
-                  onChange={(e) => setAdminMonthFilter(e.target.value)}
-                  style={{
-                    padding: "8px 12px",
-                    border: `1px solid ${tokens.colors.gray[300]}`,
-                    borderRadius: tokens.borderRadius.md,
-                    fontSize: "14px",
-                    outline: "none",
-                    color: tokens.colors.gray[900],
-                    background: "white",
-                  }}
-                />
+                {/* Mode toggle */}
+                <div style={{ display: "flex", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, overflow: "hidden" }}>
+                  {(["month", "year"] as const).map((mode) => (
+                    <button key={mode} onClick={() => setFilterMode(mode)}
+                      style={{
+                        padding: "7px 14px", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                        background: filterMode === mode ? tokens.colors.primary[600] : "white",
+                        color: filterMode === mode ? "white" : tokens.colors.gray[600],
+                        transition: "all 150ms ease",
+                      }}>
+                      {mode === "month" ? "月" : "年"}
+                    </button>
+                  ))}
+                </div>
+                {filterMode === "month" ? (
+                  <input type="month" value={adminMonthFilter} onChange={(e) => setAdminMonthFilter(e.target.value)}
+                    style={{ padding: "8px 12px", border: `1px solid ${tokens.colors.gray[300]}`, borderRadius: tokens.borderRadius.md, fontSize: "14px", outline: "none", color: tokens.colors.gray[900], background: "white" }} />
+                ) : (
+                  <select value={adminMonthFilter.slice(0, 4)}
+                    onChange={(e) => setAdminMonthFilter(`${e.target.value}-01`)}
+                    style={{ padding: "8px 12px", border: `1px solid ${tokens.colors.gray[300]}`, borderRadius: tokens.borderRadius.md, fontSize: "14px", outline: "none", color: tokens.colors.gray[900], background: "white" }}>
+                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y} 年</option>)}
+                  </select>
+                )}
               </div>
               <Button variant="secondary" onClick={exportMonthlyCSV} leftIcon="📥">
-                匯出 {adminMonthFilter} 報表 (CSV)
+                匯出 {activeFilter} 報表 (CSV)
               </Button>
             </div>
           </Card>
@@ -3656,14 +3660,14 @@ export default function AdminDashboard() {
                 }}
               >
                 <StatCard
-                  label={`${adminMonthFilter} 請假天數`}
+                  label={`${activeFilter} 請假天數`}
                   value={monthlyLeaveDays}
                   icon="📝"
                   color="warning"
                   unit="天"
                 />
                 <StatCard
-                  label={`${adminMonthFilter} 加班時數`}
+                  label={`${activeFilter} 加班時數`}
                   value={monthlyOTHours}
                   icon="🕐"
                   color="info"
@@ -4061,14 +4065,14 @@ export default function AdminDashboard() {
                   marginBottom: "20px",
                 }}
               >
-                <StatCard label={`${adminMonthFilter} 加班申請`} value={allOvertime.filter(s => s.created_at.startsWith(adminMonthFilter)).length} icon="🕐" color="info" />
+                <StatCard label={`${activeFilter} 加班申請`} value={allOvertime.filter(s => s.created_at.startsWith(activeFilter)).length} icon="🕐" color="info" />
                 <StatCard
                   label="已核准"
-                  value={allOvertime.filter((s) => s.status === "approved" && s.created_at.startsWith(adminMonthFilter)).length}
+                  value={allOvertime.filter((s) => s.status === "approved" && s.created_at.startsWith(activeFilter)).length}
                   icon="✅"
                   color="success"
                 />
-                <StatCard label={`${adminMonthFilter} 加班時數`} value={monthlyOTHours} icon="⏱️" color="warning" unit="hr" />
+                <StatCard label={`${activeFilter} 加班時數`} value={monthlyOTHours} icon="⏱️" color="warning" unit="hr" />
               </div>
 
               <Input
@@ -4079,14 +4083,14 @@ export default function AdminDashboard() {
                 leftIcon="🔍"
               />
 
-              {allOvertime.filter(s => s.created_at.startsWith(adminMonthFilter)).filter(
+              {allOvertime.filter(s => s.created_at.startsWith(activeFilter)).filter(
                 (s) => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase())
               ).length === 0 ? (
                 <EmptyState icon="🕐" title="尚無加班申請" subtitle="員工提交加班申請後會顯示在這裡" />
               ) : (
                 <Card padding="sm" style={{ padding: 0, overflow: "hidden" }}>
                   {allOvertime
-                    .filter(s => s.created_at.startsWith(adminMonthFilter))
+                    .filter(s => s.created_at.startsWith(activeFilter))
                     .filter(
                       (s) => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase())
                     )
@@ -4161,16 +4165,16 @@ export default function AdminDashboard() {
                   marginBottom: "20px",
                 }}
               >
-                <StatCard label={`${adminMonthFilter} 出差申請`} value={allTrips.filter(s => s.created_at.startsWith(adminMonthFilter)).length} icon="✈️" color="success" />
+                <StatCard label={`${activeFilter} 出差申請`} value={allTrips.filter(s => s.created_at.startsWith(activeFilter)).length} icon="✈️" color="success" />
                 <StatCard
                   label="已核准"
-                  value={allTrips.filter((s) => s.status === "approved" && s.created_at.startsWith(adminMonthFilter)).length}
+                  value={allTrips.filter((s) => s.status === "approved" && s.created_at.startsWith(activeFilter)).length}
                   icon="✅"
                   color="success"
                 />
                 <StatCard
                   label="待審核"
-                  value={allTrips.filter((s) => s.status === "pending" && s.created_at.startsWith(adminMonthFilter)).length}
+                  value={allTrips.filter((s) => s.status === "pending" && s.created_at.startsWith(activeFilter)).length}
                   icon="⏳"
                   color="warning"
                 />
@@ -4184,7 +4188,7 @@ export default function AdminDashboard() {
                 leftIcon="🔍"
               />
 
-              {allTrips.filter(s => s.created_at.startsWith(adminMonthFilter)).filter(
+              {allTrips.filter(s => s.created_at.startsWith(activeFilter)).filter(
                 (s) =>
                   !tripSearch ||
                   s.submitter_name?.toLowerCase().includes(tripSearch.toLowerCase()) ||
@@ -4194,7 +4198,7 @@ export default function AdminDashboard() {
               ) : (
                 <Card padding="sm" style={{ padding: 0, overflow: "hidden" }}>
                   {allTrips
-                    .filter(s => s.created_at.startsWith(adminMonthFilter))
+                    .filter(s => s.created_at.startsWith(activeFilter))
                     .filter(
                       (s) =>
                         !tripSearch ||
