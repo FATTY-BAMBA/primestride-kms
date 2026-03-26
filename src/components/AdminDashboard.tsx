@@ -4061,14 +4061,14 @@ export default function AdminDashboard() {
                   marginBottom: "20px",
                 }}
               >
-                <StatCard label="總加班申請" value={allOvertime.length} icon="🕐" color="info" />
+                <StatCard label={`${adminMonthFilter} 加班申請`} value={allOvertime.filter(s => s.created_at.startsWith(adminMonthFilter)).length} icon="🕐" color="info" />
                 <StatCard
                   label="已核准"
-                  value={allOvertime.filter((s) => s.status === "approved").length}
+                  value={allOvertime.filter((s) => s.status === "approved" && s.created_at.startsWith(adminMonthFilter)).length}
                   icon="✅"
                   color="success"
                 />
-                <StatCard label="本月加班時數" value={thisMonthOvertime} icon="⏱️" color="warning" unit="hr" />
+                <StatCard label={`${adminMonthFilter} 加班時數`} value={monthlyOTHours} icon="⏱️" color="warning" unit="hr" />
               </div>
 
               <Input
@@ -4160,16 +4160,16 @@ export default function AdminDashboard() {
                   marginBottom: "20px",
                 }}
               >
-                <StatCard label="總出差申請" value={allTrips.length} icon="✈️" color="success" />
+                <StatCard label={`${adminMonthFilter} 出差申請`} value={allTrips.filter(s => s.created_at.startsWith(adminMonthFilter)).length} icon="✈️" color="success" />
                 <StatCard
                   label="已核准"
-                  value={allTrips.filter((s) => s.status === "approved").length}
+                  value={allTrips.filter((s) => s.status === "approved" && s.created_at.startsWith(adminMonthFilter)).length}
                   icon="✅"
                   color="success"
                 />
                 <StatCard
                   label="待審核"
-                  value={allTrips.filter((s) => s.status === "pending").length}
+                  value={allTrips.filter((s) => s.status === "pending" && s.created_at.startsWith(adminMonthFilter)).length}
                   icon="⏳"
                   color="warning"
                 />
