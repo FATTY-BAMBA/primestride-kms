@@ -60,7 +60,7 @@ export default function LandingPage() {
         .nav.sc { border-color: var(--border); box-shadow: 0 1px 30px rgba(0,0,0,0.2); }
         .nav-in { max-width: var(--mw); margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 100%; }
         .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; font-family: 'DM Serif Display', serif; color: var(--text); }
-        .nav-mark { width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, var(--blue), var(--violet)); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 700; font-family: 'Instrument Sans', sans-serif; box-shadow: 0 2px 12px rgba(37,99,235,0.35); }
+        .nav-mark { width: 34px; height: 34px; border-radius: 10px; background: #4C1D95; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; font-weight: 700; font-family: 'Instrument Sans', sans-serif; box-shadow: 0 2px 12px rgba(37,99,235,0.35); }
         .nav-links { display: flex; align-items: center; gap: 4px; }
         .nav-links a { padding: 7px 14px; font-size: 15px; font-weight: 500; color: var(--text3); border-radius: 8px; transition: all 0.15s; }
         .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.04); }
@@ -361,7 +361,7 @@ export default function LandingPage() {
 
       <nav className={`nav ${navScrolled ? 'sc' : ''}`}>
         <div className="nav-in">
-          <a href="/" className="nav-brand"><div className="nav-mark">P</div> Atlas EIP</a>
+          <a href="/" className="nav-brand"><div className="nav-mark"><svg width="16" height="16" viewBox="0 0 26 26" fill="none"><path d="M13 2 L7 14 L12 14 L6 24 L20 12 L14.5 12 L21 2 Z" fill="white" fillOpacity="0.95"/></svg></div> Atlas EIP</a>
           <div className="nav-links">
             <a href="#problem">痛點</a>
             <a href="#platform">平台功能</a>
@@ -372,7 +372,7 @@ export default function LandingPage() {
           <div className="nav-acts">
             <span className="lang-tag">EN / 中文</span>
             <a href="/login" className="btn btn-o">登入</a>
-            <a href="/signup" className="btn btn-p">免費註冊 →</a>
+            <a href="/sign-up" className="btn btn-p">免費註冊 →</a>
             <button className="mob-tog" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}><span className={mobileMenuOpen ? 'open' : ''} /></button>
           </div>
         </div>
@@ -384,7 +384,7 @@ export default function LandingPage() {
         <a href="#pricing" onClick={() => setMobileMenuOpen(false)}>價格</a>
         <a href="/audit" onClick={() => setMobileMenuOpen(false)} style={{color: '#FCA5A5'}}>🔍 免費掃描</a>
         <a href="/login" onClick={() => setMobileMenuOpen(false)}>登入</a>
-        <a href="/signup" className="btn btn-p" style={{ justifyContent: 'center' }}>免費註冊 →</a>
+        <a href="/sign-up" className="btn btn-p" style={{ justifyContent: 'center' }}>免費註冊 →</a>
       </div>
 
       <section className="hero">
@@ -397,7 +397,7 @@ export default function LandingPage() {
           <div className="hero-sub-zh">從知識到行動，一步到位。台灣企業的智慧中樞。</div>
           <p className="hero-desc">One box. Zero forms. Your team speaks naturally — the AI reads your SOPs, enforces <strong>2026 Taiwan Labor Standards</strong>, and executes compliant workflows instantly.</p>
           <div className="hero-acts">
-            <a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a>
+            <a href="/sign-up" className="btn btn-p btn-lg">免費開始使用 →</a>
             <a href="#demo" className="btn btn-o btn-lg">探索功能</a>
           </div>
           <div className="hero-pills">
@@ -457,7 +457,7 @@ export default function LandingPage() {
             <li>NLP 表單 + 基礎合規檢查</li>
             <li>1 位使用者</li>
           </ul>
-          <a href="/signup" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>免費開始</a>
+          <a href="/sign-up" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>免費開始</a>
         </div>
 
         {/* Card 2: Team */}
@@ -476,7 +476,7 @@ export default function LandingPage() {
             <li>五格式匯出 + API</li>
             <li>稽核日誌 + 品牌設定</li>
           </ul>
-          <a href="/signup" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a>
+          <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a>
         </div>
 
         {/* Card 3: 商務版 — NEW */}
@@ -498,7 +498,7 @@ export default function LandingPage() {
             <li>台北在地導入支援</li>
             <li>優先技術支援</li>
           </ul>
-          <a href="/signup" className="btn btn-p" style={{width:'100%',justifyContent:'center',background:'var(--amber)',color:'#000',boxShadow:'0 2px 16px rgba(245,158,11,0.3)'}}>立即開始 →</a>
+          <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center',background:'var(--amber)',color:'#000',boxShadow:'0 2px 16px rgba(245,158,11,0.3)'}}>立即開始 →</a>
           <div className="price-subnote">符合商業服務業智慧轉型專區補助資格<br/>續約9折 · 超過30人每+10人加收NT$5,000/年</div>
         </div>
 
@@ -521,7 +521,7 @@ export default function LandingPage() {
 
       </div></div></section>
 
-      <section className="cta"><h2>讓 AI 守護你的每一筆流程</h2><p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p><div className="cta-acts"><a href="/signup" className="btn btn-p btn-lg">免費開始使用 →</a><a href="/contact" className="btn btn-w btn-lg">預約 Demo</a><a href="/audit" className="btn btn-o btn-lg">🔍 免費合規掃描</a>
+      <section className="cta"><h2>讓 AI 守護你的每一筆流程</h2><p>合規、智慧、一站式。從知識管理到流程自動化，一個平台全搞定。</p><div className="cta-acts"><a href="/sign-up" className="btn btn-p btn-lg">免費開始使用 →</a><a href="/contact" className="btn btn-w btn-lg">預約 Demo</a><a href="/audit" className="btn btn-o btn-lg">🔍 免費合規掃描</a>
 </div><div className="cta-note">hello@primestrideatlas.com · 不需信用卡 · 五分鐘完成設定</div></section>
 
       <footer className="foot"><div className="foot-in"><div className="foot-l">&copy; 2026 Atlas EIP — Enterprise Intelligence Platform</div><div className="foot-links"><a href="/contact">聯繫我們</a><a href="/privacy">Privacy</a>
