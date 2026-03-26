@@ -382,14 +382,21 @@ function DocumentCard({
             </div>
             
             <div className={cn(
-              "flex items-center gap-2 transition-opacity duration-200",
+              "flex items-center gap-2 transition-opacity duration-200 flex-shrink-0",
               hovered ? "opacity-100" : "opacity-0"
             )}>
+              {isAdmin && (
+                <DocumentAccessToggle
+                  docId={doc.doc_id}
+                  currentLevel={doc.access_level || "all_members"}
+                  isAdmin={isAdmin}
+                />
+              )}
               {isAdmin && folders.length > 0 && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 text-slate-600"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-slate-500 hover:text-slate-700"
                   onClick={() => onMove(doc.doc_id)}
                 >
                   <FolderKanban className="w-4 h-4" />
@@ -397,99 +404,86 @@ function DocumentCard({
               )}
               {isAdmin && (
                 <Link href={`/library/${encodeURIComponent(doc.doc_id)}/edit`}>
-                  <Button variant="ghost" size="sm" className="h-8 text-slate-600">
+                  <Button variant="ghost" size="sm" className="h-8 text-slate-500 hover:text-slate-700">
                     <Edit3 className="w-4 h-4" />
                   </Button>
                 </Link>
               )}
               <Link href={`/library/${encodeURIComponent(doc.doc_id)}`}>
                 <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700 text-white gap-1">
-                  View
+                  開啟
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>
             </div>
           </div>
 
+          {/* Meta row — clean, 2-line max */}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="text-xs text-slate-400">{doc.current_version}</span>
-            <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-50 border-0 text-xs font-normal">
-              {doc.status}
-            </Badge>
             {doc.doc_type && (
               <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
                 {doc.doc_type}
               </Badge>
             )}
             {doc.teams ? (
-              <Badge 
+              <Badge
                 className="font-normal text-xs border-0"
                 style={{ background: doc.teams.color + "20", color: doc.teams.color }}
               >
                 {doc.teams.name}
               </Badge>
             ) : (
-              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
+              <Badge variant="secondary" className="bg-slate-100 text-slate-500 font-normal text-xs">
                 <Globe className="w-3 h-3 mr-1" />
-                Org-Wide
+                全體成員可見
               </Badge>
             )}
             {doc.folder_id && (
               <Badge className="bg-amber-50 text-amber-600 border-0 text-xs font-normal">
-                {folders.find(f => f.id === doc.folder_id)?.icon || "📁"}
+                {folders.find(f => f.id === doc.folder_id)?.icon || "📁"}{" "}
                 {folders.find(f => f.id === doc.folder_id)?.name}
               </Badge>
-            )}
-
-            {/* ── Access Level Toggle (visible to admins only) ── */}
-            <DocumentAccessToggle
-              docId={doc.doc_id}
-              currentLevel={doc.access_level || "all_members"}
-              isAdmin={isAdmin}
-            />
-            
-            {totalFeedback > 0 && (
-              <div className="flex items-center gap-2 ml-auto text-xs">
-                {doc.feedback_counts.helped > 0 && (
-                  <span className="flex items-center gap-1 text-emerald-600">
-                    <CheckCircle2 className="w-3 h-3" />
-                    {doc.feedback_counts.helped}
-                  </span>
-                )}
-                {doc.feedback_counts.not_confident > 0 && (
-                  <span className="flex items-center gap-1 text-amber-600">
-                    <AlertTriangle className="w-3 h-3" />
-                    {doc.feedback_counts.not_confident}
-                  </span>
-                )}
-                {doc.feedback_counts.didnt_help > 0 && (
-                  <span className="flex items-center gap-1 text-red-600">
-                    <XCircle className="w-3 h-3" />
-                    {doc.feedback_counts.didnt_help}
-                  </span>
-                )}
-              </div>
-            )}
-            
-            {doc.updated_at && (
-              <span className="text-xs text-slate-400 ml-auto">{formatDate(doc.updated_at)}</span>
             )}
             {doc.review_by && (() => {
               const reviewDate = new Date(doc.review_by);
               const now = new Date();
               const daysUntil = Math.ceil((reviewDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
               if (daysUntil < 0) return (
-                <span className="flex items-center gap-1 text-xs text-red-600 font-semibold ml-1">
+                <span className="flex items-center gap-1 text-xs text-red-600 font-semibold">
                   ⚠️ 逾期審閱
                 </span>
               );
               if (daysUntil <= 30) return (
-                <span className="flex items-center gap-1 text-xs text-amber-600 font-semibold ml-1">
+                <span className="flex items-center gap-1 text-xs text-amber-600 font-semibold">
                   🔔 {daysUntil}天後需審閱
                 </span>
               );
               return null;
             })()}
+            <div className="flex items-center gap-3 ml-auto">
+              {totalFeedback > 0 && (
+                <div className="flex items-center gap-2 text-xs">
+                  {doc.feedback_counts.helped > 0 && (
+                    <span className="flex items-center gap-1 text-emerald-600">
+                      <CheckCircle2 className="w-3 h-3" />{doc.feedback_counts.helped}
+                    </span>
+                  )}
+                  {doc.feedback_counts.not_confident > 0 && (
+                    <span className="flex items-center gap-1 text-amber-500">
+                      <AlertTriangle className="w-3 h-3" />{doc.feedback_counts.not_confident}
+                    </span>
+                  )}
+                  {doc.feedback_counts.didnt_help > 0 && (
+                    <span className="flex items-center gap-1 text-red-500">
+                      <XCircle className="w-3 h-3" />{doc.feedback_counts.didnt_help}
+                    </span>
+                  )}
+                </div>
+              )}
+              {doc.updated_at && (
+                <span className="text-xs text-slate-400">{formatDate(doc.updated_at)}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
