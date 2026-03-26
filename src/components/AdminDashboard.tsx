@@ -374,18 +374,12 @@ export default function AdminDashboard() {
   const monthlyLeaveCount = useMemo(() => allSubmissions.filter(s => s.form_type === "leave" && s.created_at.startsWith(adminMonthFilter)).length, [allSubmissions, adminMonthFilter]);
   const monthlyOTHours = useMemo(() => allSubmissions.filter(s => s.form_type === "overtime" && s.created_at.startsWith(adminMonthFilter) && s.status === "approved").reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0), [allSubmissions, adminMonthFilter]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
   const in7Days = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0, 10);
-
-  const todayOut = useMemo(() => allSubmissions.filter(s =>
-    s.form_type === "leave" && s.status === "approved" &&
-    s.form_data.start_date <= todayStr && (s.form_data.end_date || s.form_data.start_date) >= todayStr
-  ), [allSubmissions]);
 
   const upcomingLeave = useMemo(() => allSubmissions.filter(s =>
     s.form_type === "leave" && s.status === "approved" &&
     s.form_data.start_date > todayStr && s.form_data.start_date <= in7Days
-  ).sort((a, b) => a.form_data.start_date.localeCompare(b.form_data.start_date)), [allSubmissions]);
+  ).sort((a, b) => a.form_data.start_date.localeCompare(b.form_data.start_date)), [allSubmissions, in7Days]);
 
   const exportMonthlyCSV = () => {
     const monthSubs = allSubmissions.filter(s => s.created_at.startsWith(adminMonthFilter));
@@ -868,8 +862,8 @@ export default function AdminDashboard() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 16 }}>📍</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>今日請假</span>
-                    <span style={{ padding: "1px 8px", borderRadius: 10, background: todayOut.length > 0 ? "#FEE2E2" : "#D1FAE5", color: todayOut.length > 0 ? "#DC2626" : "#059669", fontSize: 11, fontWeight: 700 }}>
-                      {todayOut.length} 人
+                    <span style={{ padding: "1px 8px", borderRadius: 10, background: onLeaveToday.length > 0 ? "#FEE2E2" : "#D1FAE5", color: onLeaveToday.length > 0 ? "#DC2626" : "#059669", fontSize: 11, fontWeight: 700 }}>
+                      {onLeaveToday.length} 人
                     </span>
                   </div>
                   {upcomingLeave.length > 0 && (
@@ -877,13 +871,13 @@ export default function AdminDashboard() {
                   )}
                 </div>
 
-                {todayOut.length === 0 ? (
+                {onLeaveToday.length === 0 ? (
                   <div style={{ padding: "20px 16px", textAlign: "center", color: "#9CA3AF", fontSize: 13 }}>
                     ✅ 今日全員出勤
                   </div>
                 ) : (
                   <div style={{ padding: "8px 12px", display: "grid", gap: 6 }}>
-                    {todayOut.map(s => (
+                    {onLeaveToday.map(s => (
                       <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{ width: 30, height: 30, borderRadius: 8, background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#DC2626" }}>
