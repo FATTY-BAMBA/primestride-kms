@@ -2125,7 +2125,7 @@ export default function AdminDashboard() {
               transition: `all ${tokens.transitions.fast}`,
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.borderColor = tokens.colors.primary[300];
+              (e.currentTarget as HTMLButtonElement).style.borderColor = tokens.colors.primary[200];
               (e.currentTarget as HTMLButtonElement).style.color = tokens.colors.primary[600];
             }}
             onMouseLeave={(e) => {
@@ -2281,7 +2281,7 @@ export default function AdminDashboard() {
                         {s.form_data.leave_type} · {s.form_data.start_date} → {s.form_data.end_date || s.form_data.start_date}
                       </div>
                     </div>
-                    <Badge variant="primary">{s.form_data.days || 1} 天</Badge>
+                    <Badge variant="info">{s.form_data.days || 1} 天</Badge>
                   </div>
                 ))}
               </div>
@@ -3179,7 +3179,7 @@ export default function AdminDashboard() {
                   style={{
                     fontSize: "14px",
                     fontWeight: 700,
-                    color: tokens.colors.primary[800],
+                    color: tokens.colors.primary[700],
                   }}
                 >
                   {selectedIds.size} 筆已選
@@ -4372,7 +4372,6 @@ export default function AdminDashboard() {
                   key={r.art}
                   style={{
                     display: "flex",
-                    gap: "12px",
                     alignItems: "center",
                     padding: "12px 14px",
                     background: tokens.colors.gray[50],
