@@ -613,7 +613,7 @@ function Input({ leftIcon, error, style, ...props }: InputProps) {
           alignItems: "center",
           gap: "10px",
           padding: "10px 14px",
-          border: `1px solid ${error ? tokens.colors.danger[300] : isFocused ? tokens.colors.primary[500] : tokens.colors.gray[300]}`,
+          border: `1px solid ${error ? tokens.colors.danger[200] : isFocused ? tokens.colors.primary[500] : tokens.colors.gray[300]}`,
           borderRadius: tokens.borderRadius.lg,
           background: isFocused ? "white" : tokens.colors.gray[50],
           transition: `all ${tokens.transitions.fast}`,
