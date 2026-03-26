@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Create Supabase admin client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -25,7 +24,7 @@ export async function POST(
       );
     }
 
-    // Get invitation (without join)
+    // Get invitation
     const { data: invitation, error: inviteError } = await supabase
       .from("invitations")
       .select("id, email, role, status, expires_at, organization_id")
@@ -49,7 +48,7 @@ export async function POST(
       );
     }
 
-    // Get organization name separately
+    // Get organization name
     const { data: org } = await supabase
       .from("organizations")
       .select("id, name")
@@ -90,6 +89,20 @@ export async function POST(
         { status: 500 }
       );
     }
+
+    // Create default leave balance for the new member
+    await supabase.from("leave_balances").upsert({
+      user_id: userId,
+      organization_id: invitation.organization_id,
+      annual_total: 7,
+      annual_used: 0,
+      sick_total: 30,
+      sick_used: 0,
+      personal_total: 14,
+      personal_used: 0,
+      family_care_total: 7,
+      family_care_used: 0,
+    }, { onConflict: "user_id,organization_id" });
 
     // Mark invitation as accepted
     await supabase
