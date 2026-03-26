@@ -264,6 +264,8 @@ export default function AdminDashboard() {
   const [templateView, setTemplateView] = useState<Set<string>>(new Set());
   const [leaveSearch, setLeaveSearch] = useState("");
   const [requestSubTab, setRequestSubTab] = useState<"leave"|"overtime"|"business_trip">("leave");
+  const [overtimeSearch, setOvertimeSearch] = useState("");
+  const [tripSearch, setTripSearch] = useState("");
   const debouncedLeaveSearch = useDebounce(leaveSearch, 300);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; action: string; count: number }>({ isOpen: false, action: "", count: 0 });
@@ -866,14 +868,18 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              {allOvertime.length === 0 ? (
+              <input type="text" value={overtimeSearch} onChange={e => setOvertimeSearch(e.target.value)}
+                placeholder="🔍 搜尋員工姓名..." style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 12, boxSizing: "border-box", color: "#111827", background: "white" }}
+                onFocus={e => e.currentTarget.style.borderColor="#2563EB"} onBlur={e => e.currentTarget.style.borderColor="#D1D5DB"} />
+              {allOvertime.filter(s => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase())).length === 0 ? (
                 <EmptyState icon="🕐" title="尚無加班申請" subtitle="員工提交加班申請後會顯示在這裡" />
               ) : (
                 <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-                  {allOvertime.map((s, idx) => {
+                  {allOvertime.filter(s => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase())).map((s, idx) => {
                     const st = statusConfig[s.status] || statusConfig.pending;
+                    const filteredOT = allOvertime.filter(s => !overtimeSearch || s.submitter_name?.toLowerCase().includes(overtimeSearch.toLowerCase()));
                     return (
-                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: idx < allOvertime.length-1 ? "1px solid #F3F4F6" : "none", background: idx%2===0?"white":"#FAFAFA", borderLeft: "3px solid #2563EB" }}>
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: idx < filteredOT.length-1 ? "1px solid #F3F4F6" : "none", background: idx%2===0?"white":"#FAFAFA", borderLeft: "3px solid #2563EB" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 18 }}>🕐</span>
                           <div>
@@ -911,14 +917,18 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              {allTrips.length === 0 ? (
+              <input type="text" value={tripSearch} onChange={e => setTripSearch(e.target.value)}
+                placeholder="🔍 搜尋員工姓名或地點..." style={{ width: "100%", padding: "10px 14px", border: "1px solid #D1D5DB", borderRadius: 10, fontSize: 14, outline: "none", marginBottom: 12, boxSizing: "border-box", color: "#111827", background: "white" }}
+                onFocus={e => e.currentTarget.style.borderColor="#059669"} onBlur={e => e.currentTarget.style.borderColor="#D1D5DB"} />
+              {allTrips.filter(s => !tripSearch || s.submitter_name?.toLowerCase().includes(tripSearch.toLowerCase()) || s.form_data?.destination?.toLowerCase().includes(tripSearch.toLowerCase())).length === 0 ? (
                 <EmptyState icon="✈️" title="尚無出差申請" subtitle="員工提交出差申請後會顯示在這裡" />
               ) : (
                 <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-                  {allTrips.map((s, idx) => {
+                  {allTrips.filter(s => !tripSearch || s.submitter_name?.toLowerCase().includes(tripSearch.toLowerCase()) || s.form_data?.destination?.toLowerCase().includes(tripSearch.toLowerCase())).map((s, idx) => {
                     const st = statusConfig[s.status] || statusConfig.pending;
+                    const filteredTrips = allTrips.filter(s => !tripSearch || s.submitter_name?.toLowerCase().includes(tripSearch.toLowerCase()) || s.form_data?.destination?.toLowerCase().includes(tripSearch.toLowerCase()));
                     return (
-                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: idx < allTrips.length-1 ? "1px solid #F3F4F6" : "none", background: idx%2===0?"white":"#FAFAFA", borderLeft: "3px solid #059669" }}>
+                      <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: idx < filteredTrips.length-1 ? "1px solid #F3F4F6" : "none", background: idx%2===0?"white":"#FAFAFA", borderLeft: "3px solid #059669" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <span style={{ fontSize: 18 }}>✈️</span>
                           <div>
