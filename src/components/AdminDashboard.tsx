@@ -2008,6 +2008,617 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, `假勤報表_${activeFilter}.xlsx`);
   };
 
+  const exportESGReport = () => {
+    const esgSubs = allSubmissions.filter(s => s.created_at.startsWith(esgYear));
+    const esgApproved = esgSubs.filter(s => s.status === "approved").length;
+    const esgOTHours = esgSubs.filter(s => s.form_type === "overtime" && s.status === "approved").reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
+    const leaveSubs = esgSubs.filter(s => s.form_type === "leave");
+    const leaveApproved = leaveSubs.filter(s => s.status === "approved").length;
+    const leaveTotal = leaveSubs.length;
+    const leaveRate = leaveTotal > 0 ? Math.round((leaveApproved / leaveTotal) * 100) : 0;
+    const critical = shadowRisks.filter(r => r.risk_level === "critical").length;
+    const warning = shadowRisks.filter(r => r.risk_level === "warning").length;
+    const compliant = Math.max(0, employees.length - critical - warning);
+    const complianceRate = employees.length > 0 ? Math.round((compliant / employees.length) * 100) : 100;
+
+    // Leave breakdown by type
+    const byType: Record<string, { approved: number; total: number }> = {};
+    leaveSubs.forEach(s => {
+      const t = s.form_data.leave_type || "其他";
+      if (!byType[t]) byType[t] = { approved: 0, total: 0 };
+      byType[t].total++;
+      if (s.status === "approved") byType[t].approved++;
+    });
+
+    const generatedAt = new Date().toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" });
+
+    const html = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESG 社會面報告 ${esgYear} — ${esgYear} — PrimeStride AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+  
+  @page {
+    size: A4;
+    margin: 15mm 20mm;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+    background: white;
+    color: #111827;
+    font-size: 13px;
+    line-height: 1.6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Cover Page */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 60px 0 40px;
+    page-break-after: always;
+    border-bottom: none;
+  }
+
+  .cover-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 80px;
+  }
+
+  .cover-logo {
+    width: 44px;
+    height: 44px;
+    background: #7C3AED;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+
+  .cover-brand {
+    font-size: 18px;
+    font-weight: 900;
+    color: #111827;
+    letter-spacing: -0.5px;
+  }
+
+  .cover-brand span {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #6B7280;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .cover-title-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .cover-eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    color: #7C3AED;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .cover-title {
+    font-size: 42px;
+    font-weight: 900;
+    color: #111827;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+  }
+
+  .cover-subtitle {
+    font-size: 16px;
+    color: #6B7280;
+    font-weight: 400;
+    margin-bottom: 40px;
+  }
+
+  .cover-accent {
+    width: 60px;
+    height: 4px;
+    background: #7C3AED;
+    border-radius: 2px;
+    margin-bottom: 40px;
+  }
+
+  .cover-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 24px;
+    background: #F5F3FF;
+    border-radius: 12px;
+    border: 1px solid #DDD6FE;
+  }
+
+  .cover-meta-item label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #7C3AED;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .cover-meta-item value {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+  }
+
+  .cover-footer {
+    font-size: 11px;
+    color: #9CA3AF;
+    border-top: 1px solid #E5E7EB;
+    padding-top: 16px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* Report Content */
+  .section {
+    margin-bottom: 28px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #EDE9FE;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title .icon {
+    font-size: 18px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .stat-card {
+    padding: 16px;
+    border-radius: 10px;
+    text-align: center;
+    border: 1px solid;
+  }
+
+  .stat-card.primary { background: #F5F3FF; border-color: #DDD6FE; }
+  .stat-card.info { background: #EFF6FF; border-color: #BFDBFE; }
+  .stat-card.warning { background: #FFFBEB; border-color: #FDE68A; }
+  .stat-card.danger { background: #FEF2F2; border-color: #FECACA; }
+  .stat-card.success { background: #ECFDF5; border-color: #A7F3D0; }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 2px;
+  }
+  .stat-card.primary .stat-value { color: #6D28D9; }
+  .stat-card.info .stat-value { color: #1D4ED8; }
+  .stat-card.warning .stat-value { color: #B45309; }
+  .stat-card.danger .stat-value { color: #B91C1C; }
+  .stat-card.success .stat-value { color: #047857; }
+
+  .stat-unit { font-size: 13px; font-weight: 500; margin-left: 2px; }
+  .stat-label { font-size: 11px; font-weight: 600; color: #6B7280; margin-top: 4px; }
+
+  /* Compliance bar */
+  .compliance-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 16px 0;
+  }
+
+  .compliance-bar-track {
+    flex: 1;
+    height: 12px;
+    background: #E5E7EB;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .compliance-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: #059669;
+  }
+
+  .compliance-rate {
+    font-size: 24px;
+    font-weight: 900;
+    color: #059669;
+    min-width: 60px;
+    text-align: right;
+  }
+
+  .compliance-3grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  .compliance-box {
+    padding: 14px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid;
+  }
+
+  .compliance-box.green { background: #ECFDF5; border-color: #A7F3D0; }
+  .compliance-box.yellow { background: #FFFBEB; border-color: #FDE68A; }
+  .compliance-box.red { background: #FEF2F2; border-color: #FECACA; }
+
+  .compliance-box-num {
+    font-size: 26px;
+    font-weight: 900;
+  }
+  .compliance-box.green .compliance-box-num { color: #047857; }
+  .compliance-box.yellow .compliance-box-num { color: #B45309; }
+  .compliance-box.red .compliance-box-num { color: #B91C1C; }
+
+  .compliance-box-label {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .compliance-box.green .compliance-box-label { color: #047857; }
+  .compliance-box.yellow .compliance-box-label { color: #B45309; }
+  .compliance-box.red .compliance-box-label { color: #B91C1C; }
+
+  /* Leave rates */
+  .leave-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .leave-breakdown-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #F3F4F6;
+  }
+
+  .leave-breakdown-label {
+    width: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    flex-shrink: 0;
+  }
+
+  .leave-breakdown-bar {
+    flex: 1;
+    height: 7px;
+    background: #E5E7EB;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .leave-breakdown-fill {
+    height: 100%;
+    background: #7C3AED;
+    border-radius: 4px;
+  }
+
+  .leave-breakdown-pct {
+    font-size: 12px;
+    font-weight: 800;
+    color: #7C3AED;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .leave-breakdown-count {
+    font-size: 11px;
+    color: #9CA3AF;
+    min-width: 50px;
+    text-align: right;
+  }
+
+  /* Audit trail */
+  .audit-box {
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .audit-box h4 {
+    font-size: 13px;
+    font-weight: 800;
+    color: #065F46;
+    margin-bottom: 10px;
+  }
+
+  .audit-box p {
+    font-size: 12px;
+    color: #047857;
+    line-height: 1.7;
+  }
+
+  .audit-box .warning-note {
+    margin-top: 10px;
+    font-weight: 700;
+    color: #065F46;
+  }
+
+  /* Report footer */
+  .report-footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid #E5E7EB;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #9CA3AF;
+  }
+
+  /* LSA badge */
+  .lsa-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #065F46;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  /* Print button - hidden when printing */
+  .print-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 20px;
+    background: #7C3AED;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 999;
+    font-family: inherit;
+  }
+
+  @media print {
+    .print-btn { display: none !important; }
+    .cover { min-height: auto; padding: 40px 0 30px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">⬇ 下載 PDF</button>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-logo">⚡</div>
+    <div class="cover-brand">
+      Atlas EIP
+      <span>Enterprise Intelligence Platform</span>
+    </div>
+  </div>
+
+  <div class="cover-title-block">
+    <div class="cover-eyebrow">ESG Report · S-Pillar · Social</div>
+    <div class="cover-title">ESG<br>社會面報告</div>
+    <div class="cover-subtitle">${esgYear} 年度 · 勞動合規與人力資源概況</div>
+    <div class="cover-accent"></div>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <label>報告年度</label>
+        <value>${esgYear} 年</value>
+      </div>
+      <div class="cover-meta-item">
+        <label>產生日期</label>
+        <value>${generatedAt}</value>
+      </div>
+      <div class="cover-meta-item">
+        <label>資料來源</label>
+        <value>Atlas EIP 即時記錄</value>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <span>PrimeStride AI · primestrideatlas.com</span>
+    <span>本報告由 Atlas EIP 自動彙整產出，無需人工填報</span>
+  </div>
+</div>
+
+<!-- SECTION 1: Workforce Overview -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon">👥</span>
+    勞動力概況 Workforce Overview
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card primary">
+      <div class="stat-value">${employees.length}<span class="stat-unit">人</span></div>
+      <div class="stat-label">全體員工數</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-value">${esgApproved}<span class="stat-unit">件</span></div>
+      <div class="stat-label">${esgYear} 核准申請</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-value">${esgOTHours}<span class="stat-unit">小時</span></div>
+      <div class="stat-label">${esgYear} 加班時數</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="stat-value">${critical}<span class="stat-unit">人</span></div>
+      <div class="stat-label">加班超標人數</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: Overtime Compliance -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon">🕐</span>
+    加班合規率 Overtime Compliance
+    <span class="lsa-badge">依 LSA Art. 32</span>
+  </div>
+  <div class="compliance-bar-wrap">
+    <div class="compliance-bar-track">
+      <div class="compliance-bar-fill" style="width: ${complianceRate}%; background: ${complianceRate >= 90 ? '#059669' : complianceRate >= 70 ? '#D97706' : '#DC2626'}"></div>
+    </div>
+    <div class="compliance-rate" style="color: ${complianceRate >= 90 ? '#059669' : complianceRate >= 70 ? '#D97706' : '#DC2626'}">${complianceRate}%</div>
+  </div>
+  <div class="compliance-3grid">
+    <div class="compliance-box green">
+      <div class="compliance-box-num">${compliant}</div>
+      <div class="compliance-box-label">✅ 合規</div>
+    </div>
+    <div class="compliance-box yellow">
+      <div class="compliance-box-num">${warning}</div>
+      <div class="compliance-box-label">⚠️ 接近上限</div>
+    </div>
+    <div class="compliance-box red">
+      <div class="compliance-box-num">${critical}</div>
+      <div class="compliance-box-label">🚨 超標</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: Leave Approval -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon">📝</span>
+    請假核准率 Leave Approval Rates
+  </div>
+  <div class="leave-summary-grid">
+    <div class="stat-card primary">
+      <div class="stat-value">${leaveTotal}<span class="stat-unit">件</span></div>
+      <div class="stat-label">總申請數</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-value">${leaveApproved}<span class="stat-unit">件</span></div>
+      <div class="stat-label">已核准</div>
+    </div>
+    <div class="stat-card info">
+      <div class="stat-value">${leaveRate}<span class="stat-unit">%</span></div>
+      <div class="stat-label">核准率</div>
+    </div>
+  </div>
+  ${Object.keys(byType).length > 0 ? `
+  <div style="margin-top: 4px;">
+    <div style="font-size: 12px; font-weight: 700; color: #6B7280; margin-bottom: 10px;">假別核准率明細</div>
+    ${Object.entries(byType).map(([type, data]) => {
+      const rate = data.total > 0 ? Math.round((data.approved / data.total) * 100) : 0;
+      return `
+    <div class="leave-breakdown-row">
+      <div class="leave-breakdown-label">${type}</div>
+      <div class="leave-breakdown-bar"><div class="leave-breakdown-fill" style="width: ${rate}%"></div></div>
+      <div class="leave-breakdown-pct">${rate}%</div>
+      <div class="leave-breakdown-count">${data.approved}/${data.total} 件</div>
+    </div>`;
+    }).join('')}
+  </div>` : ''}
+</div>
+
+<!-- SECTION 4: Compliance Health -->
+<div class="section">
+  <div class="section-title">
+    <span class="icon">⚖️</span>
+    合規健康度 Compliance Health
+  </div>
+  <div class="compliance-3grid">
+    <div class="stat-card primary" style="text-align:left; padding: 16px 18px;">
+      <div style="font-size: 22px; margin-bottom: 6px;">📖</div>
+      <div class="stat-value" style="font-size: 22px; text-align:left;">${complianceStatus?.total_rules || 0}<span class="stat-unit">條</span></div>
+      <div class="stat-label" style="text-align:left; margin-top: 4px;">勞基法規則已載入</div>
+      <div style="font-size: 10px; color: #7C3AED; margin-top: 4px;">全條文即時比對</div>
+    </div>
+    <div class="stat-card ${complianceStatus?.status === 'synced' ? 'success' : 'warning'}" style="text-align:left; padding: 16px 18px;">
+      <div style="font-size: 22px; margin-bottom: 6px;">${complianceStatus?.status === 'synced' ? '✅' : '⚠️'}</div>
+      <div class="stat-value" style="font-size: 18px; text-align:left;">${complianceStatus?.status === 'synced' ? '正常' : '待同步'}</div>
+      <div class="stat-label" style="text-align:left; margin-top: 4px;">合規引擎狀態</div>
+      <div style="font-size: 10px; color: #6B7280; margin-top: 4px;">${complianceStatus?.last_sync ? '上次同步：' + new Date(complianceStatus.last_sync).toLocaleDateString('zh-TW') : '尚未同步'}</div>
+    </div>
+    <div class="stat-card ${shadowRisks.length === 0 ? 'success' : 'danger'}" style="text-align:left; padding: 16px 18px;">
+      <div style="font-size: 22px; margin-bottom: 6px;">🔍</div>
+      <div class="stat-value" style="font-size: 22px; text-align:left;">${shadowRisks.length}<span class="stat-unit">人</span></div>
+      <div class="stat-label" style="text-align:left; margin-top: 4px;">加班預警人數</div>
+      <div style="font-size: 10px; color: ${shadowRisks.length === 0 ? '#047857' : '#B91C1C'}; margin-top: 4px;">${shadowRisks.length === 0 ? '無超標員工' : critical + ' 人超標'}</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5: Audit Trail -->
+<div class="section">
+  <div class="audit-box">
+    <h4>🔒 資料可稽核性聲明 Audit Trail</h4>
+    <p>
+      本報告所有數據均源自 Atlas EIP 系統內的即時結構化記錄，包含：工作流程申請記錄（workflow_submissions）、員工假期餘額（leave_balances）、加班監控記錄（shadow_audit_logs）及合規掃描結果（compliance_checks）。每筆資料均附有時間戳記與操作人員資訊，可供內部稽核或外部查核使用。
+    </p>
+    <p class="warning-note">注意：本報告由 Atlas EIP 自動彙整產出，企業對報告內容之準確性與法律責任負最終責任。</p>
+  </div>
+</div>
+
+<div class="report-footer">
+  <span>${esgYear} 年度報告 · 產生時間：${generatedAt} · 由 Atlas EIP 自動產出</span>
+  <span>PrimeStride AI · primestrideatlas.com</span>
+</div>
+
+</body>
+</html>`;
+
+    const reportWindow = window.open('', '_blank', 'width=900,height=1100');
+    if (!reportWindow) {
+      alert('請允許彈出視窗以產生報告');
+      return;
+    }
+    reportWindow.document.write(html);
+    reportWindow.document.close();
+    setTimeout(() => reportWindow.print(), 800);
+  };
+
   const fmt = (d: string) =>
     new Date(d).toLocaleDateString("zh-TW", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -4756,7 +5367,7 @@ export default function AdminDashboard() {
                   <option key={y} value={String(y)}>{y} 年度</option>
                 ))}
               </select>
-              <Button variant="success" onClick={() => window.print()} leftIcon="📄" style={{ whiteSpace: "nowrap", minWidth: "100px" }}>
+              <Button variant="success" onClick={exportESGReport} leftIcon="📄" style={{ whiteSpace: "nowrap", minWidth: "100px" }}>
                 匯出報告
               </Button>
             </div>
