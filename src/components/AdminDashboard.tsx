@@ -4304,15 +4304,15 @@ export default function AdminDashboard() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button onClick={prevWallchartMonth}
-                style={{ width: "36px", height: "36px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, background: "white", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                ‹
+                style={{ width: "36px", height: "36px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, background: "white", cursor: "pointer", fontSize: "20px", fontWeight: 600, color: tokens.colors.gray[600], display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+                {"‹"}
               </button>
               <span style={{ fontSize: "15px", fontWeight: 700, color: tokens.colors.gray[900], minWidth: "100px", textAlign: "center" }}>
                 {wallchartYear} / {String(wallchartMonth + 1).padStart(2, "0")}
               </span>
               <button onClick={nextWallchartMonth}
-                style={{ width: "36px", height: "36px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, background: "white", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                ›
+                style={{ width: "36px", height: "36px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, background: "white", cursor: "pointer", fontSize: "20px", fontWeight: 600, color: tokens.colors.gray[600], display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
+                {"›"}
               </button>
               <button onClick={() => { setWallchartMonth(new Date().getMonth()); setWallchartYear(new Date().getFullYear()); }}
                 style={{ padding: "8px 14px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.primary[200]}`, background: tokens.colors.primary[50], cursor: "pointer", fontSize: "12px", fontWeight: 600, color: tokens.colors.primary[600] }}>
@@ -4329,7 +4329,7 @@ export default function AdminDashboard() {
               const todayDate = new Date();
               const isCurrentMonth = todayDate.getFullYear() === wallchartYear && todayDate.getMonth() === wallchartMonth;
               const CELL_W = 32;
-              const NAME_W = 130;
+              const NAME_W = 160;
 
               // Build cell map: userId → day → { type, color, label }
               const cellMap: Record<string, Record<number, { type: string; color: string; label: string }>> = {};
@@ -4410,7 +4410,7 @@ export default function AdminDashboard() {
                         borderRight: `1px solid ${tokens.colors.gray[200]}`,
                       }}>
                         <Avatar name={emp.name || "?"} size="sm" />
-                        <span style={{ fontSize: "12px", fontWeight: 600, color: tokens.colors.gray[800], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "80px" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: tokens.colors.gray[800], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "110px" }}>
                           {emp.name || emp.email?.split("@")[0] || "—"}
                         </span>
                       </div>
