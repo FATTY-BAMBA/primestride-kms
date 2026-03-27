@@ -4756,7 +4756,7 @@ export default function AdminDashboard() {
                   <option key={y} value={String(y)}>{y} 年度</option>
                 ))}
               </select>
-              <Button variant="success" onClick={() => window.print()} leftIcon="📄">
+              <Button variant="success" onClick={() => window.print()} leftIcon="📄" style={{ whiteSpace: "nowrap", minWidth: "100px" }}>
                 匯出報告
               </Button>
             </div>
