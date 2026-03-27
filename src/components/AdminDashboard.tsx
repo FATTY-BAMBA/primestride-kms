@@ -1634,6 +1634,7 @@ export default function AdminDashboard() {
   });
   const lastSelectedRef = useRef<string | null>(null);
   const [wallchartMonth, setWallchartMonth] = useState(new Date().getMonth());
+  const [esgYear, setEsgYear] = useState<string>(String(new Date().getFullYear()));
   const [wallchartYear, setWallchartYear] = useState(new Date().getFullYear());
 
   // Responsive detection
@@ -4745,12 +4746,29 @@ export default function AdminDashboard() {
                 資料來源：Atlas EIP 即時工作流程與合規記錄 · 自動彙整，無需人工填報
               </p>
             </div>
-            <Button variant="success" onClick={() => window.print()} leftIcon="📄">
-              匯出報告
-            </Button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <select
+                value={esgYear}
+                onChange={(e) => setEsgYear(e.target.value)}
+                style={{ padding: "8px 12px", border: `1px solid ${tokens.colors.gray[300]}`, borderRadius: tokens.borderRadius.md, fontSize: "14px", color: tokens.colors.gray[900], background: "white", outline: "none", fontWeight: 600 }}
+              >
+                {[2024, 2025, 2026, 2027].map(y => (
+                  <option key={y} value={String(y)}>{y} 年度</option>
+                ))}
+              </select>
+              <Button variant="success" onClick={() => window.print()} leftIcon="📄">
+                匯出報告
+              </Button>
+            </div>
           </div>
 
           {/* Section 1: Workforce Overview */}
+          {(() => {
+            const esgSubs = allSubmissions.filter(s => s.created_at.startsWith(esgYear));
+            const esgApproved = esgSubs.filter(s => s.status === "approved").length;
+            const esgOTHours = esgSubs.filter(s => s.form_type === "overtime" && s.status === "approved").reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
+            return null;
+          })()}
           <Card style={{ marginBottom: "20px" }}>
             <h3
               style={{
@@ -4769,34 +4787,19 @@ export default function AdminDashboard() {
                 gap: "12px",
               }}
             >
-              {[
-                {
-                  label: "全體員工數",
-                  value: employees.length,
-                  unit: "人",
-                  color: "primary" as const,
-                },
-                {
-                  label: "本月核准申請",
-                  value: thisMonthApproved,
-                  unit: "件",
-                  color: "info" as const,
-                },
-                {
-                  label: "本月加班時數",
-                  value: thisMonthOvertime,
-                  unit: "小時",
-                  color: "warning" as const,
-                },
-                {
-                  label: "加班超標人數",
-                  value: shadowRisks.filter((r) => r.risk_level === "critical").length,
-                  unit: "人",
-                  color: "danger" as const,
-                },
-              ].map((s) => (
-                <StatCard key={s.label} label={s.label} value={s.value} icon="" color={s.color} unit={s.unit} />
-              ))}
+              {(() => {
+                const esgSubs = allSubmissions.filter(s => s.created_at.startsWith(esgYear));
+                const esgApproved = esgSubs.filter(s => s.status === "approved").length;
+                const esgOTHours = esgSubs.filter(s => s.form_type === "overtime" && s.status === "approved").reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
+                return [
+                  { label: "全體員工數", value: employees.length, unit: "人", color: "primary" as const },
+                  { label: `${esgYear} 核准申請`, value: esgApproved, unit: "件", color: "info" as const },
+                  { label: `${esgYear} 加班時數`, value: esgOTHours, unit: "小時", color: "warning" as const },
+                  { label: "加班超標人數", value: shadowRisks.filter((r) => r.risk_level === "critical").length, unit: "人", color: "danger" as const },
+                ].map((s) => (
+                  <StatCard key={s.label} label={s.label} value={s.value} icon="" color={s.color} unit={s.unit} />
+                ));
+              })()}
             </div>
           </Card>
 
@@ -4972,7 +4975,7 @@ export default function AdminDashboard() {
             </h3>
 
             {(() => {
-              const leaveSubmissions = allSubmissions.filter((s) => s.form_type === "leave");
+              const leaveSubmissions = allSubmissions.filter((s) => s.form_type === "leave" && s.created_at.startsWith(esgYear));
               const approved = leaveSubmissions.filter((s) => s.status === "approved").length;
               const total = leaveSubmissions.length;
               const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
@@ -5335,7 +5338,7 @@ export default function AdminDashboard() {
               }}
             >
               <div style={{ fontSize: "12px", color: tokens.colors.gray[400] }}>
-                報告產生時間：
+                {esgYear} 年度報告 · 產生時間：
                 {new Date().toLocaleDateString("zh-TW", {
                   year: "numeric",
                   month: "long",
