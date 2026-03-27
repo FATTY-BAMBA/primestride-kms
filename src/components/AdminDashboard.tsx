@@ -2078,6 +2078,15 @@ export default function AdminDashboard() {
     }
   }
 
+  @media screen {
+    .cover {
+      min-height: auto;
+      padding: 40px 0 30px;
+      margin-bottom: 40px;
+      border-bottom: 2px solid #E5E7EB;
+    }
+  }
+
   .cover-top {
     display: flex;
     align-items: center;
