@@ -2037,7 +2037,7 @@ export default function AdminDashboard() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESG 社會面報告 ${esgYear} — ${esgYear} — PrimeStride AI</title>
+<title>ESG 社會面報告 ${esgYear} — PrimeStride AI</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
   
@@ -2067,6 +2067,15 @@ export default function AdminDashboard() {
     padding: 60px 0 40px;
     page-break-after: always;
     border-bottom: none;
+  }
+
+  @media screen {
+    .cover {
+      min-height: auto;
+      padding: 40px 0 30px;
+      margin-bottom: 40px;
+      border-bottom: 2px solid #E5E7EB;
+    }
   }
 
   .cover-top {
