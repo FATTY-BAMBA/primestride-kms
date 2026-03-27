@@ -1591,7 +1591,7 @@ function Tabs({
 
 export default function AdminDashboard() {
   // State management
-  const [tab, setTab] = useLocalStorage<"overview" | "pending" | "employees" | "leave" | "compliance" | "esg">(
+  const [tab, setTab] = useLocalStorage<"overview" | "pending" | "employees" | "leave" | "wallchart" | "compliance" | "esg">(
     "admin_last_tab",
     "overview"
   );
@@ -1633,6 +1633,8 @@ export default function AdminDashboard() {
     count: 0,
   });
   const lastSelectedRef = useRef<string | null>(null);
+  const [wallchartMonth, setWallchartMonth] = useState(new Date().getMonth());
+  const [wallchartYear, setWallchartYear] = useState(new Date().getFullYear());
 
   // Responsive detection
   const isMobile = useMediaQuery("(max-width: 640px)");
@@ -1647,6 +1649,29 @@ export default function AdminDashboard() {
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // Wallchart nav
+  const prevWallchartMonth = () => {
+    if (wallchartMonth === 0) { setWallchartMonth(11); setWallchartYear(y => y - 1); }
+    else setWallchartMonth(m => m - 1);
+  };
+  const nextWallchartMonth = () => {
+    if (wallchartMonth === 11) { setWallchartMonth(0); setWallchartYear(y => y + 1); }
+    else setWallchartMonth(m => m + 1);
+  };
+
+  // Leave color map
+  const leaveColorMap: Record<string, { color: string; bg: string; label: string }> = {
+    "特休": { color: "#059669", bg: "#D1FAE5", label: "特休" },
+    "病假": { color: "#DC2626", bg: "#FEE2E2", label: "病假" },
+    "事假": { color: "#D97706", bg: "#FEF3C7", label: "事假" },
+    "家庭照顧假": { color: "#0891B2", bg: "#CFFAFE", label: "家庭照顧" },
+    "婚假": { color: "#7C3AED", bg: "#EDE9FE", label: "婚假" },
+    "喪假": { color: "#4B5563", bg: "#F3F4F6", label: "喪假" },
+    "產假": { color: "#DB2777", bg: "#FCE7F3", label: "產假" },
+    "陪產假": { color: "#2563EB", bg: "#DBEAFE", label: "陪產假" },
+    "公假": { color: "#065F46", bg: "#ECFDF5", label: "公假" },
+  };
 
   // Data fetching
   const fetchData = useCallback(
@@ -1703,7 +1728,7 @@ export default function AdminDashboard() {
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") {
-        const tabs = ["overview", "pending", "employees", "leave", "compliance", "esg"] as const;
+        const tabs = ["overview", "pending", "employees", "leave", "wallchart", "compliance", "esg"] as const;
         setTab(tabs[parseInt(e.key) - 1]);
         return;
       }
@@ -1991,6 +2016,7 @@ export default function AdminDashboard() {
     { key: "pending", label: "📋 待審核", count: pendingCount },
     { key: "employees", label: "👥 員工", count: employees.length },
     { key: "leave", label: "📋 申請總覽" },
+    { key: "wallchart", label: "🗓️ 出勤總表" },
     { key: "compliance", label: "⚖️ 合規" },
     { key: "esg", label: "🌿 ESG 報告" },
   ];
@@ -4261,6 +4287,218 @@ export default function AdminDashboard() {
         </main>
       )}
 
+
+
+      {/* WALLCHART TAB */}
+      {!loading && tab === "wallchart" && (
+        <main role="tabpanel" id="panel-wallchart" aria-labelledby="tab-wallchart" style={{ animation: "fadeIn 0.4s" }}>
+          {/* Header + Month Nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+            <div>
+              <h2 style={{ fontSize: "16px", fontWeight: 700, color: tokens.colors.gray[900], margin: 0 }}>
+                🗓️ 出勤總表 — Wallchart
+              </h2>
+              <p style={{ fontSize: "12px", color: tokens.colors.gray[500], margin: "4px 0 0" }}>
+                {wallchartYear} 年 {wallchartMonth + 1} 月 · {employees.length} 位員工
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button onClick={prevWallchartMonth}
+                style={{ width: "36px", height: "36px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, background: "white", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ‹
+              </button>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: tokens.colors.gray[900], minWidth: "100px", textAlign: "center" }}>
+                {wallchartYear} / {String(wallchartMonth + 1).padStart(2, "0")}
+              </span>
+              <button onClick={nextWallchartMonth}
+                style={{ width: "36px", height: "36px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.gray[300]}`, background: "white", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ›
+              </button>
+              <button onClick={() => { setWallchartMonth(new Date().getMonth()); setWallchartYear(new Date().getFullYear()); }}
+                style={{ padding: "8px 14px", borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.primary[200]}`, background: tokens.colors.primary[50], cursor: "pointer", fontSize: "12px", fontWeight: 600, color: tokens.colors.primary[600] }}>
+                本月
+              </button>
+            </div>
+          </div>
+
+          {/* Wallchart Grid */}
+          <Card style={{ padding: 0, overflow: "auto" }}>
+            {(() => {
+              const daysInMonth = new Date(wallchartYear, wallchartMonth + 1, 0).getDate();
+              const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+              const todayDate = new Date();
+              const isCurrentMonth = todayDate.getFullYear() === wallchartYear && todayDate.getMonth() === wallchartMonth;
+              const CELL_W = 32;
+              const NAME_W = 130;
+
+              // Build cell map: userId → day → { type, color, label }
+              const cellMap: Record<string, Record<number, { type: string; color: string; label: string }>> = {};
+              employees.forEach(emp => { cellMap[emp.user_id] = {}; });
+
+              allSubmissions.forEach(s => {
+                if (s.status !== "approved") return;
+                const emp = employees.find(e => e.user_id === s.submitted_by);
+                if (!emp) return;
+
+                if (s.form_type === "leave") {
+                  const start = new Date(s.form_data.start_date);
+                  const end = new Date(s.form_data.end_date || s.form_data.start_date);
+                  const lt = s.form_data.leave_type || "特休";
+                  const c = leaveColorMap[lt] || { color: "#7C3AED", bg: "#EDE9FE", label: lt };
+                  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    if (d.getFullYear() === wallchartYear && d.getMonth() === wallchartMonth) {
+                      cellMap[emp.user_id][d.getDate()] = { type: "leave", color: c.bg, label: `${c.label} · ${s.form_data.days || 1}天` };
+                    }
+                  }
+                } else if (s.form_type === "overtime") {
+                  const d = new Date(s.form_data.date || s.form_data.start_date);
+                  if (d.getFullYear() === wallchartYear && d.getMonth() === wallchartMonth) {
+                    const day = d.getDate();
+                    if (!cellMap[emp.user_id][day]) {
+                      cellMap[emp.user_id][day] = { type: "overtime", color: "#DBEAFE", label: `加班 ${s.form_data.hours || ""}hr` };
+                    }
+                  }
+                } else if (s.form_type === "business_trip") {
+                  const start = new Date(s.form_data.start_date);
+                  const end = new Date(s.form_data.end_date || s.form_data.start_date);
+                  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                    if (d.getFullYear() === wallchartYear && d.getMonth() === wallchartMonth) {
+                      cellMap[emp.user_id][d.getDate()] = { type: "trip", color: "#F3E8FF", label: `出差 · ${s.form_data.destination || ""}` };
+                    }
+                  }
+                }
+              });
+
+              return (
+                <div style={{ minWidth: `${NAME_W + daysInMonth * CELL_W}px` }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", borderBottom: `2px solid ${tokens.colors.gray[200]}`, position: "sticky", top: 0, background: "white", zIndex: 10 }}>
+                    <div style={{ width: `${NAME_W}px`, minWidth: `${NAME_W}px`, padding: "10px 14px", fontSize: "11px", fontWeight: 700, color: tokens.colors.gray[500], borderRight: `1px solid ${tokens.colors.gray[200]}`, position: "sticky", left: 0, background: "white", zIndex: 11 }}>
+                      員工
+                    </div>
+                    {days.map(day => {
+                      const dow = new Date(wallchartYear, wallchartMonth, day).getDay();
+                      const isWeekend = dow === 0 || dow === 6;
+                      const isToday = isCurrentMonth && todayDate.getDate() === day;
+                      return (
+                        <div key={day} style={{
+                          width: `${CELL_W}px`, minWidth: `${CELL_W}px`, padding: "5px 0",
+                          textAlign: "center", fontSize: "10px",
+                          fontWeight: isToday ? 800 : 600,
+                          color: isToday ? tokens.colors.primary[600] : isWeekend ? tokens.colors.gray[300] : tokens.colors.gray[500],
+                          background: isToday ? tokens.colors.primary[50] : "white",
+                          borderLeft: `1px solid ${tokens.colors.gray[100]}`,
+                          borderBottom: isToday ? `2px solid ${tokens.colors.primary[500]}` : "none",
+                        }}>
+                          <div style={{ fontWeight: 700 }}>{day}</div>
+                          <div style={{ fontSize: "9px" }}>{["日","一","二","三","四","五","六"][dow]}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Employee rows */}
+                  {employees.length === 0 ? (
+                    <div style={{ padding: "48px", textAlign: "center", color: tokens.colors.gray[400], fontSize: "14px" }}>尚無員工資料</div>
+                  ) : employees.map((emp, empIdx) => (
+                    <div key={emp.user_id} style={{ display: "flex", borderBottom: `1px solid ${tokens.colors.gray[100]}`, background: empIdx % 2 === 0 ? "white" : tokens.colors.gray[50] }}>
+                      <div style={{
+                        width: `${NAME_W}px`, minWidth: `${NAME_W}px`, padding: "8px 14px",
+                        display: "flex", alignItems: "center", gap: "8px",
+                        position: "sticky", left: 0, zIndex: 5,
+                        background: empIdx % 2 === 0 ? "white" : tokens.colors.gray[50],
+                        borderRight: `1px solid ${tokens.colors.gray[200]}`,
+                      }}>
+                        <Avatar name={emp.name || "?"} size="sm" />
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: tokens.colors.gray[800], whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "80px" }}>
+                          {emp.name || emp.email?.split("@")[0] || "—"}
+                        </span>
+                      </div>
+                      {days.map(day => {
+                        const dow = new Date(wallchartYear, wallchartMonth, day).getDay();
+                        const isWeekend = dow === 0 || dow === 6;
+                        const isToday = isCurrentMonth && todayDate.getDate() === day;
+                        const cell = cellMap[emp.user_id]?.[day];
+                        return (
+                          <div key={day}
+                            title={cell ? `${emp.name} · ${cell.label}` : undefined}
+                            style={{
+                              width: `${CELL_W}px`, minWidth: `${CELL_W}px`, height: "38px",
+                              borderLeft: `1px solid ${tokens.colors.gray[100]}`,
+                              background: cell ? cell.color : isWeekend ? tokens.colors.gray[100] : isToday ? tokens.colors.primary[50] : "transparent",
+                              position: "relative", cursor: cell ? "pointer" : "default",
+                              transition: "opacity 150ms",
+                            }}
+                            onMouseEnter={e => { if (cell) (e.currentTarget as HTMLDivElement).style.opacity = "0.75"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
+                          >
+                            {cell?.type === "overtime" && (
+                              <div style={{ position: "absolute", top: 3, right: 3, width: "6px", height: "6px", borderRadius: "50%", background: tokens.colors.info[500] }} />
+                            )}
+                            {cell?.type === "trip" && (
+                              <div style={{ position: "absolute", bottom: 2, right: 3, fontSize: "9px" }}>✈</div>
+                            )}
+                            {isToday && !cell && (
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "2px", background: tokens.colors.primary[200] }} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {/* Summary row */}
+                  <div style={{ display: "flex", borderTop: `2px solid ${tokens.colors.gray[200]}`, background: tokens.colors.gray[50] }}>
+                    <div style={{ width: `${NAME_W}px`, minWidth: `${NAME_W}px`, padding: "8px 14px", fontSize: "11px", fontWeight: 700, color: tokens.colors.gray[500], position: "sticky", left: 0, background: tokens.colors.gray[50], borderRight: `1px solid ${tokens.colors.gray[200]}` }}>
+                      出勤統計
+                    </div>
+                    {days.map(day => {
+                      const offCount = employees.filter(emp => cellMap[emp.user_id]?.[day] && cellMap[emp.user_id][day].type !== "overtime").length;
+                      const otCount = employees.filter(emp => cellMap[emp.user_id]?.[day]?.type === "overtime").length;
+                      const dow = new Date(wallchartYear, wallchartMonth, day).getDay();
+                      const isWeekend = dow === 0 || dow === 6;
+                      return (
+                        <div key={day} style={{ width: `${CELL_W}px`, minWidth: `${CELL_W}px`, padding: "4px 0", textAlign: "center", borderLeft: `1px solid ${tokens.colors.gray[100]}`, background: isWeekend ? tokens.colors.gray[100] : "transparent" }}>
+                          {offCount > 0 && <div style={{ fontSize: "10px", fontWeight: 700, color: tokens.colors.danger[600] }}>-{offCount}</div>}
+                          {otCount > 0 && <div style={{ fontSize: "10px", fontWeight: 700, color: tokens.colors.info[600] }}>+{otCount}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </Card>
+
+          {/* Legend */}
+          <div style={{ marginTop: "16px", padding: "12px 16px", background: "white", borderRadius: tokens.borderRadius.lg, border: `1px solid ${tokens.colors.gray[200]}`, display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+            <span style={{ fontSize: "11px", fontWeight: 700, color: tokens.colors.gray[500] }}>圖例</span>
+            {Object.entries(leaveColorMap).map(([type, { color, bg, label }]) => (
+              <div key={type} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                <div style={{ width: "14px", height: "14px", borderRadius: "3px", background: bg, border: `1px solid ${color}` }} />
+                <span style={{ fontSize: "11px", color: tokens.colors.gray[600] }}>{label}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <div style={{ width: "14px", height: "14px", borderRadius: "3px", background: "#DBEAFE", border: "1px solid #93C5FD", position: "relative" }}>
+                <div style={{ position: "absolute", top: 2, right: 2, width: "4px", height: "4px", borderRadius: "50%", background: "#3B82F6" }} />
+              </div>
+              <span style={{ fontSize: "11px", color: tokens.colors.gray[600] }}>加班</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <div style={{ width: "14px", height: "14px", borderRadius: "3px", background: "#F3E8FF", border: "1px solid #C4B5FD" }} />
+              <span style={{ fontSize: "11px", color: tokens.colors.gray[600] }}>出差 ✈</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <div style={{ width: "14px", height: "14px", borderRadius: "3px", background: tokens.colors.gray[100], border: `1px solid ${tokens.colors.gray[200]}` }} />
+              <span style={{ fontSize: "11px", color: tokens.colors.gray[600] }}>週末</span>
+            </div>
+            <div style={{ marginLeft: "auto", fontSize: "11px", color: tokens.colors.gray[400] }}>
+              統計列：-N 表示 N 人請假/出差，+N 表示 N 人加班
+            </div>
+          </div>
+        </main>
+      )}
 
       {/* COMPLIANCE TAB */}
       {!loading && tab === "compliance" && (
