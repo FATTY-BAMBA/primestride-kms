@@ -402,7 +402,7 @@ export default function DashboardPage() {
             </div>
 
             {/* ── Onboarding checklist (first-time orgs) ── */}
-            {isAdmin && data && data.totalDocs === 0 && (
+            {isAdmin && data && !((data.totalDocs || 0) > 0 && (data.memberCount || 0) > 1) && (
               <div style={{
                 background: "linear-gradient(135deg, #7C3AED08 0%, #2563EB06 100%)",
                 border: "1px solid #DDD6FE",
@@ -423,9 +423,9 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
                   {[
-                    { step: 1, icon: "📚", title: isZh ? "上傳員工手冊" : "Upload Handbook", desc: isZh ? "建立 AI 知識庫" : "Build AI knowledge base", href: "/library/new", done: false },
+                    { step: 1, icon: "📚", title: isZh ? "上傳公司文件" : "Upload Documents", desc: isZh ? "員工手冊、規章制度、公司政策" : "Handbook, policies, regulations", href: "/library/new", done: (data?.totalDocs || 0) > 0 },
                     { step: 2, icon: "👥", title: isZh ? "邀請團隊成員" : "Invite Team", desc: isZh ? "讓員工開始使用" : "Get employees onboard", href: "/team", done: (data?.memberCount || 0) > 1 },
-                    { step: 3, icon: "💬", title: isZh ? "提交第一筆申請" : "First Request", desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing", href: "/workflows", done: false },
+                    { step: 3, icon: "💬", title: isZh ? "提交第一筆申請" : "First Request", desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing", href: "/workflows", done: (data?.pendingCount || 0) > 0 || (data?.approvedCount || 0) > 0 },
                   ].map(item => (
                     <a key={item.step} href={item.href} style={{ textDecoration: "none" }}>
                       <div style={{
