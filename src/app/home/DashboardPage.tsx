@@ -31,6 +31,7 @@ type DashboardData = {
   language: "zh" | "en";
   trialDaysRemaining: number;
   planId: string;
+  subscriptionStatus: string;
   approvedThisMonth: number;
   overtimeHours: number;
 };
@@ -115,6 +116,7 @@ export default function DashboardPage() {
         language: profile.language || "en",
         trialDaysRemaining: sub.trial_days_remaining || 0,
         planId: sub.subscription?.plan_id || "explorer",
+        subscriptionStatus: sub.status || "free",
         approvedThisMonth,
         overtimeHours,
       });
@@ -425,7 +427,7 @@ export default function DashboardPage() {
                   {[
                     { step: 1, icon: "📚", title: isZh ? "上傳公司文件" : "Upload Documents", desc: isZh ? "員工手冊、規章制度、公司政策" : "Handbook, policies, regulations", href: "/library/new", done: (data?.totalDocs || 0) > 0 },
                     { step: 2, icon: "👥", title: isZh ? "邀請團隊成員" : "Invite Team", desc: isZh ? "讓員工開始使用" : "Get employees onboard", href: "/team", done: (data?.memberCount || 0) > 1 },
-                    { step: 3, icon: "💬", title: isZh ? "提交第一筆申請" : "First Request", desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing", href: "/workflows", done: (data?.pendingCount || 0) > 0 || (data?.approvedCount || 0) > 0 },
+                    { step: 3, icon: "💬", title: isZh ? "提交第一筆申請" : "First Request", desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing", href: "/workflows", done: false },
                   ].map(item => (
                     <a key={item.step} href={item.href} style={{ textDecoration: "none" }}>
                       <div style={{
@@ -594,7 +596,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {isAdmin && data && data.planId === "explorer" && data.trialDaysRemaining === 0 && (
+            {isAdmin && data && (data.planId === "explorer" || data.planId === null) && data.trialDaysRemaining === 0 && data.subscriptionStatus === "expired" && (
               <div style={{ marginTop: 16, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 18 }}>🔒</span>

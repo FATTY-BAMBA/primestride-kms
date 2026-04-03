@@ -90,16 +90,23 @@ export default function OnboardingPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  // If already has active org, go home
+  // If already has active org AND it has been onboarded (has a name that's not default), go home
   useEffect(() => {
-    if (organization) router.replace("/home");
+    if (organization) {
+      // Check if org has already been properly onboarded via our API
+      fetch("/api/onboarding/status").then(r => r.json()).then(data => {
+        if (data.completed) router.replace("/home");
+        // Otherwise stay on onboarding to collect company details
+      }).catch(() => router.replace("/home"));
+    }
   }, [organization, router]);
 
-  // If has memberships but no active org, activate first one
+  // If has memberships but no active org, activate first one (don't create new)
   useEffect(() => {
     if (isLoaded && userMemberships?.data && userMemberships.data.length > 0 && !organization) {
       const firstOrg = userMemberships.data[0].organization;
-      if (setActive) setActive({ organization: firstOrg.id }).then(() => router.replace("/home"));
+      if (setActive) setActive({ organization: firstOrg.id });
+      // Don't redirect yet — let the organization useEffect handle it
     }
   }, [isLoaded, userMemberships, organization, setActive, router]);
 
@@ -113,14 +120,30 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const org = await createOrganization({ name: companyName.trim() });
-      if (setActive) await setActive({ organization: org.id });
+      let orgId: string;
+
+      if (organization) {
+        // Org already exists (auto-created by Clerk) — just update its name
+        orgId = organization.id;
+        await organization.update({ name: companyName.trim() });
+      } else if (userMemberships?.data && userMemberships.data.length > 0) {
+        // Has a membership but no active org — activate and update it
+        const firstOrg = userMemberships.data[0].organization;
+        orgId = firstOrg.id;
+        if (setActive) await setActive({ organization: orgId });
+        await firstOrg.update({ name: companyName.trim() });
+      } else {
+        // Truly no org — create one
+        const org = await createOrganization({ name: companyName.trim() });
+        if (setActive) await setActive({ organization: org.id });
+        orgId = org.id;
+      }
 
       await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          organization_id: org.id,
+          organization_id: orgId,
           company_name: companyName.trim(),
           company_size: companySize,
           industry,
@@ -129,7 +152,6 @@ export default function OnboardingPage() {
         }),
       });
 
-      // Show success screen instead of immediately redirecting
       setStep(3);
       setCreating(false);
     } catch (err: any) {

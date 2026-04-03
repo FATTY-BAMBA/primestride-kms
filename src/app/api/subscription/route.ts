@@ -16,21 +16,24 @@ const supabase = createClient(
 // ══════════════════════════════════════════════════════════════
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, orgId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const membership = await getUserOrganization(userId);
-    if (!membership) {
+    // Use Clerk's active orgId first (most reliable), fall back to Supabase lookup
+    const fallbackMembership = await getUserOrganization(userId);
+    const organizationId: string | undefined = orgId || fallbackMembership?.organization_id || undefined;
+
+    if (!organizationId) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
-    // Get subscription
+    // Get subscription using the correct org
     const { data: subscription } = await supabase
       .from("organization_subscriptions")
       .select("*, subscription_plans(*)")
-      .eq("organization_id", membership.organization_id)
+      .eq("organization_id", organizationId)
       .single();
 
     // If no subscription, return explorer (free) defaults
@@ -75,7 +78,7 @@ export async function GET(req: NextRequest) {
     const { data: usage } = await supabase
       .from("subscription_usage")
       .select("*")
-      .eq("organization_id", membership.organization_id)
+      .eq("organization_id", organizationId)
       .eq("month", currentMonth)
       .single();
 
