@@ -449,66 +449,64 @@ export default function LandingPage() {
         {/* Card 1: Explorer */}
         <div className="price-card fi">
           <div className="price-tier">Explorer 探索版</div>
-          <div className="price-val">$0<span>/月</span></div>
-          <div className="price-note">單人或小型試用</div>
+          <div className="price-val">NT$0<span>/月</span></div>
+          <div className="price-note">1–3 位使用者 · 免費試用</div>
           <ul className="price-list">
             <li>最多 50 份文件</li>
             <li>語意搜尋 + AI 對話</li>
             <li>NLP 表單 + 基礎合規檢查</li>
-            <li>1 位使用者</li>
+            <li>最多 3 位使用者</li>
           </ul>
           <a href="/sign-up" className="btn btn-o" style={{width:'100%',justifyContent:'center'}}>免費開始</a>
         </div>
 
-        {/* Card 2: Team */}
+        {/* Card 2: Starter */}
         <div className="price-card pop fi">
-          <div className="price-pop">Recommended</div>
-          <div className="price-tier">Team 團隊版</div>
-          <div className="price-val">$49<span>/月</span></div>
-          <div className="price-note">每個工作空間</div>
-          <ul className="price-list">
-            <li>無限文件</li>
-            <li>AI Agent + 寫作助手</li>
-            <li>最多 15 位成員</li>
-            <li>完整 2026 合規引擎</li>
-            <li>Agentic Auditor 預審</li>
-            <li>ESG 社會面報告</li>
-            <li>五格式匯出 + API</li>
-            <li>稽核日誌 + 品牌設定</li>
-          </ul>
-          <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a>
-        </div>
-
-        {/* Card 3: 商務版 — NEW */}
-        <div className="price-card biz fi">
-          <div className="price-biz-badge">🏛️ 政府補助適用</div>
-          <div className="price-tier" style={{color:'var(--amber)'}}>商務版 Business</div>
-          <div className="price-val" style={{color:'var(--amber)'}}>NT$3,000<span>/月</span></div>
-          <div className="price-note">年繳 NT$36,000（含稅）· 最多 30 位成員</div>
+          <div className="price-pop">🏛️ 政府補助適用</div>
+          <div className="price-tier">Starter 成長版</div>
+          <div className="price-val">NT$3,000<span>/月</span></div>
+          <div className="price-note">年繳 NT$36,000（含稅）· 最多 15 位成員</div>
           <ul className="price-list">
             <li>無限文件上傳</li>
             <li>AI Agent + Atlas 知識問答</li>
             <li>NLP 工作流程（13種假別）</li>
             <li>完整 2026 勞基法合規引擎</li>
-            <li>500次/月 AI 掃描</li>
             <li>ESG 社會面報告</li>
-            <li>勞動成本自動試算與警示</li>
             <li>CSV / Excel 完整匯出</li>
             <li>稽核日誌 + 品牌設定</li>
-            <li>台北在地導入支援</li>
             <li>優先技術支援</li>
           </ul>
+          <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a>
+          <div className="price-subnote">符合商業服務業智慧轉型專區補助資格<br/>續約9折</div>
+        </div>
+
+        {/* Card 3: Business */}
+        <div className="price-card biz fi">
+          <div className="price-biz-badge">推薦方案 Recommended</div>
+          <div className="price-tier" style={{color:'var(--amber)'}}>Business 商務版</div>
+          <div className="price-val" style={{color:'var(--amber)'}}>NT$5,990<span>/月</span></div>
+          <div className="price-note">年繳 NT$71,880（含稅）· 最多 50 位成員</div>
+          <ul className="price-list">
+            <li>成長版所有功能</li>
+            <li>500次/月 AI 掃描</li>
+            <li>勞動成本自動試算與警示</li>
+            <li>Shadow Audit 加班預警</li>
+            <li>Subsidy Hunter 補助獵人</li>
+            <li>台北在地導入支援</li>
+            <li>專屬客戶成功經理</li>
+            <li>超過50人每+10人加收NT$5,000/年</li>
+          </ul>
           <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center',background:'var(--amber)',color:'#000',boxShadow:'0 2px 16px rgba(245,158,11,0.3)'}}>立即開始 →</a>
-          <div className="price-subnote">符合商業服務業智慧轉型專區補助資格<br/>續約9折 · 超過30人每+10人加收NT$5,000/年</div>
+          <div className="price-subnote">最適合 20–50 人規模企業 · 續約9折</div>
         </div>
 
         {/* Card 4: Enterprise */}
         <div className="price-card fi">
           <div className="price-tier">Enterprise 企業版</div>
           <div className="price-val">客製</div>
-          <div className="price-note">適合大型組織</div>
+          <div className="price-note">適合大型組織 · 無限成員</div>
           <ul className="price-list">
-            <li>團隊版所有功能</li>
+            <li>商務版所有功能</li>
             <li>無限成員數</li>
             <li>SSO 單一登入</li>
             <li>自訂表單類型 + 審核流程</li>
