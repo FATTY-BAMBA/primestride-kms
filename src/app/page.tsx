@@ -462,7 +462,7 @@ export default function LandingPage() {
 
         {/* Card 2: Starter */}
         <div className="price-card pop fi">
-          <div className="price-pop">🏛️ 政府補助適用</div>
+          <div className="price-pop">推薦方案 Recommended</div>
           <div className="price-tier">Starter 成長版</div>
           <div className="price-val">NT$3,000<span>/月</span></div>
           <div className="price-note">年繳 NT$36,000（含稅）· 最多 15 位成員</div>
@@ -477,7 +477,7 @@ export default function LandingPage() {
             <li>優先技術支援</li>
           </ul>
           <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即開始 →</a>
-          <div className="price-subnote">符合商業服務業智慧轉型專區補助資格<br/>續約9折</div>
+          <div className="price-subnote">續約享9折優惠</div>
         </div>
 
         {/* Card 3: Business */}
