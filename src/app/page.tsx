@@ -476,7 +476,7 @@ export default function LandingPage() {
             <li>稽核日誌 + 品牌設定</li>
             <li>優先技術支援</li>
           </ul>
-          <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即升級 →</a>
+          <a href="/sign-up" className="btn btn-p" style={{width:'100%',justifyContent:'center'}}>立即開始 →</a>
           <div className="price-subnote">符合商業服務業智慧轉型專區補助資格<br/>續約9折</div>
         </div>
 
