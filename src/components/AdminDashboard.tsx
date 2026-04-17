@@ -1884,15 +1884,104 @@ export default function AdminDashboard() {
       .reduce((sum, s) => sum + (Number(s.form_data.hours) || 0), 0);
   }, [allSubmissions]);
 
+  // Smart leave alerts — per leave type, with clear context
+  // Andy's feedback: "餘額不足" was ambiguous — now shows WHICH leave type and WHY it matters
   const employeesLowLeave = useMemo(
     () =>
-      employees.filter((emp) => {
-        if (!emp.leave_balance) return false;
-        const remaining = emp.leave_balance.annual_total - emp.leave_balance.annual_used;
-        return remaining <= 2 && emp.leave_balance.annual_total > 0;
-      }),
+      employees
+        .filter((emp) => emp.leave_balance)
+        .map((emp) => {
+          const lb = emp.leave_balance!;
+          const alerts: { type: string; label: string; remaining: number; total: number; unit: string; severity: "critical" | "warning" }[] = [];
+
+          // Annual leave (特休) — most important, salary-related
+          const annualRemaining = lb.annual_total - lb.annual_used;
+          if (lb.annual_total > 0 && annualRemaining <= 2) {
+            alerts.push({ type: "annual", label: "特休", remaining: annualRemaining, total: lb.annual_total, unit: "天", severity: annualRemaining <= 0 ? "critical" : "warning" });
+          }
+
+          // Personal leave (事假) — unpaid, but quota matters
+          const personalRemaining = lb.personal_total - lb.personal_used;
+          if (lb.personal_total > 0 && personalRemaining <= 2) {
+            alerts.push({ type: "personal", label: "事假", remaining: personalRemaining, total: lb.personal_total, unit: "天", severity: personalRemaining <= 0 ? "critical" : "warning" });
+          }
+
+          // Family care (家庭照顧假) — 2026 new rule: hourly, 56hrs/year
+          const familyCareRemaining = lb.family_care_hours_total - lb.family_care_hours_used;
+          if (lb.family_care_hours_total > 0 && familyCareRemaining <= 8) {
+            alerts.push({ type: "family_care", label: "家庭照顧假", remaining: familyCareRemaining, total: lb.family_care_hours_total, unit: "小時", severity: familyCareRemaining <= 0 ? "critical" : "warning" });
+          }
+
+          // Sick leave — only alert if exhausted (not low), because Andy noted low sick leave isn't meaningful
+          const sickRemaining = lb.sick_total - lb.sick_used;
+          if (lb.sick_total > 0 && sickRemaining <= 0) {
+            alerts.push({ type: "sick", label: "病假", remaining: 0, total: lb.sick_total, unit: "天", severity: "critical" });
+          }
+
+          return { ...emp, leaveAlerts: alerts };
+        })
+        .filter((emp) => emp.leaveAlerts.length > 0),
     [employees]
   );
+
+  // Absence pattern detection — Andy's feedback: flag employees with unusual patterns
+  // Since we don't have clock-in data, we detect via submission patterns
+  const absencePatterns = useMemo(() => {
+    const patterns: { employee: EmployeeSummary; type: string; detail: string; severity: "warning" | "info" }[] = [];
+    const thisMonth = new Date().toISOString().slice(0, 7);
+
+    employees.forEach((emp) => {
+      // Pattern 1: Consecutive leave (3+ days in a row this month)
+      const empLeaveSubs = allSubmissions.filter(
+        (s) => s.submitted_by === emp.user_id &&
+        s.form_type === "leave" &&
+        s.status === "approved" &&
+        s.created_at.startsWith(thisMonth)
+      );
+      const totalLeaveDaysThisMonth = empLeaveSubs.reduce((sum, s) => sum + (Number(s.form_data?.days) || 0), 0);
+      if (totalLeaveDaysThisMonth >= 5) {
+        patterns.push({
+          employee: emp,
+          type: "high_leave",
+          detail: `本月已請假 ${totalLeaveDaysThisMonth} 天，建議主管關心員工狀況`,
+          severity: "warning"
+        });
+      }
+
+      // Pattern 2: Multiple sick leave submissions this month
+      const sickThisMonth = empLeaveSubs.filter((s) => {
+        const lt = (s.form_data?.leave_type || "").includes("病");
+        return lt;
+      }).length;
+      if (sickThisMonth >= 3) {
+        patterns.push({
+          employee: emp,
+          type: "frequent_sick",
+          detail: `本月病假申請 ${sickThisMonth} 次，可能有健康狀況需關心`,
+          severity: "warning"
+        });
+      }
+    });
+
+    return patterns;
+  }, [employees, allSubmissions]);
+
+  // Unplanned absence detection — employees with no leave filed but also no recent activity
+  // Shows employees who are NOT on approved leave today but might be absent
+  const potentialAbsentees = useMemo(() => {
+    const onLeaveTodayIds = new Set(onLeaveToday.map((s) => s.submitted_by));
+    // Employees with pending leave today (filed but not approved yet — risk)
+    const pendingLeaveToday = allSubmissions.filter(
+      (s) =>
+        s.form_type === "leave" &&
+        s.status === "pending" &&
+        s.form_data?.start_date <= todayStr &&
+        (s.form_data?.end_date || s.form_data?.start_date) >= todayStr
+    );
+    const pendingTodayIds = new Set(pendingLeaveToday.map((s) => s.submitted_by));
+
+    return { pendingLeaveToday, pendingTodayIds, onLeaveTodayIds };
+  }, [allSubmissions, onLeaveToday, todayStr]);
 
   const filteredEmployees = useMemo(() => {
     let result = employees;
@@ -2885,7 +2974,45 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            {onLeaveToday.length === 0 ? (
+            {/* Pending leave today — Andy's feedback: these are the real risk */}
+            {potentialAbsentees.pendingLeaveToday.length > 0 && (
+              <div style={{ marginBottom: "12px" }}>
+                <div style={{
+                  fontSize: "12px", fontWeight: 700, color: tokens.colors.warning[700],
+                  marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 12px", background: tokens.colors.warning[50],
+                  borderRadius: tokens.borderRadius.md, border: `1px solid ${tokens.colors.warning[200]}`,
+                }}>
+                  <span>⏳</span>
+                  <span>待審核請假（今日生效）— 共 {potentialAbsentees.pendingLeaveToday.length} 人，請盡快審核</span>
+                </div>
+                <div style={{ display: "grid", gap: "6px" }}>
+                  {potentialAbsentees.pendingLeaveToday.map((s) => (
+                    <div key={s.id} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "10px 14px", background: tokens.colors.warning[50],
+                      borderRadius: tokens.borderRadius.md, borderLeft: `4px solid ${tokens.colors.warning[500]}`,
+                    }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: tokens.colors.gray[900] }}>
+                          {s.submitter_name || s.submitted_by.slice(0, 12)}
+                        </div>
+                        <div style={{ fontSize: "11px", color: tokens.colors.warning[700], marginTop: "2px" }}>
+                          {s.form_data.leave_type} · 申請中，尚未核准
+                        </div>
+                      </div>
+                      <button onClick={() => setTab("pending")} style={{
+                        fontSize: "11px", fontWeight: 700, color: tokens.colors.warning[700],
+                        background: "white", border: `1px solid ${tokens.colors.warning[200]}`,
+                        borderRadius: "6px", padding: "4px 10px", cursor: "pointer",
+                      }}>審核</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {onLeaveToday.length === 0 && potentialAbsentees.pendingLeaveToday.length === 0 ? (
               <div
                 style={{
                   fontSize: "14px",
@@ -2898,7 +3025,7 @@ export default function AdminDashboard() {
               >
                 <span>✓</span> 今天沒有人請假
               </div>
-            ) : (
+            ) : onLeaveToday.length > 0 ? (
               <div style={{ display: "grid", gap: "10px" }}>
                 {onLeaveToday.map((s) => (
                   <div
@@ -2937,7 +3064,7 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-            )}
+            ) : null}
           </Card>
 
           {/* Two Column Layout */}
@@ -3097,70 +3224,120 @@ export default function AdminDashboard() {
               </div>
 
               {employeesLowLeave.length === 0 ? (
-                <div
-                  style={{
-                    fontSize: "14px",
-                    color: tokens.colors.success[600],
-                    padding: "12px 0",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
+                <div style={{
+                  fontSize: "14px", color: tokens.colors.success[600],
+                  padding: "12px 0", display: "flex", alignItems: "center", gap: "8px",
+                }}>
                   <span>✓</span> 所有員工假期餘額充足
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: "8px" }}>
-                  {employeesLowLeave.slice(0, 5).map((emp) => {
-                    const remaining = (emp.leave_balance?.annual_total || 0) - (emp.leave_balance?.annual_used || 0);
-                    return (
-                      <div
-                        key={emp.user_id}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "10px 12px",
-                          background: remaining <= 0 ? tokens.colors.danger[50] : tokens.colors.warning[50],
-                          borderRadius: tokens.borderRadius.md,
-                          border: `1px solid ${remaining <= 0 ? tokens.colors.danger[200] : tokens.colors.warning[200]}`,
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              fontWeight: 600,
-                              color: tokens.colors.gray[900],
-                            }}
-                          >
-                            {emp.name || emp.email}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: tokens.colors.gray[400],
-                            }}
-                          >
-                            特休 Annual Leave
-                          </div>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: "16px",
-                            fontWeight: 800,
-                            color: remaining <= 0 ? tokens.colors.danger[600] : tokens.colors.warning[700],
-                          }}
-                        >
-                          {remaining} 天
-                        </span>
+                <div style={{ display: "grid", gap: "10px" }}>
+                  {employeesLowLeave.slice(0, 5).map((emp) => (
+                    <div key={emp.user_id} style={{
+                      padding: "12px 14px",
+                      background: tokens.colors.gray[50],
+                      borderRadius: tokens.borderRadius.md,
+                      border: `1px solid ${tokens.colors.gray[200]}`,
+                    }}>
+                      <div style={{ fontSize: "13px", fontWeight: 700, color: tokens.colors.gray[900], marginBottom: "8px" }}>
+                        {emp.name || emp.email}
                       </div>
-                    );
-                  })}
+                      <div style={{ display: "grid", gap: "5px" }}>
+                        {emp.leaveAlerts.map((alert) => (
+                          <div key={alert.type} style={{
+                            display: "flex", justifyContent: "space-between", alignItems: "center",
+                            padding: "5px 10px",
+                            background: alert.severity === "critical" ? tokens.colors.danger[50] : tokens.colors.warning[50],
+                            borderRadius: "6px",
+                            border: `1px solid ${alert.severity === "critical" ? tokens.colors.danger[200] : tokens.colors.warning[200]}`,
+                          }}>
+                            <div>
+                              <span style={{
+                                fontSize: "12px", fontWeight: 600,
+                                color: alert.severity === "critical" ? tokens.colors.danger[700] : tokens.colors.warning[700],
+                              }}>
+                                {alert.label}
+                              </span>
+                              <span style={{ fontSize: "11px", color: tokens.colors.gray[500], marginLeft: "6px" }}>
+                                {alert.remaining <= 0
+                                  ? `已用盡（共${alert.total}${alert.unit}）`
+                                  : `剩餘 ${alert.remaining} ${alert.unit}（共${alert.total}${alert.unit}）`}
+                              </span>
+                            </div>
+                            <span style={{
+                              fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px",
+                              background: alert.severity === "critical" ? tokens.colors.danger[100] : tokens.colors.warning[100],
+                              color: alert.severity === "critical" ? tokens.colors.danger[700] : tokens.colors.warning[700],
+                            }}>
+                              {alert.severity === "critical" ? "已用盡" : "即將用盡"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </Card>
           </div>
+
+          {/* Absence Pattern Alerts — Andy's feedback: employee care */}
+          {(absencePatterns.length > 0) && (
+            <Card style={{ marginBottom: "20px", borderColor: tokens.colors.warning[200] }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                marginBottom: "16px", flexWrap: "wrap", gap: "8px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "20px" }}>🫶</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: tokens.colors.warning[800] }}>
+                      員工關懷提醒
+                    </div>
+                    <div style={{ fontSize: "12px", color: tokens.colors.warning[600] }}>
+                      以下員工的請假模式值得主管留意
+                    </div>
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "20px",
+                  background: tokens.colors.warning[100], color: tokens.colors.warning[800],
+                }}>
+                  {absencePatterns.length} 人
+                </span>
+              </div>
+              <div style={{ display: "grid", gap: "8px" }}>
+                {absencePatterns.map((p, i) => (
+                  <div key={i} style={{
+                    display: "flex", gap: "12px", alignItems: "flex-start",
+                    padding: "12px 14px",
+                    background: tokens.colors.warning[50],
+                    borderRadius: tokens.borderRadius.md,
+                    border: `1px solid ${tokens.colors.warning[200]}`,
+                  }}>
+                    <span style={{ fontSize: "18px", flexShrink: 0 }}>
+                      {p.type === "frequent_sick" ? "🤒" : "📅"}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 700, color: tokens.colors.gray[900], marginBottom: "3px" }}>
+                        {p.employee.name || p.employee.email}
+                      </div>
+                      <div style={{ fontSize: "12px", color: tokens.colors.warning[700] }}>
+                        {p.detail}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "10px",
+                      background: tokens.colors.warning[200], color: tokens.colors.warning[800],
+                      whiteSpace: "nowrap", flexShrink: 0,
+                    }}>
+                      建議關心
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Shadow Audit Risks */}
           {shadowRisks.length > 0 && (
