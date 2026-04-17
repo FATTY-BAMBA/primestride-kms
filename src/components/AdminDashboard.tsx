@@ -5525,17 +5525,14 @@ export default function AdminDashboard() {
                   合規衝突掃描器會自動搜尋您文件庫中含「手冊、規章、辦法、policy」的文件進行比對。
                   請先將員工手冊、加班辦法、請假規定等文件上傳至文件庫，再執行掃描。
                 </div>
-                
-                  href="/library/new"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: "6px",
-                    fontSize: "13px", fontWeight: 700,
-                    color: "white", background: tokens.colors.primary[600],
-                    padding: "8px 16px", borderRadius: tokens.borderRadius.md,
-                    textDecoration: "none",
-                  }}
-                >
-                  {"📤 前往文件庫上傳文件 →"}
+                <a href="/library/new" style={{
+                  display: "inline-flex", alignItems: "center", gap: "6px",
+                  fontSize: "13px", fontWeight: 700,
+                  color: "white", background: tokens.colors.primary[600],
+                  padding: "8px 16px", borderRadius: tokens.borderRadius.md,
+                  textDecoration: "none",
+                }}>
+                  {"📤 前往文件庫上傳文件"}
                 </a>
               </div>
             </div>
