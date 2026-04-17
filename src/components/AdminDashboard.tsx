@@ -5513,6 +5513,34 @@ export default function AdminDashboard() {
             </p>
           </Card>
 
+          {/* Document upload guidance — Andy's feedback: users didn't know docs needed to be in Library first */}
+          <Card style={{ marginBottom: "16px", background: tokens.colors.primary[50], borderColor: tokens.colors.primary[200] }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
+              <span style={{ fontSize: "24px", flexShrink: 0 }}>📚</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "14px", fontWeight: 700, color: tokens.colors.primary[700], marginBottom: "6px" }}>
+                  掃描前請先上傳公司文件
+                </div>
+                <div style={{ fontSize: "13px", color: tokens.colors.primary[600], lineHeight: 1.6, marginBottom: "12px" }}>
+                  合規衝突掃描器會自動搜尋您文件庫中含「手冊、規章、辦法、policy」的文件進行比對。
+                  請先將員工手冊、加班辦法、請假規定等文件上傳至文件庫，再執行掃描。
+                </div>
+                
+                  href="/library/new"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "6px",
+                    fontSize: "13px", fontWeight: 700,
+                    color: "white", background: tokens.colors.primary[600],
+                    padding: "8px 16px", borderRadius: tokens.borderRadius.md,
+                    textDecoration: "none",
+                  }}
+                >
+                  📤 前往文件庫上傳文件 →
+                </a>
+              </div>
+            </div>
+          </Card>
+
           <ComplianceConflictScanner />
         </main>
       )}
