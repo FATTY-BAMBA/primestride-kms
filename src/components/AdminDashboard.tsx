@@ -4165,7 +4165,7 @@ export default function AdminDashboard() {
             <Input
               value={empSearch}
               onChange={(e) => setEmpSearch(e.target.value)}
-              placeholder="🔍 搜尋員工姓名或 email..."
+              placeholder="搜尋員工姓名或 email..."
               style={{ flex: 1, minWidth: "200px" }}
               leftIcon="🔍"
             />
