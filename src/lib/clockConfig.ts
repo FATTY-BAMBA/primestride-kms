@@ -1,5 +1,12 @@
 // src/lib/clockConfig.ts
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Service role client — bypasses RLS. Server-side only.
+// Auth is enforced by Clerk at the route layer.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 export type ClockConfig = {
   organization_id: string;
@@ -13,9 +20,8 @@ export type ClockConfig = {
   timezone: string;
 };
 
+/** Read config for an org. Auto-creates default row if missing. */
 export async function getClockConfig(orgId: string): Promise<ClockConfig> {
-  const supabase = await createClient();
-
   const { data, error } = await supabase
     .from('organization_clock_config')
     .select('*')
@@ -42,12 +48,11 @@ export async function getClockConfig(orgId: string): Promise<ClockConfig> {
   return inserted as ClockConfig;
 }
 
+/** Update config. Caller must verify admin role before calling. */
 export async function updateClockConfig(
   orgId: string,
   patch: Partial<Omit<ClockConfig, 'organization_id'>>,
 ): Promise<ClockConfig> {
-  const supabase = await createClient();
-
   const { data, error } = await supabase
     .from('organization_clock_config')
     .update(patch)

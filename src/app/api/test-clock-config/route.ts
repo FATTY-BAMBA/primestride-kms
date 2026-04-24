@@ -1,9 +1,14 @@
-// src/app/api/_test-clock-config/route.ts
+// src/app/api/test-clock-config/route.ts
 // TEMPORARY — delete after PR 1 verification
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { getClockConfig } from '@/lib/clockConfig';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 export async function GET() {
   const { userId } = await auth();
@@ -12,12 +17,12 @@ export async function GET() {
     return NextResponse.json({ error: 'not signed in' }, { status: 401 });
   }
 
-  const supabase = await createClient();
-
+  // Find active membership. Service role bypasses RLS; identity from Clerk.
   const { data: membership, error: memberErr } = await supabase
     .from('organization_members')
-    .select('organization_id, role')
+    .select('organization_id, role, is_active')
     .eq('user_id', userId)
+    .eq('is_active', true)
     .limit(1)
     .maybeSingle();
 
@@ -30,7 +35,7 @@ export async function GET() {
 
   if (!membership) {
     return NextResponse.json(
-      { error: 'no org membership found for user', userId },
+      { error: 'no active org membership found for user', userId },
       { status: 404 },
     );
   }
