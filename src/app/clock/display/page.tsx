@@ -106,9 +106,14 @@ export default function ClockDisplayPage() {
           padding: tokens.spacing.xl,
           borderRadius: tokens.radii.xl,
           boxShadow: tokens.shadow.display,
+          width: 460,
+          height: 460,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <canvas ref={canvasRef} />
+        <canvas ref={canvasRef} width={420} height={420} />
       </div>
       <div style={{ marginTop: tokens.spacing['3xl'], fontSize: tokens.font.size.xl, opacity: 0.75 }}>
         📱 {t(clockCopy.display.subtitle, lang)}
