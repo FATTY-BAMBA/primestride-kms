@@ -202,9 +202,20 @@ export async function PATCH(req: NextRequest) {
       "termination_date", "termination_reason", "notes",
     ];
 
+    // Date fields — convert empty string to null to avoid Postgres type errors
+    const dateFields = ["birth_date", "hire_date", "termination_date"];
+    // Number fields — convert empty string to null
+    const numberFields = ["salary_base"];
+
     const safeUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
     for (const key of allowedFields) {
-      if (key in updates) safeUpdates[key] = updates[key];
+      if (key in updates) {
+        let value = updates[key];
+        if (dateFields.includes(key) && (value === "" || value === undefined)) value = null;
+        if (numberFields.includes(key) && (value === "" || value === undefined)) value = null;
+        if (numberFields.includes(key) && value !== null) value = Number(value) || null;
+        safeUpdates[key] = value;
+      }
     }
 
     const { error } = await supabase
