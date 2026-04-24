@@ -16,7 +16,12 @@ const isPublicRoute = createRouteMatcher([
   '/audit(.*)',
   '/api/audit(.*)',
   '/terms(.*)',
-  '/privacy(.*)'
+  '/privacy(.*)',
+]);
+
+const isClockRoute = createRouteMatcher([
+  '/clock(.*)',
+  '/api/clock/(.*)',
 ]);
 
 const isOnboardingRoute = createRouteMatcher([
@@ -25,11 +30,12 @@ const isOnboardingRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isPublicRoute(req)) {
-    return;
-  }
+  if (isPublicRoute(req)) return;
 
   const { userId, orgId } = await auth.protect();
+
+  // Clock routes: authenticated but don't force onboarding redirect
+  if (isClockRoute(req)) return;
 
   if (userId && !orgId && !isOnboardingRoute(req)) {
     const onboardingUrl = new URL('/onboarding', req.url);
