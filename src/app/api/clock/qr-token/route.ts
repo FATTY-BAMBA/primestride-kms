@@ -2,19 +2,18 @@
 // Admin-only endpoint returning a fresh 60s QR token.
 
 import { NextResponse } from 'next/server';
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { signQrToken, QR_TOKEN_TTL_SECONDS } from '@/lib/qrToken';
 import { getClockConfig } from '@/lib/clockConfig';
 import { atlasErrors, AtlasError } from '@/lib/errors';
-import { writeAuditLog } from '@/lib/auditLog';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) throw atlasErrors.unauthenticated();
@@ -35,19 +34,6 @@ export async function GET(req: Request) {
     const token = signQrToken({
       org_id: membership.organization_id,
       location_label: config.location_label ?? '總公司',
-    });
-
-    // Audit log (non-blocking)
-    const user = await currentUser();
-    const userName = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.emailAddresses[0]?.emailAddress || null : null;
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null;
-    writeAuditLog({
-      organizationId: membership.organization_id,
-      userId,
-      userName,
-      action: 'clock.qr_token_issued',
-      details: { location_label: config.location_label },
-      ipAddress: ip,
     });
 
     return NextResponse.json({
