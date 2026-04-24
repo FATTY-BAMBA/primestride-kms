@@ -16,8 +16,7 @@ const isPublicRoute = createRouteMatcher([
   '/audit(.*)',
   '/api/audit(.*)',
   '/terms(.*)',
-  '/privacy(.*)',
-  '/api/test-clock-config',
+  '/privacy(.*)'
 ]);
 
 const isOnboardingRoute = createRouteMatcher([
