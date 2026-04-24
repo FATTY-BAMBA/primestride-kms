@@ -147,8 +147,34 @@ interface Submission {
 
 interface EmployeeSummary {
   user_id: string;
+  role: string;
   name: string;
   email: string;
+  avatar_url: string | null;
+  birth_date: string | null;
+  national_id: string | null;
+  phone: string | null;
+  address: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  hire_date: string | null;
+  department: string | null;
+  job_title: string | null;
+  employee_id: string | null;
+  employment_type: string;
+  salary_base: number | null;
+  salary_currency: string;
+  bank_code: string | null;
+  bank_account: string | null;
+  labor_insurance_id: string | null;
+  health_insurance_id: string | null;
+  gender: string | null;
+  nationality: string;
+  termination_date: string | null;
+  notes: string | null;
+  tenure_months: number | null;
+  birthday_this_month: boolean;
+  birthday_today: boolean;
   total_submissions: number;
   pending: number;
   approved: number;
@@ -1634,6 +1660,10 @@ export default function AdminDashboard() {
   });
   const lastSelectedRef = useRef<string | null>(null);
   const [wallchartMonth, setWallchartMonth] = useState(new Date().getMonth());
+  const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [savingEmployee, setSavingEmployee] = useState(false);
+  const [departments, setDepartments] = useState<{id: string; name: string}[]>([]);
   const [esgYear, setEsgYear] = useState<string>(String(new Date().getFullYear()));
   const [wallchartYear, setWallchartYear] = useState(new Date().getFullYear());
 
@@ -1692,7 +1722,11 @@ export default function AdminDashboard() {
 
         setSubmissions((await subRes.json()).submissions || []);
         setAllSubmissions((await allSubRes.json()).submissions || []);
-        if (empRes.ok) setEmployees((await empRes.json()).employees || []);
+        if (empRes.ok) {
+          const empData = await empRes.json();
+          setEmployees(empData.employees || []);
+          setDepartments(empData.departments || []);
+        }
         if (compRes.ok) setComplianceStatus(await compRes.json());
         if (shadowRes.ok) setShadowRisks((await shadowRes.json()).risks || []);
         if (subsidyRes.ok) {
@@ -1795,6 +1829,30 @@ export default function AdminDashboard() {
       return;
     }
     executeBatch(action);
+  };
+
+  const saveEmployeeProfile = async (userId: string) => {
+    setSavingEmployee(true);
+    try {
+      const res = await fetch("/api/admin/employees", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, ...editForm }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        addToast("error", `❌ 儲存失敗：${data.error}`);
+      } else {
+        addToast("success", "✅ 員工資料已更新");
+        setEditingEmployee(null);
+        setEditForm({});
+        fetchData(false);
+      }
+    } catch {
+      addToast("error", "❌ 儲存失敗，請重試");
+    } finally {
+      setSavingEmployee(false);
+    }
   };
 
   const loadEmployeeDetail = async (userId: string) => {
@@ -1965,6 +2023,11 @@ export default function AdminDashboard() {
 
     return patterns;
   }, [employees, allSubmissions]);
+
+  // Birthday alerts — Andy's feedback point 2
+  const birthdayAlerts = useMemo(() => {
+    return employees.filter(emp => emp.birthday_this_month || emp.birthday_today);
+  }, [employees]);
 
   // Unplanned absence detection — employees with no leave filed but also no recent activity
   // Shows employees who are NOT on approved leave today but might be absent
@@ -3339,6 +3402,57 @@ export default function AdminDashboard() {
             </Card>
           )}
 
+          {/* Birthday Alerts — Andy feedback point 2 */}
+          {birthdayAlerts.length > 0 && (
+            <Card style={{ marginBottom: "20px", borderColor: "#FDE68A" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: "20px" }}>🎂</span>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: tokens.colors.warning[800] }}>
+                      本月生日員工
+                    </div>
+                    <div style={{ fontSize: "12px", color: tokens.colors.warning[600] }}>
+                      記得送上祝福或禮金
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "20px", background: tokens.colors.warning[100], color: tokens.colors.warning[800] }}>
+                  {birthdayAlerts.length} 人
+                </span>
+              </div>
+              <div style={{ display: "grid", gap: "8px" }}>
+                {birthdayAlerts.map((emp) => (
+                  <div key={emp.user_id} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "10px 14px",
+                    background: emp.birthday_today ? tokens.colors.warning[50] : "white",
+                    borderRadius: tokens.borderRadius.md,
+                    border: `1px solid ${emp.birthday_today ? tokens.colors.warning[200] : tokens.colors.warning[100]}`,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Avatar name={emp.name || "?"} />
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: tokens.colors.gray[900] }}>
+                          {emp.name || emp.email}
+                        </div>
+                        <div style={{ fontSize: "11px", color: tokens.colors.gray[500], marginTop: 2 }}>
+                          {emp.birth_date ? new Date(emp.birth_date).toLocaleDateString("zh-TW", { month: "long", day: "numeric" }) : "生日未設定"}
+                          {emp.job_title ? ` · ${emp.job_title}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                    {emp.birthday_today && (
+                      <span style={{ fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "20px", background: tokens.colors.warning[200], color: tokens.colors.warning[800] }}>
+                        🎉 今天！
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Shadow Audit Risks */}
           {shadowRisks.length > 0 && (
             <Card
@@ -4178,6 +4292,131 @@ export default function AdminDashboard() {
 
                     {isExpanded && (
                       <div style={{ borderTop: `1px solid ${tokens.colors.gray[200]}` }}>
+
+                        {/* Profile Header */}
+                        <div style={{ padding: "16px 18px", background: tokens.colors.primary[50], borderBottom: `1px solid ${tokens.colors.primary[100]}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: tokens.colors.primary[700] }}>
+                              {emp.job_title || "職稱未設定"} {emp.department ? `· ${emp.department}` : ""}
+                            </span>
+                            {emp.hire_date && (
+                              <span style={{ fontSize: 11, color: tokens.colors.gray[500] }}>
+                                入職 {new Date(emp.hire_date).toLocaleDateString("zh-TW")}
+                                {emp.tenure_months !== null && ` (${Math.floor(emp.tenure_months / 12)}年${emp.tenure_months % 12}個月)`}
+                              </span>
+                            )}
+                            {emp.birthday_today && <span style={{ fontSize: 12, padding: "2px 8px", background: "#FEF3C7", borderRadius: 10, color: "#D97706", fontWeight: 700 }}>🎂 今天生日！</span>}
+                            {emp.birthday_this_month && !emp.birthday_today && <span style={{ fontSize: 12, padding: "2px 8px", background: "#FEF3C7", borderRadius: 10, color: "#D97706" }}>🎂 本月生日</span>}
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            {editingEmployee === emp.user_id ? (
+                              <>
+                                <Button size="sm" variant="secondary" onClick={() => { setEditingEmployee(null); setEditForm({}); }}>取消</Button>
+                                <Button size="sm" variant="primary" isLoading={savingEmployee} onClick={() => saveEmployeeProfile(emp.user_id)}>💾 儲存</Button>
+                              </>
+                            ) : (
+                              <Button size="sm" variant="secondary" onClick={() => {
+                                setEditingEmployee(emp.user_id);
+                                setEditForm({
+                                  full_name: emp.name, phone: emp.phone || "", job_title: emp.job_title || "",
+                                  department: emp.department || "", hire_date: emp.hire_date || "",
+                                  birth_date: emp.birth_date || "", employee_id: emp.employee_id || "",
+                                  employment_type: emp.employment_type || "full_time",
+                                  salary_base: emp.salary_base || "", gender: emp.gender || "",
+                                  national_id: emp.national_id || "", address: emp.address || "",
+                                  emergency_contact_name: emp.emergency_contact_name || "",
+                                  emergency_contact_phone: emp.emergency_contact_phone || "",
+                                  bank_code: emp.bank_code || "", bank_account: emp.bank_account || "",
+                                  labor_insurance_id: emp.labor_insurance_id || "",
+                                  health_insurance_id: emp.health_insurance_id || "",
+                                  notes: emp.notes || "",
+                                });
+                              }}>✏️ 編輯資料</Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Profile Edit Form or View */}
+                        {editingEmployee === emp.user_id ? (
+                          <div style={{ padding: "18px", background: "white" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+                              {[
+                                { key: "full_name", label: "姓名 Full Name", type: "text" },
+                                { key: "employee_id", label: "員工編號 Employee ID", type: "text" },
+                                { key: "job_title", label: "職稱 Job Title", type: "text" },
+                                { key: "department", label: "部門 Department", type: "text" },
+                                { key: "hire_date", label: "入職日期 Hire Date", type: "date" },
+                                { key: "birth_date", label: "生日 Birth Date", type: "date" },
+                                { key: "gender", label: "性別 Gender", type: "select", options: [["", "請選擇"], ["male", "男 Male"], ["female", "女 Female"], ["other", "其他 Other"]] },
+                                { key: "employment_type", label: "僱用類型 Type", type: "select", options: [["full_time", "全職 Full-time"], ["part_time", "兼職 Part-time"], ["contractor", "承攬 Contractor"], ["intern", "實習 Intern"]] },
+                                { key: "phone", label: "電話 Phone", type: "text" },
+                                { key: "national_id", label: "身分證字號 National ID", type: "text" },
+                                { key: "salary_base", label: "底薪 Base Salary (NT$)", type: "number" },
+                                { key: "bank_code", label: "銀行代碼 Bank Code", type: "text" },
+                                { key: "bank_account", label: "銀行帳號 Bank Account", type: "text" },
+                                { key: "labor_insurance_id", label: "勞保 Labor Insurance ID", type: "text" },
+                                { key: "health_insurance_id", label: "健保 Health Insurance ID", type: "text" },
+                                { key: "emergency_contact_name", label: "緊急聯絡人 Emergency Contact", type: "text" },
+                                { key: "emergency_contact_phone", label: "緊急聯絡電話 Emergency Phone", type: "text" },
+                              ].map(field => (
+                                <div key={field.key}>
+                                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: tokens.colors.gray[500], marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>{field.label}</label>
+                                  {field.type === "select" ? (
+                                    <select
+                                      value={editForm[field.key] || ""}
+                                      onChange={e => setEditForm(f => ({ ...f, [field.key]: e.target.value }))}
+                                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${tokens.colors.gray[200]}`, fontSize: 13, background: "white" }}
+                                    >
+                                      {field.options?.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type={field.type}
+                                      value={editForm[field.key] || ""}
+                                      onChange={e => setEditForm(f => ({ ...f, [field.key]: e.target.value }))}
+                                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${tokens.colors.gray[200]}`, fontSize: 13, boxSizing: "border-box" }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: tokens.colors.gray[500], marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>地址 Address</label>
+                                <input type="text" value={editForm.address || ""} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${tokens.colors.gray[200]}`, fontSize: 13, boxSizing: "border-box" }} />
+                              </div>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: tokens.colors.gray[500], marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>備註 Notes</label>
+                                <textarea value={editForm.notes || ""} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                                  rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${tokens.colors.gray[200]}`, fontSize: 13, boxSizing: "border-box", resize: "vertical" }} />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Profile View Mode */
+                          emp.hire_date || emp.phone || emp.job_title ? (
+                            <div style={{ padding: "14px 18px", background: "white", borderBottom: `1px solid ${tokens.colors.gray[100]}` }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+                                {[
+                                  { icon: "🪪", label: "員工編號", value: emp.employee_id },
+                                  { icon: "📅", label: "入職日期", value: emp.hire_date ? new Date(emp.hire_date).toLocaleDateString("zh-TW") : null },
+                                  { icon: "🎂", label: "生日", value: emp.birth_date ? new Date(emp.birth_date).toLocaleDateString("zh-TW", { month: "long", day: "numeric" }) : null },
+                                  { icon: "📞", label: "電話", value: emp.phone },
+                                  { icon: "💰", label: "底薪", value: emp.salary_base ? `NT$${emp.salary_base.toLocaleString()}` : null },
+                                  { icon: "🏥", label: "緊急聯絡", value: emp.emergency_contact_name ? `${emp.emergency_contact_name} ${emp.emergency_contact_phone || ""}` : null },
+                                ].filter(f => f.value).map(f => (
+                                  <div key={f.label} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                                    <span style={{ fontSize: 14, flexShrink: 0 }}>{f.icon}</span>
+                                    <div>
+                                      <div style={{ fontSize: 10, color: tokens.colors.gray[400], fontWeight: 600, textTransform: "uppercase" }}>{f.label}</div>
+                                      <div style={{ fontSize: 12, color: tokens.colors.gray[700], fontWeight: 500 }}>{f.value}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null
+                        )}
+
                         {lb && (
                           <div
                             style={{
