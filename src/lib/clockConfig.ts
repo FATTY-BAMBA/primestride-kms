@@ -18,6 +18,7 @@ export type ClockConfig = {
   ot_threshold_minutes: number;
   location_label: string | null;
   timezone: string;
+  manual_entry_window_days: number;
 };
 
 /** Read config for an org. Auto-creates default row if missing. */
