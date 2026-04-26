@@ -261,7 +261,7 @@ export default function Sidebar({ children }: SidebarProps) {
       {/* Desktop Sidebar */}
       <aside 
         className={cn(
-          "bg-white border-r border-slate-200 flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-200",
+          "bg-white border-r border-slate-200 hidden lg:flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-200",
           collapsed ? "w-[60px]" : "w-60"
         )}
       >
