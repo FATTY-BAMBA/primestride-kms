@@ -3,6 +3,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ComplianceConflictScanner from "@/components/ComplianceConflictScanner";
 import { FormTemplate } from "@/components/FormTemplates";
+import ApprovalQueueCard from "@/components/ApprovalQueueCard";
+import BulkActionBar from "@/components/BulkActionBar";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import SuccessToast from "@/components/SuccessToast";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS - Centralized styling system
@@ -1615,9 +1619,389 @@ function Tabs({
 // MAIN ADMIN DASHBOARD COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ATTENDANCE APPROVAL TAB — Manual entry queue (PR 3c.3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type PendingClockRequest = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string | null;
+  work_date: string;
+  requested_clock_in: string | null;
+  requested_clock_out: string | null;
+  reason_code: string;
+  reason_note: string | null;
+  created_at: string;
+};
+
+type BulkApproveResult = {
+  approved: { id: string }[];
+  failed: { id: string; reason: string }[];
+};
+
+function AttendanceApprovalTab({
+  requests,
+  isLoading,
+  onRefresh,
+  isMobile,
+}: {
+  requests: PendingClockRequest[];
+  isLoading: boolean;
+  onRefresh: () => void;
+  isMobile: boolean;
+}) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    variant: "success" | "error" | "warning";
+  }>({ open: false, message: "", variant: "success" });
+
+  // Refresh on window focus — admin opens tab from email, sees fresh data
+  useEffect(() => {
+    const handler = () => onRefresh();
+    window.addEventListener("focus", handler);
+    return () => window.removeEventListener("focus", handler);
+  }, [onRefresh]);
+
+  // Drop selections that are no longer in the list (after refresh)
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      const visibleIds = new Set(requests.map((r) => r.id));
+      prev.forEach((id) => {
+        if (visibleIds.has(id)) next.add(id);
+      });
+      return next;
+    });
+  }, [requests]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(requests.map((r) => r.id)));
+  }, [requests]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const showToast = useCallback(
+    (message: string, variant: "success" | "error" | "warning") => {
+      setToast({ open: true, message, variant });
+    },
+    [],
+  );
+
+  const handleCardResolved = useCallback(
+    (id: string, action: "approved" | "rejected") => {
+      // Remove from selection and refresh from server
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      onRefresh();
+      showToast(
+        action === "approved" ? "✅ 已核准 1 筆出勤申請" : "✅ 已駁回 1 筆出勤申請",
+        "success",
+      );
+    },
+    [onRefresh, showToast],
+  );
+
+  const handleCardError = useCallback(
+    (msg: string) => showToast(`❌ ${msg}`, "error"),
+    [showToast],
+  );
+
+  const handleBulkApproveClick = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    setConfirmOpen(true);
+  }, [selectedIds]);
+
+  const executeBulkApprove = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    setBulkBusy(true);
+    setConfirmOpen(false);
+
+    try {
+      const res = await fetch("/api/clock/manual/bulk-approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(`❌ 批次核准失敗：${errData.message || res.statusText}`, "error");
+        return;
+      }
+
+      const data: { ok: boolean; result: BulkApproveResult } = await res.json();
+      const approvedCount = data.result.approved.length;
+      const failedCount = data.result.failed.length;
+
+      if (failedCount === 0) {
+        showToast(`✅ 已核准 ${approvedCount} 筆出勤申請`, "success");
+      } else if (approvedCount === 0) {
+        showToast(`❌ 全部 ${failedCount} 筆都失敗`, "error");
+      } else {
+        showToast(
+          `⚠️ 核准 ${approvedCount} 筆，失敗 ${failedCount} 筆`,
+          "warning",
+        );
+      }
+
+      setSelectedIds(new Set());
+      onRefresh();
+    } catch {
+      showToast("❌ 網路錯誤，請重試", "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedIds, onRefresh, showToast]);
+
+  // Loading state
+  if (isLoading && requests.length === 0) {
+    return (
+      <div style={{ display: "grid", gap: "12px" }}>
+        {[1, 2, 3].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: "180px",
+              background: tokens.colors.gray[100],
+              borderRadius: tokens.borderRadius.xl,
+              animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ paddingBottom: selectedIds.size > 0 ? "100px" : "0" }}>
+      {/* Header with refresh */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              fontSize: "16px",
+              fontWeight: 700,
+              color: tokens.colors.gray[900],
+              margin: 0,
+            }}
+          >
+            🕐 出勤審核 — Manual Entry Approvals
+          </h2>
+          <p
+            style={{
+              fontSize: "12px",
+              color: tokens.colors.gray[500],
+              margin: "4px 0 0",
+            }}
+          >
+            員工補登的打卡申請。核准後將自動寫入出勤記錄並寄送通知信。
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onRefresh}
+          isLoading={isLoading}
+          leftIcon="↻"
+        >
+          重新整理
+        </Button>
+      </div>
+
+      {/* Empty state */}
+      {requests.length === 0 ? (
+        <Card padding="lg" style={{ textAlign: "center", padding: "60px 40px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }} aria-hidden="true">
+            🎉
+          </div>
+          <div
+            style={{
+              fontSize: "16px",
+              fontWeight: 700,
+              color: tokens.colors.gray[800],
+              marginBottom: "8px",
+            }}
+          >
+            全部審核完畢！
+          </div>
+          <div
+            style={{
+              fontSize: "13px",
+              color: tokens.colors.gray[500],
+              lineHeight: 1.6,
+            }}
+          >
+            目前沒有待審核的出勤申請
+          </div>
+        </Card>
+      ) : (
+        <>
+          {/* Selection summary bar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "12px",
+              padding: "10px 14px",
+              background: selectedIds.size > 0 ? tokens.colors.primary[50] : tokens.colors.gray[50],
+              borderRadius: tokens.borderRadius.md,
+              border: `1px solid ${selectedIds.size > 0 ? tokens.colors.primary[200] : tokens.colors.gray[200]}`,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: selectedIds.size > 0 ? tokens.colors.primary[700] : tokens.colors.gray[600],
+              }}
+            >
+              {selectedIds.size > 0
+                ? `已選 ${selectedIds.size} / ${requests.length} 筆`
+                : `待審 ${requests.length} 筆`}
+            </span>
+            {selectedIds.size === 0 && requests.length > 0 && (
+              <button
+                onClick={selectAll}
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: tokens.colors.primary[600],
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  minHeight: "32px",
+                }}
+              >
+                全選
+              </button>
+            )}
+            {selectedIds.size > 0 && selectedIds.size < requests.length && (
+              <button
+                onClick={selectAll}
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: tokens.colors.primary[600],
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  minHeight: "32px",
+                }}
+              >
+                全選
+              </button>
+            )}
+            {selectedIds.size > 0 && (
+              <button
+                onClick={clearSelection}
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: tokens.colors.gray[600],
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  minHeight: "32px",
+                }}
+              >
+                取消選取
+              </button>
+            )}
+          </div>
+
+          {/* Request cards */}
+          <div style={{ display: "grid", gap: "12px" }}>
+            {requests.map((req) => (
+              <ApprovalQueueCard
+                key={req.id}
+                request={req}
+                lang="zh"
+                selected={selectedIds.has(req.id)}
+                onToggleSelect={() => toggleSelect(req.id)}
+                onResolved={handleCardResolved}
+                onError={handleCardError}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Sticky bulk action bar */}
+      <BulkActionBar
+        lang="zh"
+        selectedCount={selectedIds.size}
+        totalVisible={requests.length}
+        busy={bulkBusy}
+        onSelectAll={selectAll}
+        onClear={clearSelection}
+        onBulkApprove={handleBulkApproveClick}
+      />
+
+      {/* Confirm dialog for bulk approve */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="確認批次核准"
+        body={`確定要核准 ${selectedIds.size} 筆出勤申請嗎？核准後將自動建立出勤記錄並寄送通知信給員工。`}
+        confirmLabel="確定核准"
+        cancelLabel="取消"
+        variant="default"
+        busy={bulkBusy}
+        onConfirm={executeBulkApprove}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
+      {/* Toast notifications */}
+      <SuccessToast
+        open={toast.open}
+        lang="zh"
+        message={toast.message}
+        variant={toast.variant}
+        onDismiss={() => setToast((t) => ({ ...t, open: false }))}
+      />
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   // State management
-  const [tab, setTab] = useLocalStorage<"overview" | "pending" | "employees" | "leave" | "wallchart" | "compliance" | "esg">(
+  const [tab, setTab] = useLocalStorage<"overview" | "pending" | "employees" | "leave" | "wallchart" | "compliance" | "esg" | "attendance">(
     "admin_last_tab",
     "overview"
   );
@@ -1667,6 +2051,21 @@ export default function AdminDashboard() {
   const [esgYear, setEsgYear] = useState<string>(String(new Date().getFullYear()));
   const [wallchartYear, setWallchartYear] = useState(new Date().getFullYear());
 
+  // Attendance approval queue (PR 3c.3)
+  const [pendingClockRequests, setPendingClockRequests] = useState<Array<{
+    id: string;
+    user_id: string;
+    user_name: string;
+    user_email: string | null;
+    work_date: string;
+    requested_clock_in: string | null;
+    requested_clock_out: string | null;
+    reason_code: string;
+    reason_note: string | null;
+    created_at: string;
+  }>>([]);
+  const [pendingClockLoading, setPendingClockLoading] = useState(false);
+
   // Responsive detection
   const isMobile = useMediaQuery("(max-width: 640px)");
   const isTablet = useMediaQuery("(max-width: 768px)");
@@ -1703,6 +2102,24 @@ export default function AdminDashboard() {
     "陪產假": { color: "#2563EB", bg: "#DBEAFE", label: "陪產假" },
     "公假": { color: "#065F46", bg: "#ECFDF5", label: "公假" },
   };
+
+  // Fetch pending clock approval requests (PR 3c.3)
+  const fetchPendingClockRequests = useCallback(async () => {
+    setPendingClockLoading(true);
+    try {
+      const res = await fetch("/api/clock/manual/pending", { cache: "no-store" });
+      if (!res.ok) {
+        setPendingClockRequests([]);
+        return;
+      }
+      const data = await res.json();
+      setPendingClockRequests(data.requests || []);
+    } catch {
+      setPendingClockRequests([]);
+    } finally {
+      setPendingClockLoading(false);
+    }
+  }, []);
 
   // Data fetching
   const fetchData = useCallback(
@@ -1747,7 +2164,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchPendingClockRequests();
+  }, [fetchData, fetchPendingClockRequests]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1763,7 +2181,7 @@ export default function AdminDashboard() {
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") {
-        const tabs = ["overview", "pending", "employees", "leave", "wallchart", "compliance", "esg"] as const;
+        const tabs = ["overview", "pending", "employees", "leave", "wallchart", "compliance", "esg", "attendance"] as const;
         setTab(tabs[parseInt(e.key) - 1]);
         return;
       }
@@ -2799,6 +3217,7 @@ export default function AdminDashboard() {
     { key: "employees", label: "👥 員工", count: employees.length },
     { key: "leave", label: "📋 申請總覽" },
     { key: "wallchart", label: "🗓️ 出勤總表" },
+    { key: "attendance", label: "🕐 出勤審核", count: pendingClockRequests.length },
     { key: "compliance", label: "⚖️ 合規" },
     { key: "esg", label: "🌿 ESG 報告" },
   ];
@@ -5543,6 +5962,18 @@ export default function AdminDashboard() {
               統計列：-N 表示 N 人請假/出差，+N 表示 N 人加班
             </div>
           </div>
+        </main>
+      )}
+
+      {/* ATTENDANCE APPROVAL TAB */}
+      {!loading && tab === "attendance" && (
+        <main role="tabpanel" id="panel-attendance" aria-labelledby="tab-attendance" style={{ animation: "fadeIn 0.4s" }}>
+          <AttendanceApprovalTab
+            requests={pendingClockRequests}
+            isLoading={pendingClockLoading}
+            onRefresh={fetchPendingClockRequests}
+            isMobile={isMobile}
+          />
         </main>
       )}
 
