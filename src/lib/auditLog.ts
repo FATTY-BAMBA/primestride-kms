@@ -13,7 +13,10 @@ export type AuditAction =
   | 'clock.punch_in'
   | 'clock.punch_out'
   | 'clock.qr_token_issued'
-  | 'clock.punch_rejected';
+  | 'clock.punch_rejected'
+  | 'clock.manual_approved'
+  | 'clock.manual_rejected'
+  | 'clock.manual_bulk_approved';
 
 export type AuditLogEntry = {
   organizationId: string;
