@@ -92,9 +92,9 @@ export default function Sidebar({ children }: SidebarProps) {
   ];
 
   const analyticsLinks: LinkItem[] = [
-  { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
-  { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph" },
-  { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Metrics" },
+    { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
+    { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph" },
+    { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Metrics" },
   ];
 
   const adminLinks: LinkItem[] = [
@@ -114,7 +114,8 @@ export default function Sidebar({ children }: SidebarProps) {
   const primaryColor = branding?.primary_color || "#7C3AED";
   const accentColor = branding?.accent_color || "#A78BFA";
 
-  const NavLink = ({ link }: { link: LinkItem }) => {
+  // ── NavLink: respects local isCollapsed prop, falls back to outer collapsed ──
+  const NavLink = ({ link, isCollapsed }: { link: LinkItem; isCollapsed: boolean }) => {
     if (link.adminOnly && !isAdmin) return null;
     const active = isActive(link.href);
     const Icon = link.icon;
@@ -125,26 +126,26 @@ export default function Sidebar({ children }: SidebarProps) {
         href={link.href}
         className={cn(
           "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 group",
-          collapsed ? "justify-center" : "justify-start",
+          isCollapsed ? "justify-center" : "justify-start",
           active 
             ? "bg-violet-50 text-violet-700 font-medium" 
             : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         )}
-        title={collapsed ? `${link.label} ${link.labelEn}` : undefined}
+        title={isCollapsed ? `${link.label} ${link.labelEn}` : undefined}
       >
         <span className="relative">
           <Icon className={cn(
             "w-4 h-4 flex-shrink-0",
             active ? "text-violet-600" : "text-slate-400 group-hover:text-slate-700"
           )} />
-          {showBadge && collapsed && (
+          {showBadge && isCollapsed && (
             <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
               {pendingCount}
             </span>
           )}
         </span>
         
-        {!collapsed && (
+        {!isCollapsed && (
           <span className="flex-1 flex items-center justify-between">
             <span>
               {lang === "zh" ? link.label : link.labelEn}
@@ -160,8 +161,8 @@ export default function Sidebar({ children }: SidebarProps) {
     );
   };
 
-  const SectionHeader = ({ title }: { title: string }) => {
-    if (collapsed) return null;
+  const SectionHeader = ({ title, isCollapsed }: { title: string; isCollapsed: boolean }) => {
+    if (isCollapsed) return null;
     return (
       <p className="px-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 mt-4 first:mt-0">
         {title}
@@ -169,96 +170,99 @@ export default function Sidebar({ children }: SidebarProps) {
     );
   };
 
-  const SidebarContent = () => (
-    <>
-      {/* ── Logo / Product Identity ── */}
-      {/* Always shows "Atlas EIP" — the product name, not the org name.        */}
-      {/* The org name lives at the bottom in OrgSwitcher (like Linear/Vercel). */}
-      <div className={cn(
-        "border-b border-slate-100 flex items-center gap-3",
-        collapsed ? "p-4 justify-center" : "p-4"
-      )}>
-        <div 
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
-          style={{ 
-            background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` 
-          }}
-        >
-          <span className="text-lg">⚡</span>
-        </div>
-        {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <h1 className="font-bold text-slate-900 leading-tight tracking-tight" style={{ fontSize: "15px" }}>
-              Atlas EIP
-            </h1>
-            <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: primaryColor, opacity: 0.7 }}>
-              Enterprise Intelligence
-            </p>
+  // ── SidebarContent: takes forceExpanded prop. Mobile drawer passes true. ──
+  const SidebarContent = ({ forceExpanded = false, hideHeader = false }: { forceExpanded?: boolean; hideHeader?: boolean }) => {
+    const isCollapsed = forceExpanded ? false : collapsed;
+    return (
+      <>
+        {/* ── Logo / Product Identity ── */}
+        {!hideHeader && (
+          <div className={cn(
+            "border-b border-slate-100 flex items-center gap-3",
+            isCollapsed ? "p-4 justify-center" : "p-4"
+          )}>
+            <div 
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+              style={{ 
+                background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` 
+              }}
+            >
+              <span className="text-lg">⚡</span>
+            </div>
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <h1 className="font-bold text-slate-900 leading-tight tracking-tight" style={{ fontSize: "15px" }}>
+                  Atlas EIP
+                </h1>
+                <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: primaryColor, opacity: 0.7 }}>
+                  Enterprise Intelligence
+                </p>
+              </div>
+            )}
           </div>
         )}
-      </div>
 
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-4 px-3">
-        <SectionHeader title={lang === "zh" ? "主要功能" : "MAIN"} />
-        <div className="space-y-0.5 mb-4">
-          {mainLinks.map((link) => (
-            <NavLink key={link.href} link={link} />
-          ))}
-        </div>
+        {/* Navigation */}
+        <div className="flex-1 overflow-y-auto py-4 px-3">
+          <SectionHeader title={lang === "zh" ? "主要功能" : "MAIN"} isCollapsed={isCollapsed} />
+          <div className="space-y-0.5 mb-4">
+            {mainLinks.map((link) => (
+              <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
+            ))}
+          </div>
 
-        <SectionHeader title={lang === "zh" ? "人資" : "HR"} />
-        <div className="space-y-0.5 mb-4">
-          {hrLinks.map((link) => (
-            <NavLink key={link.href} link={link} />
-          ))}
-        </div>
+          <SectionHeader title={lang === "zh" ? "人資" : "HR"} isCollapsed={isCollapsed} />
+          <div className="space-y-0.5 mb-4">
+            {hrLinks.map((link) => (
+              <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
+            ))}
+          </div>
 
-        <SectionHeader title={lang === "zh" ? "分析" : "ANALYTICS"} />
-        <div className="space-y-0.5 mb-4">
-          {analyticsLinks.map((link) => (
-            <NavLink key={link.href} link={link} />
-          ))}
-        </div>
+          <SectionHeader title={lang === "zh" ? "分析" : "ANALYTICS"} isCollapsed={isCollapsed} />
+          <div className="space-y-0.5 mb-4">
+            {analyticsLinks.map((link) => (
+              <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
+            ))}
+          </div>
 
-        {isAdmin && (
-          <>
-            <SectionHeader title={lang === "zh" ? "管理" : "ADMIN"} />
-            <div className="space-y-0.5">
-              {adminLinks.map((link) => (
-                <NavLink key={link.href} link={link} />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* ── Bottom: Org switcher + User menu ── */}
-      {/* Org name lives here — this is the "account" zone, not the product zone */}
-      <div className="p-4 border-t border-slate-100 relative z-50">
-        {!collapsed && <OrgSwitcher />}
-        <div className={cn(
-          "flex items-center mt-2",
-          collapsed ? "justify-center" : "justify-between"
-        )}>
-          <UserMenu />
-          {!collapsed && (
-            <button
-              onClick={() => setCollapsed(true)}
-              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-              title="收合側邊欄 Collapse"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+          {isAdmin && (
+            <>
+              <SectionHeader title={lang === "zh" ? "管理" : "ADMIN"} isCollapsed={isCollapsed} />
+              <div className="space-y-0.5">
+                {adminLinks.map((link) => (
+                  <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
+                ))}
+              </div>
+            </>
           )}
         </div>
-      </div>
-    </>
-  );
+
+        {/* ── Bottom: Org switcher + User menu ── */}
+        <div className="p-4 border-t border-slate-100 relative z-50">
+          {!isCollapsed && <OrgSwitcher />}
+          <div className={cn(
+            "flex items-center mt-2",
+            isCollapsed ? "justify-center" : "justify-between"
+          )}>
+            <UserMenu />
+            {!isCollapsed && !forceExpanded && (
+              <button
+                onClick={() => setCollapsed(true)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                title="收合側邊欄 Collapse"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  };
 
   return (
     <div className="flex min-h-screen">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar — hidden below lg breakpoint */}
       <aside 
         className={cn(
           "bg-white border-r border-slate-200 hidden lg:flex flex-col fixed top-0 left-0 bottom-0 z-40 transition-all duration-200",
@@ -299,21 +303,35 @@ export default function Sidebar({ children }: SidebarProps) {
             onClick={() => setMobileOpen(false)} 
           />
           <aside className="absolute top-0 left-0 bottom-0 w-64 bg-white flex flex-col shadow-xl">
+            {/* Mobile drawer header with close button */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">⚡</span>
-                <span className="font-bold text-sm">Atlas EIP</span>
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
+                  style={{ 
+                    background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` 
+                  }}
+                >
+                  <span className="text-lg">⚡</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="font-bold text-slate-900 leading-tight tracking-tight" style={{ fontSize: "15px" }}>
+                    Atlas EIP
+                  </h1>
+                  <p className="text-[10px] font-semibold tracking-widest uppercase mt-0.5" style={{ color: primaryColor, opacity: 0.7 }}>
+                    Enterprise Intelligence
+                  </p>
+                </div>
               </div>
               <button 
                 onClick={() => setMobileOpen(false)}
-                className="p-2 hover:bg-slate-100 rounded-lg"
+                className="p-2 hover:bg-slate-100 rounded-lg flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              <SidebarContent />
-            </div>
+            {/* Render sidebar content with header hidden (we drew our own above) and forced expanded */}
+            <SidebarContent forceExpanded hideHeader />
           </aside>
         </div>
       )}
