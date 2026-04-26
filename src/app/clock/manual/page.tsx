@@ -44,7 +44,6 @@ export default function ManualEntryPage() {
 
   const [myRequests, setMyRequests] = useState<MyRequest[]>([]);
 
-  // Fetch language pref
   useEffect(() => {
     fetch('/api/profile')
       .then(r => r.json())
@@ -52,7 +51,6 @@ export default function ManualEntryPage() {
       .catch(() => {});
   }, []);
 
-  // Fetch user's existing requests
   async function loadMyRequests() {
     try {
       const r = await fetch('/api/clock/manual', { cache: 'no-store' });
@@ -64,7 +62,6 @@ export default function ManualEntryPage() {
   }
   useEffect(() => { loadMyRequests(); }, []);
 
-  // Date constraints
   const minDate = useMemo(() => {
     const d = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
     return d.toISOString().slice(0, 10);
@@ -74,10 +71,8 @@ export default function ManualEntryPage() {
   async function handleSubmit() {
     setError(null);
 
-    // Build ISO timestamps from date + time inputs (Taipei wall clock)
     const isoFromTime = (timeStr: string): string | null => {
       if (!timeStr) return null;
-      // workDate is YYYY-MM-DD, timeStr is HH:mm
       return `${workDate}T${timeStr}:00+08:00`;
     };
 
@@ -129,15 +124,25 @@ export default function ManualEntryPage() {
 
   // Loading
   if (!isLoaded) {
-    return <Page><p style={{ opacity: 0.6 }}>{t(clockCopy.mobile.loading, lang)}</p></Page>;
+    return (
+      <Page>
+        <Header lang={lang} />
+        <div style={centeredContentStyle}>
+          <p style={{ opacity: 0.6 }}>{t(clockCopy.mobile.loading, lang)}</p>
+        </div>
+      </Page>
+    );
   }
 
   // Not signed in
   if (!isSignedIn) {
     return (
       <Page>
-        <h1 style={h1Style}>{t(clockCopy.mobile.signin_required, lang)}</h1>
-        <p style={pMutedStyle}>{t(clockCopy.mobile.signin_body, lang)}</p>
+        <Header lang={lang} />
+        <div style={centeredContentStyle}>
+          <h1 style={h1Style}>{t(clockCopy.mobile.signin_required, lang)}</h1>
+          <p style={pMutedStyle}>{t(clockCopy.mobile.signin_body, lang)}</p>
+        </div>
       </Page>
     );
   }
@@ -146,23 +151,27 @@ export default function ManualEntryPage() {
   if (submitted) {
     return (
       <Page>
-        <CheckBadge />
-        <h1 style={{ ...h1Style, marginTop: tokens.spacing['2xl'] }}>
-          {t(clockCopy.manualEntry.submitted_title, lang)}
-        </h1>
-        <p style={pMutedStyle}>{t(clockCopy.manualEntry.submitted_body, lang)}</p>
-        <button onClick={resetForm} style={primaryButtonStyle}>
-          {t(clockCopy.manualEntry.submit_another, lang)}
-        </button>
+        <Header lang={lang} />
+        <div style={centeredContentStyle}>
+          <CheckBadge />
+          <h1 style={{ ...h1Style, marginTop: tokens.spacing['2xl'] }}>
+            {t(clockCopy.manualEntry.submitted_title, lang)}
+          </h1>
+          <p style={pMutedStyle}>{t(clockCopy.manualEntry.submitted_body, lang)}</p>
+          <button onClick={resetForm} style={primaryButtonStyle}>
+            {t(clockCopy.manualEntry.submit_another, lang)}
+          </button>
+        </div>
       </Page>
     );
   }
 
   return (
     <Page>
-      <div style={{ width: '100%', maxWidth: 480 }}>
+      <Header lang={lang} />
+      <div style={contentContainerStyle}>
         <div style={brandLabelStyle}>ATLAS EIP</div>
-        <h1 style={{ ...h1Style, fontSize: tokens.font.size.xl, marginBottom: tokens.spacing.xs }}>
+        <h1 style={{ ...h1Style, fontSize: tokens.font.size['2xl'], marginBottom: tokens.spacing.xs }}>
           {t(clockCopy.manualEntry.page_title, lang)}
         </h1>
         <p style={{ ...pMutedStyle, marginBottom: tokens.spacing['2xl'] }}>
@@ -248,15 +257,18 @@ export default function ManualEntryPage() {
           {submitting ? t(clockCopy.manualEntry.submitting, lang) : t(clockCopy.manualEntry.submit_button, lang)}
         </button>
 
-        {/* My requests */}
-        <div style={{ marginTop: tokens.spacing['4xl'] }}>
-          <h2 style={{ fontSize: tokens.font.size.md, fontWeight: 700, color: tokens.colors.darkText, marginBottom: tokens.spacing.md }}>
+        {/* History section */}
+        <div style={historySectionStyle}>
+          <h2 style={historyTitleStyle}>
             {t(clockCopy.manualEntry.my_requests_title, lang)}
           </h2>
           {myRequests.length === 0 ? (
-            <p style={{ ...pMutedStyle, fontSize: tokens.font.size.sm }}>
-              {t(clockCopy.manualEntry.no_requests, lang)}
-            </p>
+            <div style={emptyStateStyle}>
+              <div style={{ fontSize: 32, marginBottom: tokens.spacing.sm }}>📝</div>
+              <p style={{ ...pMutedStyle, fontSize: tokens.font.size.sm, margin: 0 }}>
+                {t(clockCopy.manualEntry.no_requests, lang)}
+              </p>
+            </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacing.sm }}>
               {myRequests.map(r => <RequestRow key={r.id} req={r} lang={lang} />)}
@@ -276,14 +288,39 @@ function Page({ children }: { children: React.ReactNode }) {
       minHeight: '100vh',
       background: '#0F172A',
       color: tokens.colors.darkText,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      padding: `${tokens.spacing['3xl']}px ${tokens.spacing['2xl']}px`,
       fontFamily: tokens.font.family,
     }}>
       {children}
+    </div>
+  );
+}
+
+function Header({ lang }: { lang: Lang }) {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: `${tokens.spacing.lg}px ${tokens.spacing['2xl']}px`,
+      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      maxWidth: 1200,
+      margin: '0 auto',
+    }}>
+      <div style={{ fontSize: tokens.font.size.sm, fontWeight: 700, letterSpacing: 1, opacity: 0.85 }}>
+        ATLAS EIP
+      </div>
+      <a href="/" style={{
+        fontSize: tokens.font.size.sm,
+        color: tokens.colors.darkText,
+        opacity: 0.7,
+        textDecoration: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: tokens.spacing.xs,
+      }}>
+        <span>←</span>
+        <span>{lang === 'zh' ? '回首頁' : 'Home'}</span>
+      </a>
     </div>
   );
 }
@@ -318,13 +355,20 @@ function RequestRow({ req, lang }: { req: MyRequest; lang: Lang }) {
     pending: clockCopy.manualEntry.status_pending,
     approved: clockCopy.manualEntry.status_approved,
     rejected: clockCopy.manualEntry.status_rejected,
-    cancelled: clockCopy.manualEntry.status_pending, // fallback
+    cancelled: clockCopy.manualEntry.status_pending,
   };
   const statusColors: Record<string, string> = {
     pending: tokens.colors.warning,
     approved: tokens.colors.success,
     rejected: tokens.colors.danger,
     cancelled: tokens.colors.textMuted,
+  };
+  const reasonLabels: Record<ReasonCode, { zh: string; en: string }> = {
+    forgot: clockCopy.manualEntry.reason_forgot,
+    phone_dead: clockCopy.manualEntry.reason_phone_dead,
+    travel: clockCopy.manualEntry.reason_travel,
+    system_issue: clockCopy.manualEntry.reason_system,
+    other: clockCopy.manualEntry.reason_other,
   };
   return (
     <div style={{
@@ -335,20 +379,24 @@ function RequestRow({ req, lang }: { req: MyRequest; lang: Lang }) {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
+      gap: tokens.spacing.md,
     }}>
-      <div>
+      <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: tokens.font.size.base, fontWeight: 600 }}>{req.work_date}</div>
         <div style={{ fontSize: tokens.font.size.sm, opacity: 0.6, marginTop: 2 }}>
-          {formatTaipeiTime(req.requested_clock_in)} - {formatTaipeiTime(req.requested_clock_out)}
+          {formatTaipeiTime(req.requested_clock_in)} – {formatTaipeiTime(req.requested_clock_out)}
+          {' · '}
+          {t(reasonLabels[req.reason_code], lang)}
         </div>
       </div>
       <div style={{
         fontSize: tokens.font.size.xs,
         fontWeight: 700,
         color: statusColors[req.status] ?? tokens.colors.textMuted,
-        padding: '4px 10px',
+        padding: '4px 12px',
         background: 'rgba(255,255,255,0.06)',
         borderRadius: tokens.radii.full,
+        whiteSpace: 'nowrap',
       }}>
         {t(statusCopy[req.status] ?? statusCopy.pending, lang)}
       </div>
@@ -377,6 +425,24 @@ function renderErrorMessage(
 }
 
 // =============== styles ===============
+
+const contentContainerStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 480,
+  margin: '0 auto',
+  padding: `${tokens.spacing['3xl']}px ${tokens.spacing['2xl']}px`,
+};
+
+const centeredContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 480,
+  margin: '0 auto',
+  padding: `${tokens.spacing['4xl']}px ${tokens.spacing['2xl']}px`,
+  textAlign: 'center',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+};
 
 const h1Style: React.CSSProperties = {
   fontSize: tokens.font.size['2xl'],
@@ -440,4 +506,26 @@ const errorBoxStyle: React.CSSProperties = {
   fontSize: tokens.font.size.sm,
   marginBottom: tokens.spacing.md,
   lineHeight: 1.5,
+};
+
+const historySectionStyle: React.CSSProperties = {
+  marginTop: tokens.spacing['4xl'],
+  paddingTop: tokens.spacing['2xl'],
+  borderTop: '1px solid rgba(255,255,255,0.06)',
+};
+
+const historyTitleStyle: React.CSSProperties = {
+  fontSize: tokens.font.size.md,
+  fontWeight: 700,
+  color: tokens.colors.darkText,
+  marginBottom: tokens.spacing.lg,
+  margin: `0 0 ${tokens.spacing.lg}px`,
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.02)',
+  border: '1px dashed rgba(255,255,255,0.08)',
+  borderRadius: tokens.radii.md,
+  padding: `${tokens.spacing['2xl']}px ${tokens.spacing.lg}px`,
+  textAlign: 'center',
 };
