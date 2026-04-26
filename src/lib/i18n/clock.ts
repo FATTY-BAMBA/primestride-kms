@@ -78,6 +78,36 @@ export const clockCopy = {
     UNMERGEABLE_CONFLICT:    { zh: '與既有記錄衝突,請聯絡主管',   en: 'Conflicts with existing record — please contact your manager' },
     DUPLICATE_PENDING:       { zh: '當日已有待審核的補登申請',     en: 'You already have a pending request for this date' },
   },
+  // ── PR 3b: Sidebar + home page strings ──
+  sidebar: {
+    section_hr:        { zh: '人資',          en: 'HR' },
+    my_clock:          { zh: '我的打卡',       en: 'My Clock-in' },
+    attendance_review: { zh: '出勤審核',       en: 'Attendance Review' },
+  },
+  home: {
+    // Employee strings
+    employee_status_in:        { zh: '已打卡上班',                  en: 'Clocked in' },
+    employee_status_out:       { zh: '今日打卡完成',                en: "Today's clock-in complete" },
+    employee_status_not_in:    { zh: '今天還沒打卡',                en: 'Not yet clocked in today' },
+    employee_clock_in_at:      { zh: '上班 {time}',                en: 'Clocked in {time}' },
+    employee_clock_in_now:     { zh: '立即打卡 →',                  en: 'Clock in now →' },
+    employee_clock_out_now:    { zh: '打卡下班 →',                  en: 'Clock out →' },
+    employee_view_today:       { zh: '查看今日 →',                  en: 'View today →' },
+    employee_total_today:      { zh: '今日工時 {hours}',            en: '{hours} today' },
+    employee_late_today:       { zh: '遲到 {minutes} 分鐘',         en: '{minutes} min late' },
+    employee_monthly_days:     { zh: '本月打卡天數',                en: 'Days clocked this month' },
+    employee_incomplete_alert: { zh: '您 {date} 未打卡下班，請補登', en: 'You did not clock out on {date} — please submit a manual entry' },
+    // Admin strings
+    admin_summary_in:          { zh: '在崗',                        en: 'In' },
+    admin_summary_late:        { zh: '遲到',                        en: 'Late' },
+    admin_summary_not_in:      { zh: '未到',                        en: 'Not in' },
+    admin_summary_overtime:    { zh: '加班中',                      en: 'OT' },
+    admin_summary_total:       { zh: '應到',                        en: 'Expected' },
+    admin_attendance_rate:     { zh: '今日出勤率',                  en: "Today's attendance" },
+    admin_view_details:        { zh: '查看詳情 →',                  en: 'View details →' },
+    admin_pending_requests:    { zh: '{count} 件補登申請待您審核',   en: '{count} manual entries awaiting your review' },
+    admin_employees_not_in:    { zh: '{count} 名員工今天還沒打卡',   en: '{count} employees not clocked in today' },
+  },
 } as const;
 
 export function t<K extends { zh: string; en: string }>(entry: K, lang: Lang): string {
