@@ -212,7 +212,6 @@ export async function approveRequest(
       .insert({
         organization_id: request.organization_id,
         user_id: request.user_id,
-        user_name: request.user_name,
         work_date: request.work_date,
         clock_in: request.requested_clock_in,
         clock_out: request.requested_clock_out,
