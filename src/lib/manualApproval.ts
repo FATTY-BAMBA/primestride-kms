@@ -124,32 +124,45 @@ async function loadExistingRecord(
 
 /**
  * Snapshot the current state of an attendance record into versions table.
+ *
+ * Schema note: attendance_record_versions stores a flattened snapshot of
+ * attendance_records (not a JSON blob). We copy the relevant columns
+ * directly. The `changed_at` and `id` columns are auto-populated.
  */
 async function writeVersionSnapshot(
   client: SupabaseClient,
   recordId: string,
-  reason: 'created_from_manual_approval' | 'merged_from_manual_approval',
+  changeType: 'created_from_manual_approval' | 'merged_from_manual_approval',
   byUserId: string,
   byUserName: string,
+  changeNote?: string | null,
 ): Promise<void> {
   // Read current state of the record
   const { data: record } = await client
     .from('attendance_records')
-    .select('*')
+    .select(
+      'organization_id, clock_in, clock_out, late_minutes, total_hours, overtime_hours, status, clock_in_method, manual_reason',
+    )
     .eq('id', recordId)
     .maybeSingle();
 
   if (!record) return; // shouldn't happen but don't throw
 
   await client.from('attendance_record_versions').insert({
-    record_id: recordId,
+    attendance_record_id: recordId,
     organization_id: record.organization_id,
-    user_id: record.user_id,
-    work_date: record.work_date,
-    snapshot: record,
-    change_reason: reason,
+    clock_in: record.clock_in ?? null,
+    clock_out: record.clock_out ?? null,
+    late_minutes: record.late_minutes ?? null,
+    total_hours: record.total_hours ?? null,
+    overtime_hours: record.overtime_hours ?? null,
+    status: record.status ?? null,
+    clock_in_method: record.clock_in_method ?? null,
+    manual_reason: record.manual_reason ?? null,
     changed_by_user_id: byUserId,
-    changed_by_user_name: byUserName,
+    changed_by_name: byUserName,
+    change_type: changeType,
+    change_note: changeNote ?? null,
   });
 }
 
