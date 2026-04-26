@@ -19,6 +19,8 @@ import {
   Key,
   Clock,
   Tag,
+  ClipboardList,
+  ClipboardCheck,
   ChevronRight,
   ChevronLeft,
   Menu,
@@ -81,7 +83,12 @@ export default function Sidebar({ children }: SidebarProps) {
     { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
     { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent" },
     { href: "/search", icon: Search, label: "搜尋", labelEn: "Search" },
+  ];
+
+  const hrLinks: LinkItem[] = [
     { href: "/workflows", icon: FileText, label: "表單申請", labelEn: "Forms", badge: true },
+    { href: "/clock/manual", icon: ClipboardList, label: "我的打卡", labelEn: "My Clock-in" },
+    { href: "/admin?tab=attendance", icon: ClipboardCheck, label: "出勤審核", labelEn: "Attendance Review", adminOnly: true },
   ];
 
   const analyticsLinks: LinkItem[] = [
@@ -196,6 +203,13 @@ export default function Sidebar({ children }: SidebarProps) {
         <SectionHeader title={lang === "zh" ? "主要功能" : "MAIN"} />
         <div className="space-y-0.5 mb-4">
           {mainLinks.map((link) => (
+            <NavLink key={link.href} link={link} />
+          ))}
+        </div>
+
+        <SectionHeader title={lang === "zh" ? "人資" : "HR"} />
+        <div className="space-y-0.5 mb-4">
+          {hrLinks.map((link) => (
             <NavLink key={link.href} link={link} />
           ))}
         </div>
