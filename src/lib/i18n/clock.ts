@@ -108,6 +108,87 @@ export const clockCopy = {
     admin_pending_requests:    { zh: '{count} 件補登申請待您審核',   en: '{count} manual entries awaiting your review' },
     admin_employees_not_in:    { zh: '{count} 名員工今天還沒打卡',   en: '{count} employees not clocked in today' },
   },
+  // ── PR 3c.3: Approval queue UI strings ──
+  approval: {
+    // Tab + page-level
+    tab_attendance:           { zh: '出勤審核',           en: 'Attendance Review' },
+    page_subtitle:            { zh: '審核員工的補登打卡申請', en: 'Review and resolve manual clock-in requests' },
+    refresh:                  { zh: '重新整理',           en: 'Refresh' },
+    refreshing:               { zh: '更新中…',           en: 'Refreshing…' },
+    last_updated:             { zh: '最後更新 {time}',    en: 'Last updated {time}' },
+
+    // Today's overview panel
+    today_overview_title:     { zh: '今日出勤總覽',       en: "Today's attendance overview" },
+    view_history:             { zh: '查看歷史記錄 →',    en: 'View history →' },
+
+    // Empty state
+    empty_state_title:        { zh: '所有申請已處理完畢',  en: 'All requests resolved' },
+    empty_state_body:         { zh: '目前沒有待審核的補登打卡申請', en: 'No pending manual entries to review' },
+    empty_state_emoji:        { zh: '🎉',                en: '🎉' },
+
+    // Pending queue header
+    queue_title:              { zh: '待審核申請',         en: 'Pending requests' },
+    queue_count:              { zh: '共 {count} 件',     en: '{count} pending' },
+
+    // Card content
+    card_employee:            { zh: '員工',               en: 'Employee' },
+    card_work_date:           { zh: '工作日期',           en: 'Work date' },
+    card_clock_in:            { zh: '上班',               en: 'Clock-in' },
+    card_clock_out:           { zh: '下班',               en: 'Clock-out' },
+    card_reason:              { zh: '原因',               en: 'Reason' },
+    card_note:                { zh: '說明',               en: 'Note' },
+    card_submitted_at:        { zh: '送出時間 {time}',   en: 'Submitted {time}' },
+    card_no_clock_in:         { zh: '無',                 en: '—' },
+    card_no_clock_out:        { zh: '無',                 en: '—' },
+    card_no_note:             { zh: '無說明',             en: 'No note' },
+
+    // Per-card actions
+    card_approve:             { zh: '批准',               en: 'Approve' },
+    card_reject:              { zh: '拒絕',               en: 'Reject' },
+    card_select:              { zh: '選擇',               en: 'Select' },
+    card_approving:           { zh: '處理中…',           en: 'Approving…' },
+    card_rejecting:           { zh: '處理中…',           en: 'Rejecting…' },
+
+    // Reject modal
+    reject_modal_title:       { zh: '拒絕補登申請',       en: 'Reject manual entry' },
+    reject_modal_subtitle:    { zh: '請說明拒絕原因,員工會收到此說明', en: 'Provide a reason — the employee will see this' },
+    reject_note_label:        { zh: '拒絕原因',           en: 'Reason for rejection' },
+    reject_note_placeholder:  { zh: '例如:時間記錄不符,請確認後重新提交', en: 'e.g., Times do not match logs, please verify and resubmit' },
+    reject_note_required:     { zh: '必填',               en: 'Required' },
+    reject_submit:            { zh: '提交拒絕',           en: 'Submit rejection' },
+    reject_cancel:            { zh: '取消',               en: 'Cancel' },
+    reject_submitting:        { zh: '提交中…',           en: 'Submitting…' },
+
+    // Bulk action bar
+    bulk_selected:            { zh: '已選 {count} 項',   en: '{count} selected' },
+    bulk_select_all:          { zh: '全選',               en: 'Select all' },
+    bulk_clear:               { zh: '取消選擇',           en: 'Clear' },
+    bulk_approve:             { zh: '批准全部',           en: 'Approve selected' },
+    bulk_approving:           { zh: '批准中…',           en: 'Approving…' },
+
+    // Confirm dialog
+    confirm_bulk_title:       { zh: '確認批准 {count} 件申請?', en: 'Approve {count} requests?' },
+    confirm_bulk_body:        { zh: '此操作會建立員工的打卡記錄並寄送通知信。', en: 'This will create attendance records and send notification emails.' },
+    confirm_yes:              { zh: '確認批准',           en: 'Confirm' },
+    confirm_no:               { zh: '取消',               en: 'Cancel' },
+
+    // Success/error toast messages
+    toast_approved_one:       { zh: '已批准補登申請',     en: 'Request approved' },
+    toast_rejected_one:       { zh: '已拒絕補登申請',     en: 'Request rejected' },
+    toast_bulk_success:       { zh: '已批准 {count} 件申請', en: '{count} requests approved' },
+    toast_bulk_partial:       { zh: '已批准 {ok} 件,{fail} 件失敗', en: 'Approved {ok}, {fail} failed' },
+    toast_error_generic:      { zh: '操作失敗,請稍後再試', en: 'Action failed — please try again' },
+    toast_error_already:      { zh: '此申請已被處理',     en: 'Request already resolved' },
+    toast_error_not_found:    { zh: '找不到此申請',       en: 'Request not found' },
+    toast_dismiss:            { zh: '關閉',               en: 'Dismiss' },
+
+    // Failure reasons (used in the failed list of bulk response)
+    fail_not_pending:         { zh: '已被處理',           en: 'Already resolved' },
+    fail_not_found:           { zh: '找不到',             en: 'Not found' },
+    fail_conflict_complete:   { zh: '當日已有完整記錄',   en: 'Complete record exists' },
+    fail_conflict_unmergeable:{ zh: '記錄衝突',           en: 'Record conflict' },
+    fail_db_error:            { zh: '資料庫錯誤',         en: 'Database error' },
+  },
 } as const;
 
 export function t<K extends { zh: string; en: string }>(entry: K, lang: Lang): string {
