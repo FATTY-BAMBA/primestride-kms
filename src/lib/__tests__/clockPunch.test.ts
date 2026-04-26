@@ -12,6 +12,7 @@ const baseConfig: ClockConfig = {
   ot_threshold_minutes: 30,
   location_label: '總公司',
   timezone: 'Asia/Taipei',
+  manual_entry_window_days: 7,
 };
 
 // Helper: build a UTC Date from Taipei wall-clock (UTC+8 no DST)
