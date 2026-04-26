@@ -1,24 +1,28 @@
-// src/components/RejectModal.tsx
-// Modal for rejecting a manual entry request with a required reason.
-// The note is mandatory — submit button stays disabled until non-empty.
-
 'use client';
 
-import { useEffect, useState } from 'react';
-import { clockCopy, t, type Lang } from '@/lib/i18n/clock';
+import { useEffect, useRef, useState } from 'react';
+
+const tokens = {
+  colors: {
+    warning: { 50: '#FFFBEB', 100: '#FEF3C7', 200: '#FDE68A', 600: '#D97706', 700: '#B45309', 800: '#92400E' },
+    gray: { 50: '#F9FAFB', 100: '#F3F4F6', 200: '#E5E7EB', 300: '#D1D5DB', 500: '#6B7280', 600: '#4B5563', 700: '#374151', 900: '#111827' },
+  },
+  borderRadius: { sm: '6px', md: '8px', lg: '10px', xl: '12px', '2xl': '16px' },
+  shadows: { xl: '0 20px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.04)' },
+};
 
 const MAX_NOTE_LENGTH = 1000;
+const WARN_THRESHOLD = 0.9; // 90% of max
 
-export interface RejectModalProps {
+type RejectModalProps = {
   open: boolean;
-  lang: Lang;
-  /** Display context shown at top of modal */
+  lang: 'zh' | 'en';
   employeeName: string;
-  workDate: string; // YYYY-MM-DD
+  workDate: string;
   busy?: boolean;
   onSubmit: (note: string) => void;
   onCancel: () => void;
-}
+};
 
 export default function RejectModal({
   open,
@@ -30,10 +34,16 @@ export default function RejectModal({
   onCancel,
 }: RejectModalProps) {
   const [note, setNote] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Reset note when modal opens (clean slate per request)
+  // Reset note + auto-focus on open
   useEffect(() => {
-    if (open) setNote('');
+    if (open) {
+      setNote('');
+      // Defer to next tick so the modal is in the DOM
+      const id = setTimeout(() => textareaRef.current?.focus(), 0);
+      return () => clearTimeout(id);
+    }
   }, [open]);
 
   // ESC cancels
@@ -50,117 +60,219 @@ export default function RejectModal({
     return () => window.removeEventListener('keydown', handler);
   }, [open, busy, onCancel]);
 
-  // Lock body scroll while open
-  useEffect(() => {
-    if (!open) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [open]);
-
   if (!open) return null;
 
   const trimmed = note.trim();
-  const canSubmit = trimmed.length > 0 && !busy;
+  const isValid = trimmed.length > 0;
+  const charCount = note.length;
+  const showWarning = charCount >= MAX_NOTE_LENGTH * WARN_THRESHOLD;
+
+  const labels = {
+    zh: {
+      title: '駁回原因',
+      subtitle: `${employeeName} · ${workDate}`,
+      placeholder: '請填寫駁回原因（必填）',
+      cancel: '取消',
+      reject: '確定駁回',
+      rejecting: '駁回中…',
+      noteRequired: '駁回原因為必填項目',
+      charsRemaining: (n: number) => `剩餘 ${n} 字`,
+    },
+    en: {
+      title: 'Rejection Reason',
+      subtitle: `${employeeName} · ${workDate}`,
+      placeholder: 'Please provide a reason (required)',
+      cancel: 'Cancel',
+      reject: 'Reject',
+      rejecting: 'Rejecting…',
+      noteRequired: 'A rejection reason is required',
+      charsRemaining: (n: number) => `${n} chars remaining`,
+    },
+  }[lang];
 
   const handleSubmit = () => {
-    if (!canSubmit) return;
-    onSubmit(trimmed.slice(0, MAX_NOTE_LENGTH));
+    if (!isValid || busy) return;
+    onSubmit(trimmed);
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="reject-modal-title"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10000,
+        padding: '20px',
+      }}
+      onClick={() => {
+        if (!busy) onCancel();
+      }}
     >
-      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={busy ? undefined : onCancel}
-        aria-hidden="true"
-      />
-
-      {/* Dialog */}
-      <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 z-10">
-        <h2
-          id="reject-modal-title"
-          className="text-lg font-bold text-slate-900 mb-1"
-        >
-          {t(clockCopy.approval.reject_modal_title, lang)}
-        </h2>
-        <p className="text-sm text-slate-500 mb-4">
-          {t(clockCopy.approval.reject_modal_subtitle, lang)}
-        </p>
-
-        {/* Context: who + when */}
-        <div className="bg-slate-50 rounded-lg px-4 py-3 mb-4 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-500">
-              {t(clockCopy.approval.card_employee, lang)}
-            </span>
-            <span className="font-semibold text-slate-900">{employeeName}</span>
-          </div>
-          <div className="flex justify-between mt-1">
-            <span className="text-slate-500">
-              {t(clockCopy.approval.card_work_date, lang)}
-            </span>
-            <span className="font-semibold text-slate-900">{workDate}</span>
-          </div>
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: tokens.borderRadius['2xl'],
+          padding: '24px',
+          maxWidth: '480px',
+          width: '100%',
+          boxShadow: tokens.shadows.xl,
+          borderTop: `4px solid ${tokens.colors.warning[600]}`,
+        }}
+      >
+        {/* Header */}
+        <div style={{ marginBottom: '16px' }}>
+          <h2
+            id="reject-modal-title"
+            style={{
+              fontSize: '18px',
+              fontWeight: 700,
+              color: tokens.colors.gray[900],
+              margin: 0,
+              marginBottom: '4px',
+            }}
+          >
+            {labels.title}
+          </h2>
+          <p
+            style={{
+              fontSize: '13px',
+              color: tokens.colors.gray[500],
+              margin: 0,
+            }}
+          >
+            {labels.subtitle}
+          </p>
         </div>
 
-        {/* Note input */}
-        <label className="block mb-4">
-          <div className="flex justify-between items-baseline mb-1.5">
-            <span className="text-sm font-semibold text-slate-700">
-              {t(clockCopy.approval.reject_note_label, lang)}
-              <span className="ml-1.5 text-xs text-red-600 font-normal">
-                {t(clockCopy.approval.reject_note_required, lang)}
-              </span>
-            </span>
-            <span
-              className={`text-xs ${
-                note.length > MAX_NOTE_LENGTH * 0.9
-                  ? 'text-amber-600'
-                  : 'text-slate-400'
-              }`}
-            >
-              {note.length} / {MAX_NOTE_LENGTH}
-            </span>
-          </div>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value.slice(0, MAX_NOTE_LENGTH))}
-            disabled={busy}
-            autoFocus
-            rows={4}
-            placeholder={t(clockCopy.approval.reject_note_placeholder, lang)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:bg-slate-50 disabled:cursor-not-allowed resize-none"
-          />
-        </label>
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, MAX_NOTE_LENGTH))}
+          disabled={busy}
+          placeholder={labels.placeholder}
+          rows={4}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '10px 12px',
+            fontSize: '14px',
+            fontFamily: 'inherit',
+            color: tokens.colors.gray[900],
+            background: busy ? tokens.colors.gray[50] : 'white',
+            border: `1px solid ${tokens.colors.warning[200]}`,
+            borderRadius: tokens.borderRadius.lg,
+            resize: 'vertical',
+            outline: 'none',
+            lineHeight: 1.5,
+            minHeight: '100px',
+          }}
+          onFocus={(e) => {
+            (e.currentTarget as HTMLTextAreaElement).style.borderColor = tokens.colors.warning[600];
+            (e.currentTarget as HTMLTextAreaElement).style.boxShadow = `0 0 0 3px ${tokens.colors.warning[100]}`;
+          }}
+          onBlur={(e) => {
+            (e.currentTarget as HTMLTextAreaElement).style.borderColor = tokens.colors.warning[200];
+            (e.currentTarget as HTMLTextAreaElement).style.boxShadow = 'none';
+          }}
+        />
+
+        {/* Char counter / warning */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '6px',
+            minHeight: '18px',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '11px',
+              color: !isValid && charCount > 0 ? tokens.colors.warning[700] : tokens.colors.gray[500],
+            }}
+          >
+            {!isValid && charCount === 0 ? '' : ''}
+          </span>
+          <span
+            style={{
+              fontSize: '11px',
+              color: showWarning ? tokens.colors.warning[700] : tokens.colors.gray[500],
+              fontWeight: showWarning ? 600 : 400,
+            }}
+          >
+            {labels.charsRemaining(MAX_NOTE_LENGTH - charCount)}
+          </span>
+        </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '10px',
+            marginTop: '16px',
+            paddingTop: '16px',
+            borderTop: `1px solid ${tokens.colors.gray[200]}`,
+          }}
+        >
           <button
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            style={{
+              padding: '10px 16px',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: tokens.colors.gray[700],
+              background: 'white',
+              border: `1px solid ${tokens.colors.gray[300]}`,
+              borderRadius: tokens.borderRadius.lg,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy ? 0.6 : 1,
+              minHeight: '40px',
+            }}
+            onMouseEnter={(e) => {
+              if (!busy) (e.currentTarget as HTMLButtonElement).style.background = tokens.colors.gray[50];
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'white';
+            }}
           >
-            {t(clockCopy.approval.reject_cancel, lang)}
+            {labels.cancel}
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+            disabled={!isValid || busy}
+            style={{
+              padding: '10px 18px',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: 'white',
+              background: tokens.colors.warning[600],
+              border: 'none',
+              borderRadius: tokens.borderRadius.lg,
+              cursor: !isValid || busy ? 'not-allowed' : 'pointer',
+              opacity: !isValid || busy ? 0.5 : 1,
+              minHeight: '40px',
+            }}
+            onMouseEnter={(e) => {
+              if (isValid && !busy) (e.currentTarget as HTMLButtonElement).style.background = tokens.colors.warning[700];
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = tokens.colors.warning[600];
+            }}
           >
-            {busy
-              ? t(clockCopy.approval.reject_submitting, lang)
-              : t(clockCopy.approval.reject_submit, lang)}
+            {busy ? labels.rejecting : labels.reject}
           </button>
         </div>
       </div>
