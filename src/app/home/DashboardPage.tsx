@@ -11,6 +11,7 @@ import {
   ArrowRight, ChevronRight, Zap, Shield,
   DollarSign, Calendar, Bell, Search
 } from "lucide-react";
+import ClockStatusBar from "@/components/ClockStatusBar";
 
 type RecentDoc = {
   doc_id: string;
@@ -34,6 +35,10 @@ type DashboardData = {
   subscriptionStatus: string;
   approvedThisMonth: number;
   overtimeHours: number;
+  clockToday: {
+    monthlyDays?: number;
+    summary?: { attendanceRate: number; total: number };
+  } | null;
 };
 
 type SmartAction = {
@@ -90,7 +95,8 @@ export default function DashboardPage() {
       fetch("/api/organizations").then(r => r.json()),
       fetch("/api/subscription").then(r => r.json()),
       fetch("/api/workflows?view=all").then(r => r.json()),
-    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs, sub, allWorkflows]) => {
+      fetch("/api/clock/today").then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs, sub, allWorkflows, clockToday]) => {
       const actualOrgName = orgs.organizations?.[0]?.name || "";
       const orgName = branding.branding?.org_name || actualOrgName || (profile.language === "zh" ? "貴公司" : "your organization");
 
@@ -119,6 +125,7 @@ export default function DashboardPage() {
         subscriptionStatus: sub.status || "free",
         approvedThisMonth,
         overtimeHours,
+        clockToday,
       });
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
@@ -297,13 +304,19 @@ export default function DashboardPage() {
       href: isAdmin ? "/team" : undefined,
     },
     {
-      label: isZh ? "本月核准" : "Approved This Month",
-      value: data.approvedThisMonth,
-      icon: CheckCircle2,
+      label: isAdmin
+        ? (isZh ? "今日出勤率" : "Today's Attendance")
+        : (isZh ? "本月打卡天數" : "Days Clocked"),
+      value: isAdmin
+        ? `${data.clockToday?.summary?.attendanceRate ?? 0}%`
+        : (data.clockToday?.monthlyDays ?? 0),
+      icon: Clock,
       color: "#059669",
       bg: "#F0FDF4",
-      href: isAdmin ? "/admin" : "/workflows",
-      trend: data.approvedThisMonth > 0 ? undefined : (isZh ? "本月尚無" : "None yet"),
+      href: isAdmin ? "/admin?tab=attendance" : "/clock/manual",
+      trend: isAdmin && data.clockToday?.summary
+        ? (isZh ? `${data.clockToday.summary.total} 人應到` : `${data.clockToday.summary.total} expected`)
+        : undefined,
     },
   ] : [];
 
@@ -331,6 +344,9 @@ export default function DashboardPage() {
       `}</style>
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px 48px" }}>
+
+        {/* ── Clock Status Bar (PR 3b) ── */}
+        <ClockStatusBar lang={data?.language || "zh"} />
 
         {/* ── Header ── */}
         <div style={{ marginBottom: 32 }}>
