@@ -496,3 +496,27 @@ input::placeholder, textarea::placeholder {
 .cl-organizationSwitcherPopoverRootBox {
   z-index: 9999 !important;
 }
+
+/* ═══════════════════════════════════════════════════════
+   SECTION 8: Dark-theme picker icons (clock pages)
+   The /clock/* routes use slate-900 backgrounds with inline
+   styles that override the global white input. Native picker
+   icons can only be styled via pseudo-elements, so we scope
+   the inversion to those specific routes via body class.
+   ═══════════════════════════════════════════════════════ */
+
+/* Use attribute selector on the page wrapper to scope */
+body[data-theme="clock-dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+body[data-theme="clock-dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+body[data-theme="clock-dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.85);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+body[data-theme="clock-dark"] input[type="date"]::-webkit-calendar-picker-indicator:hover,
+body[data-theme="clock-dark"] input[type="time"]::-webkit-calendar-picker-indicator:hover,
+body[data-theme="clock-dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
