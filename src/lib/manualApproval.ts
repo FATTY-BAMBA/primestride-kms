@@ -125,14 +125,21 @@ async function loadExistingRecord(
 /**
  * Snapshot the current state of an attendance record into versions table.
  *
- * Schema note: attendance_record_versions stores a flattened snapshot of
- * attendance_records (not a JSON blob). We copy the relevant columns
- * directly. The `changed_at` and `id` columns are auto-populated.
+ * Schema notes:
+ * - attendance_record_versions stores a flattened snapshot of attendance_records
+ *   (not a JSON blob). We copy the relevant columns directly.
+ * - The `change_type` column has a CHECK constraint allowing only:
+ *   'create' | 'edit' | 'approve' | 'reject' | 'cancel'
+ * - Descriptive context (e.g., "from manual approval") goes in `change_note`.
+ * - The `changed_at` and `id` columns are auto-populated.
+ *
+ * Errors here are logged but do not throw — the calling approval flow has
+ * already committed the user-facing state changes by the time we snapshot.
  */
 async function writeVersionSnapshot(
   client: SupabaseClient,
   recordId: string,
-  changeType: 'created_from_manual_approval' | 'merged_from_manual_approval',
+  changeType: 'create' | 'edit' | 'approve' | 'reject' | 'cancel',
   byUserId: string,
   byUserName: string,
   changeNote?: string | null,
@@ -148,7 +155,7 @@ async function writeVersionSnapshot(
 
   if (!record) return; // shouldn't happen but don't throw
 
-  await client.from('attendance_record_versions').insert({
+  const { error } = await client.from('attendance_record_versions').insert({
     attendance_record_id: recordId,
     organization_id: record.organization_id,
     clock_in: record.clock_in ?? null,
@@ -164,6 +171,15 @@ async function writeVersionSnapshot(
     change_type: changeType,
     change_note: changeNote ?? null,
   });
+
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error('[writeVersionSnapshot] insert failed', {
+      recordId,
+      changeType,
+      message: error.message,
+    });
+  }
 }
 
 // ── Public: approve a single request ──────────────────────────────────────
@@ -286,13 +302,17 @@ export async function approveRequest(
     };
   }
 
-  // 4. Audit snapshot
+  // 4. Audit snapshot — type uses schema-allowed action verb,
+  //    descriptive context goes in change_note.
   await writeVersionSnapshot(
     client,
     recordId,
-    mode === 'created' ? 'created_from_manual_approval' : 'merged_from_manual_approval',
+    mode === 'created' ? 'approve' : 'edit',
     approver.approverUserId,
     approver.approverName,
+    mode === 'created'
+      ? 'Created from approved manual entry request'
+      : 'Merged clock-out from approved manual entry request',
   );
 
   return { ok: true, requestId, recordId, mode };
