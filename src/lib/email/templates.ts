@@ -316,3 +316,124 @@ export async function sendManualEntryRejectedEmail(
     return { ok: false, error: e instanceof Error ? e.message : 'send_failed' };
   }
 }
+// ── Absent alert email (sent by late-check cron) ──────────────────────────
+
+export type AbsentAlertContext = {
+  adminName: string;
+  orgName: string;
+  workDate: string;
+  absentEmployees: { name: string; email: string }[];
+  dashboardUrl: string;
+};
+
+export async function sendAbsentAlertEmail(
+  to: string,
+  ctx: AbsentAlertContext,
+): Promise<void> {
+  if (!resend) {
+    console.warn('[sendAbsentAlertEmail] RESEND_API_KEY not set — skipping');
+    return;
+  }
+
+  const employeeList = ctx.absentEmployees
+    .map(e => `<div style="padding:8px 12px;background:#FEF3C7;border-radius:6px;margin-bottom:6px;color:#92400E;font-weight:600;">👤 ${e.name || e.email}</div>`)
+    .join('');
+
+  await resend.emails.send({
+    from: EMAIL_FROM,
+    to,
+    subject: `⚠️ ${ctx.orgName} — ${ctx.absentEmployees.length} 位員工今日未打卡`,
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#7C3AED;padding:24px;border-radius:8px 8px 0 0;">
+          <h1 style="color:white;margin:0;font-size:20px;">⚠️ 未打卡提醒</h1>
+          <p style="color:#DDD6FE;margin:4px 0 0;font-size:14px;">Atlas EIP 出勤監控 · ${ctx.workDate}</p>
+        </div>
+        <div style="background:white;padding:24px;border:1px solid #E5E7EB;border-radius:0 0 8px 8px;">
+          <p style="color:#374151;font-size:15px;"><strong>${ctx.adminName}</strong>，您好：</p>
+          <p style="color:#374151;">今日截至上午 10:30，以下 <strong>${ctx.absentEmployees.length} 位員工</strong>尚未打卡：</p>
+          <div style="margin:16px 0;">${employeeList}</div>
+          <p style="color:#6B7280;font-size:13px;">可能原因：請假未申請、臨時事假、設備問題等。建議盡快確認員工狀況。</p>
+          <a href="${ctx.dashboardUrl}/admin"
+             style="display:inline-block;background:#7C3AED;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:8px;">
+            前往管理後台 →
+          </a>
+          <p style="color:#9CA3AF;font-size:11px;margin-top:24px;">Atlas EIP by PrimeStride AI · primestrideatlas.com</p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+// ── Overtime alert email (sent by overtime-check cron) ────────────────────
+
+export type OvertimeAlertContext = {
+  employeeName: string;
+  orgName: string;
+  workDate: string;
+  elapsedHours: number;
+  dashboardUrl: string;
+  isAdminAlert: boolean;
+  flaggedEmployees?: { name: string; email: string; elapsedHours: number }[];
+};
+
+export async function sendOvertimeAlertEmail(
+  to: string,
+  ctx: OvertimeAlertContext,
+): Promise<void> {
+  if (!resend) {
+    console.warn('[sendOvertimeAlertEmail] RESEND_API_KEY not set — skipping');
+    return;
+  }
+
+  const isAdmin = ctx.isAdminAlert;
+
+  const employeeList = isAdmin && ctx.flaggedEmployees
+    ? ctx.flaggedEmployees.map(e =>
+        `<div style="padding:8px 12px;background:#FEF3C7;border-radius:6px;margin-bottom:6px;">
+          <span style="color:#92400E;font-weight:600;">👤 ${e.name}</span>
+          <span style="color:#B45309;font-size:12px;margin-left:8px;">已工作 ${e.elapsedHours} 小時</span>
+        </div>`
+      ).join('')
+    : '';
+
+  const subject = isAdmin
+    ? `⏰ ${ctx.orgName} — ${ctx.flaggedEmployees?.length ?? 1} 位員工今日工時超過10小時未申請加班`
+    : `⏰ 提醒：您今日已工作 ${ctx.elapsedHours} 小時，是否需要申請加班？`;
+
+  const bodyHtml = isAdmin
+    ? `
+      <p style="color:#374151;font-size:15px;"><strong>${ctx.employeeName}</strong>，您好：</p>
+      <p style="color:#374151;">今日（${ctx.workDate}）以下員工工時已超過 10 小時，但尚未申請加班：</p>
+      <div style="margin:16px 0;">${employeeList}</div>
+      <p style="color:#6B7280;font-size:13px;">依勞基法第32條，加班需事先申請並核准。請確認員工是否需要補申請。</p>
+    `
+    : `
+      <p style="color:#374151;font-size:15px;"><strong>${ctx.employeeName}</strong>，您好：</p>
+      <p style="color:#374151;">您今日（${ctx.workDate}）已工作 <strong>${ctx.elapsedHours} 小時</strong>，系統未偵測到加班申請。</p>
+      <p style="color:#374151;">如有加班需求，請盡快透過 Atlas EIP 提交申請，以確保加班費計算正確。</p>
+      <p style="color:#6B7280;font-size:13px;">依勞基法第24條，加班費為時薪1.34倍（前2小時）/ 1.67倍（後2小時）。</p>
+    `;
+
+  await resend.emails.send({
+    from: EMAIL_FROM,
+    to,
+    subject,
+    html: `
+      <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#7C3AED;padding:24px;border-radius:8px 8px 0 0;">
+          <h1 style="color:white;margin:0;font-size:20px;">⏰ 加班提醒</h1>
+          <p style="color:#DDD6FE;margin:4px 0 0;font-size:14px;">Atlas EIP 出勤監控 · ${ctx.workDate}</p>
+        </div>
+        <div style="background:white;padding:24px;border:1px solid #E5E7EB;border-radius:0 0 8px 8px;">
+          ${bodyHtml}
+          <a href="${ctx.dashboardUrl}${isAdmin ? '/admin' : '/workflows'}"
+             style="display:inline-block;background:#7C3AED;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:16px;">
+            ${isAdmin ? '前往管理後台 →' : '申請加班 →'}
+          </a>
+          <p style="color:#9CA3AF;font-size:11px;margin-top:24px;">Atlas EIP by PrimeStride AI · primestrideatlas.com</p>
+        </div>
+      </div>
+    `,
+  });
+}
