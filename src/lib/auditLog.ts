@@ -16,7 +16,8 @@ export type AuditAction =
   | 'clock.punch_rejected'
   | 'clock.manual_approved'
   | 'clock.manual_rejected'
-  | 'clock.manual_bulk_approved';
+  | 'clock.manual_bulk_approved'
+  | 'clock.record_edited';
 
 export type AuditLogEntry = {
   organizationId: string;
