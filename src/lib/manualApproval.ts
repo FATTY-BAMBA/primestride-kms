@@ -35,6 +35,7 @@ export interface ApprovalResult {
   requestId: string;
   recordId: string;
   mode: 'created' | 'merged_clock_out';
+  lsaCompliance?: LSAComplianceResult;
 }
 
 export interface ApprovalFailure {
@@ -80,6 +81,23 @@ export interface RejecterContext {
   rejecterUserId: string;
   rejecterName: string;
   resolutionNote: string;
+}
+
+// ── LSA Compliance types ──────────────────────────────────────────────────
+
+export interface LSAComplianceWarning {
+  code: string;
+  severity: 'warning' | 'violation';
+  article: string;
+  message_zh: string;
+  message_en: string;
+  value?: number;
+  limit?: number;
+}
+
+export interface LSAComplianceResult {
+  compliant: boolean;
+  warnings: LSAComplianceWarning[];
 }
 
 // ── Internal helpers ───────────────────────────────────────────────────────
@@ -180,6 +198,108 @@ async function writeVersionSnapshot(
       message: error.message,
     });
   }
+}
+
+// ── LSA Compliance checker ────────────────────────────────────────────────
+
+/**
+ * Check LSA compliance for a manual entry request before approval.
+ * Checks:
+ *   - LSA Art. 30: Daily hours <= 12
+ *   - LSA Art. 32: Monthly overtime <= 46 hours
+ * Does NOT block approval — returns warnings for admin awareness.
+ */
+async function checkLSACompliance(
+  client: SupabaseClient,
+  orgId: string,
+  userId: string,
+  workDate: string,
+  clockIn: string | null,
+  clockOut: string | null,
+): Promise<LSAComplianceResult> {
+  const warnings: LSAComplianceWarning[] = [];
+
+  // ── Check 1: Daily hours limit (LSA Art. 30) ──
+  if (clockIn && clockOut) {
+    const inTime = new Date(clockIn);
+    const outTime = new Date(clockOut);
+    const totalHours = (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+
+    if (totalHours > 12) {
+      warnings.push({
+        code: 'DAILY_HOURS_EXCEEDED',
+        severity: 'violation',
+        article: 'LSA Art. 30',
+        message_zh: `本次打卡記錄工時 ${totalHours.toFixed(1)} 小時，超過每日上限 12 小時`,
+        message_en: `This record shows ${totalHours.toFixed(1)} hours, exceeding the 12-hour daily limit`,
+        value: totalHours,
+        limit: 12,
+      });
+    } else if (totalHours > 10) {
+      warnings.push({
+        code: 'DAILY_HOURS_WARNING',
+        severity: 'warning',
+        article: 'LSA Art. 30',
+        message_zh: `本次打卡記錄工時 ${totalHours.toFixed(1)} 小時，接近每日上限 12 小時`,
+        message_en: `This record shows ${totalHours.toFixed(1)} hours, approaching the 12-hour daily limit`,
+        value: totalHours,
+        limit: 12,
+      });
+    }
+  }
+
+  // ── Check 2: Monthly overtime limit (LSA Art. 32) ──
+  const monthStart = workDate.slice(0, 7) + '-01';
+  const monthEnd = workDate.slice(0, 7) + '-31';
+
+  const { data: monthRecords } = await client
+    .from('attendance_records')
+    .select('overtime_hours, work_date')
+    .eq('organization_id', orgId)
+    .eq('user_id', userId)
+    .gte('work_date', monthStart)
+    .lte('work_date', monthEnd)
+    .neq('work_date', workDate); // exclude current date being approved
+
+  const existingMonthlyOT = (monthRecords ?? []).reduce(
+    (sum, r) => sum + (Number(r.overtime_hours) || 0), 0
+  );
+
+  // Estimate new overtime from this record
+  let newOT = 0;
+  if (clockIn && clockOut) {
+    const totalHours = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / (1000 * 60 * 60);
+    newOT = Math.max(0, totalHours - 8);
+  }
+
+  const projectedMonthlyOT = existingMonthlyOT + newOT;
+
+  if (projectedMonthlyOT > 46) {
+    warnings.push({
+      code: 'MONTHLY_OT_EXCEEDED',
+      severity: 'violation',
+      article: 'LSA Art. 32',
+      message_zh: `核准後本月加班時數將達 ${projectedMonthlyOT.toFixed(1)} 小時，超過法定上限 46 小時`,
+      message_en: `Approval will bring monthly overtime to ${projectedMonthlyOT.toFixed(1)} hours, exceeding the 46-hour limit`,
+      value: projectedMonthlyOT,
+      limit: 46,
+    });
+  } else if (projectedMonthlyOT > 38) {
+    warnings.push({
+      code: 'MONTHLY_OT_WARNING',
+      severity: 'warning',
+      article: 'LSA Art. 32',
+      message_zh: `核准後本月加班時數將達 ${projectedMonthlyOT.toFixed(1)} 小時，接近法定上限 46 小時`,
+      message_en: `Approval will bring monthly overtime to ${projectedMonthlyOT.toFixed(1)} hours, approaching the 46-hour limit`,
+      value: projectedMonthlyOT,
+      limit: 46,
+    });
+  }
+
+  return {
+    compliant: warnings.filter(w => w.severity === 'violation').length === 0,
+    warnings,
+  };
 }
 
 // ── Public: approve a single request ──────────────────────────────────────
@@ -302,6 +422,16 @@ export async function approveRequest(
     };
   }
 
+  // 3.5 LSA compliance check — run after approval, attach to response
+  const lsaCompliance = await checkLSACompliance(
+    client,
+    request.organization_id,
+    request.user_id,
+    request.work_date,
+    request.requested_clock_in,
+    request.requested_clock_out,
+  );
+
   // 4. Audit snapshot — type uses schema-allowed action verb,
   //    descriptive context goes in change_note.
   await writeVersionSnapshot(
@@ -315,7 +445,7 @@ export async function approveRequest(
       : 'Merged clock-out from approved manual entry request',
   );
 
-  return { ok: true, requestId, recordId, mode };
+  return { ok: true, requestId, recordId, mode, lsaCompliance };
 }
 
 // ── Public: reject a single request ───────────────────────────────────────
