@@ -57,6 +57,10 @@ import {
   type DetectionResult,
 } from "./continuousSickLeaveDetector";
 import {
+  computeAttendanceBonusDeduction,
+  type AttendanceBonusResult,
+} from "./attendanceBonusCalc";
+import {
   getCalendarService,
   type WorkingDayService,
 } from "../calendar/workingDayService";
@@ -156,6 +160,13 @@ export type EmployeeLeaveDeductionResult = {
   leaveOccurrences: LeaveOccurrenceResult[];
   /** Aggregated Q5 flags for downstream attendance-bonus calc */
   attendanceBonusFlags: AttendanceBonusFlags;
+  /**
+   * Phase 3c attendance bonus deduction (Q5 fix). Computes the
+   * proportional 全勤獎金 deduction per 勞工請假規則 第9條 + 第9-1條.
+   * Even when no bonus is configured, this carries a structured zero
+   * result so downstream consumers have consistent shape.
+   */
+  attendanceBonus: AttendanceBonusResult;
   /** Soft-fail warnings (didn't break the calc, but admin should see) */
   warnings: string[];
   /** Hard errors (specific records were skipped or zeroed) */
@@ -192,7 +203,7 @@ export type LeaveDeductionRunResult = {
  * can identify exactly which engine version produced a given line item.
  * Bump on any behavior change.
  */
-export const CALCULATOR_VERSION = "phase-3b-v1.1";
+export const CALCULATOR_VERSION = "phase-3c-v1.0";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -554,6 +565,16 @@ export function processEmployee(
   // Step 4: build aggregated bonus flags
   const attendanceBonusFlags = buildAttendanceBonusFlags(leaveOccurrences);
 
+  // Step 5 (Phase 3c): compute the actual attendance bonus deduction.
+  // Reads attendance_bonus_monthly from the profile and applies per-leave-
+  // type rules (第9條 protected list, 第9-1條 10-day 病假 budget,
+  // proportional deduction for the rest).
+  const attendanceBonus = computeAttendanceBonusDeduction({
+    profile: employee.profile,
+    leaves: employee.leavesInPeriod,
+    ytdSummary,
+  });
+
   return {
     userId: employee.profile.userId,
     fullName: employee.profile.fullName ?? "(name not set)",
@@ -565,6 +586,7 @@ export function processEmployee(
     ytdSummary,
     leaveOccurrences,
     attendanceBonusFlags,
+    attendanceBonus,
     warnings,
     errors,
   };

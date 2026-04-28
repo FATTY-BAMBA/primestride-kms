@@ -34,6 +34,7 @@ function makeEmployee(
     jobTitle: null,
     salaryBase: 45000, // → daily rate 1500
     salaryCurrency: "TWD",
+    attendanceBonusMonthly: 0,
     laborInsuredSalary: 45000,
     nhiInsuredSalary: 45000,
     pensionContributionWage: 45000,

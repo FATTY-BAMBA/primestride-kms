@@ -40,6 +40,7 @@ function makeProfile(
     jobTitle: null,
     salaryBase: 45000, // → daily rate 1500
     salaryCurrency: "TWD",
+    attendanceBonusMonthly: 0,
     laborInsuredSalary: 45000,
     nhiInsuredSalary: 45000,
     pensionContributionWage: 45000,
@@ -572,7 +573,7 @@ describe("processEmployee — Q5 attendance-bonus flags", () => {
 
 describe("CALCULATOR_VERSION", () => {
   it("is a non-empty version string", () => {
-    expect(CALCULATOR_VERSION).toMatch(/^phase-3b-v\d/);
+    expect(CALCULATOR_VERSION).toMatch(/^phase-3[a-z]-v\d/);
   });
 });
 
@@ -995,5 +996,101 @@ describe("processEmployee — chain detection (Step 6)", () => {
     );
     expect(result.totalLeaveDeductionAmount).toBe(7500);
     expect(result.totalUnpaidLeaveDays).toBe(5);
+  });
+});
+
+// ── 14. Attendance bonus integration (Phase 3c) ─────────────────────
+
+describe("processEmployee — attendance bonus integration", () => {
+  it("returns zero-bonus result when no bonus is configured", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        profile: { attendanceBonusMonthly: 0 },
+        leaves: [{ leaveTypeRaw: "事假", daysInPeriod: 1 }],
+      }),
+    );
+    expect(result.attendanceBonus.originalBonus).toBe(0);
+    expect(result.attendanceBonus.totalDeduction).toBe(0);
+    expect(result.attendanceBonus.netBonus).toBe(0);
+  });
+
+  it("computes proportional deduction for 事假 with bonus configured", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        profile: { attendanceBonusMonthly: 3000 },
+        leaves: [{ leaveTypeRaw: "事假", daysInPeriod: 1 }],
+      }),
+    );
+    expect(result.attendanceBonus.originalBonus).toBe(3000);
+    expect(result.attendanceBonus.totalDeduction).toBe(100); // 3000/30 × 1
+    expect(result.attendanceBonus.netBonus).toBe(2900);
+  });
+
+  it("protects 婚假 from any deduction", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        profile: { attendanceBonusMonthly: 3000 },
+        leaves: [{ leaveTypeRaw: "婚假", daysInPeriod: 8 }],
+      }),
+    );
+    expect(result.attendanceBonus.totalDeduction).toBe(0);
+    expect(result.attendanceBonus.breakdown[0].reason).toContain("Protected");
+  });
+
+  it("applies 10-day 病假 budget from YTD", () => {
+    // Employee already used 8 pure 病假 days YTD; this period has 5 more.
+    // Budget remaining: 2 days protected + 3 days deductible
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        profile: { attendanceBonusMonthly: 3000 },
+        ytdRecords: [
+          { leaveTypeRaw: "病假", daysClaimed: 8, startDate: "2026-02-15" },
+        ],
+        leaves: [{ leaveTypeRaw: "病假", daysInPeriod: 5 }],
+      }),
+    );
+    expect(result.attendanceBonus.totalDeduction).toBe(300); // 3 × 100
+    expect(result.attendanceBonus.breakdown[0].deductibleDays).toBe(3);
+  });
+
+  it("multiple leaves accumulate deduction", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        profile: { attendanceBonusMonthly: 3000 },
+        leaves: [
+          { leaveTypeRaw: "事假", daysInPeriod: 2 }, // 200
+          { leaveTypeRaw: "婚假", daysInPeriod: 3 }, // 0 (protected)
+        ],
+      }),
+    );
+    expect(result.attendanceBonus.totalDeduction).toBe(200);
+  });
+
+  it("calculator version reflects phase-3c", () => {
+    const result = processEmployee(makeAggregatedEmployee());
+    expect(result.attendanceBonus.calculatorVersion).toMatch(/^phase-3c-v/);
+  });
+
+  it("bonus result preserves audit trail with breakdown per leave", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        profile: { attendanceBonusMonthly: 3000 },
+        leaves: [
+          { leaveTypeRaw: "事假", daysInPeriod: 1, sourceWorkflowSubmissionId: "ws-1" },
+          { leaveTypeRaw: "病假", daysInPeriod: 1, sourceWorkflowSubmissionId: "ws-2" },
+        ],
+      }),
+    );
+    expect(result.attendanceBonus.breakdown).toHaveLength(2);
+    expect(
+      result.attendanceBonus.breakdown.find(
+        (b) => b.sourceWorkflowSubmissionId === "ws-1",
+      ),
+    ).toBeDefined();
+    expect(
+      result.attendanceBonus.breakdown.find(
+        (b) => b.sourceWorkflowSubmissionId === "ws-2",
+      ),
+    ).toBeDefined();
   });
 });

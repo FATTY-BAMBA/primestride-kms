@@ -195,6 +195,13 @@ export type EmployeeProfileSnapshot = {
   // Compensation
   salaryBase: number;
   salaryCurrency: string; // typically 'TWD'
+  /**
+   * Monthly attendance bonus (全勤獎金) in NTD.
+   * Per 勞工請假規則 第9條 + 第9-1條, this is subject to per-leave-type
+   * deduction rules. 0 means no bonus configured / no deduction calculated.
+   * See attendanceBonusCalc.ts for the deduction logic.
+   */
+  attendanceBonusMonthly: number;
 
   // Insurance config
   laborInsuredSalary: number | null;
@@ -315,6 +322,7 @@ type ProfileRow = {
   job_title: string | null;
   salary_base: number | null;
   salary_currency: string | null;
+  attendance_bonus_monthly: number | null;
   labor_insured_salary: number | null;
   nhi_insured_salary: number | null;
   pension_contribution_wage: number | null;
@@ -449,7 +457,8 @@ export async function aggregateLeaveData(input: {
     .from("profiles")
     .select(
       "id, full_name, national_id, employee_id, department, job_title, " +
-        "salary_base, salary_currency, labor_insured_salary, nhi_insured_salary, " +
+        "salary_base, salary_currency, attendance_bonus_monthly, " +
+        "labor_insured_salary, nhi_insured_salary, " +
         "pension_contribution_wage, voluntary_pension_rate, nhi_dependents, " +
         "bank_code, bank_account, hire_date, gender, termination_date",
     )
@@ -525,6 +534,7 @@ export async function aggregateLeaveData(input: {
       jobTitle: profile.job_title,
       salaryBase: profile.salary_base,
       salaryCurrency: profile.salary_currency ?? "TWD",
+      attendanceBonusMonthly: profile.attendance_bonus_monthly ?? 0,
       laborInsuredSalary: profile.labor_insured_salary,
       nhiInsuredSalary: profile.nhi_insured_salary,
       pensionContributionWage: profile.pension_contribution_wage,
