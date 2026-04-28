@@ -666,3 +666,78 @@ describe("processEmployee — determinism", () => {
     expect(r1.userId).not.toBe(r2.userId);
   });
 });
+
+// ── 12. Validator integration (Phase 3b.5 Step 4) ──────────────────
+
+describe("processEmployee — validator integration", () => {
+  it("surfaces 生理假 per-month limit warning end-to-end", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          { leaveTypeRaw: "生理假", daysInPeriod: 1 },
+          {
+            leaveTypeRaw: "生理假",
+            daysInPeriod: 1,
+            effectiveStart: "2026-04-25",
+            sourceWorkflowSubmissionId: "ws-second",
+          },
+        ],
+      }),
+    );
+
+    // Calculation proceeds normally — soft warn, not hard reject
+    expect(result.leaveOccurrences).toHaveLength(2);
+    expect(result.totalLeaveDeductionAmount).toBeGreaterThan(0);
+
+    // Warning surfaced with the correct code
+    const validatorWarnings = result.warnings.filter((w) =>
+      w.includes("MENSTRUAL_PER_MONTH_LIMIT_EXCEEDED"),
+    );
+    expect(validatorWarnings).toHaveLength(1);
+    expect(validatorWarnings[0]).toContain("ws-second");
+  });
+
+  it("no warning when only one 生理假 per month", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [{ leaveTypeRaw: "生理假", daysInPeriod: 1 }],
+      }),
+    );
+    expect(
+      result.warnings.filter((w) =>
+        w.includes("MENSTRUAL_PER_MONTH_LIMIT_EXCEEDED"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("YTD + in-period 生理假 in same month triggers warning", () => {
+    // Note: makeYtdContext defaults its records to date 2026-02-15.
+    // We override to 2026-04-10 to put it in same month as our in-period leave.
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        ytdRecords: [
+          {
+            leaveTypeRaw: "生理假",
+            daysClaimed: 1,
+            startDate: "2026-04-10",
+            sourceWorkflowSubmissionId: "ws-ytd",
+          },
+        ],
+        leaves: [
+          {
+            leaveTypeRaw: "生理假",
+            daysInPeriod: 1,
+            effectiveStart: "2026-04-25",
+            sourceWorkflowSubmissionId: "ws-inperiod",
+          },
+        ],
+      }),
+    );
+
+    const validatorWarnings = result.warnings.filter((w) =>
+      w.includes("MENSTRUAL_PER_MONTH_LIMIT_EXCEEDED"),
+    );
+    expect(validatorWarnings).toHaveLength(1);
+    expect(validatorWarnings[0]).toContain("ws-inperiod");
+  });
+});

@@ -49,6 +49,7 @@ import {
   applyPayTreatment,
   type PayTreatmentResult,
 } from "./payTreatment";
+import { runAllLeaveValidators, formatWarning } from "./leaveValidators";
 import type { LeaveTypeDefinition } from "./leaveOntology";
 
 // ── Public types ────────────────────────────────────────────────────
@@ -398,7 +399,19 @@ export function processEmployee(
     totalFullPayLeaveDays += result.payTreatment.fullPayDays;
   }
 
-  // Step 3: build aggregated bonus flags
+  // Step 3: run rule validators (Gap #2 fix: 生理假 per-month limit, etc.)
+  // These warnings represent legal compliance / data quality issues
+  // that the workflow approval should have caught. We surface them
+  // without modifying the calculation — soft-warn semantics.
+  const validatorWarnings = runAllLeaveValidators({
+    inPeriod: employee.leavesInPeriod,
+    ytdContext: employee.ytdContext,
+  });
+  for (const vw of validatorWarnings) {
+    warnings.push(formatWarning(vw));
+  }
+
+  // Step 4: build aggregated bonus flags
   const attendanceBonusFlags = buildAttendanceBonusFlags(leaveOccurrences);
 
   return {

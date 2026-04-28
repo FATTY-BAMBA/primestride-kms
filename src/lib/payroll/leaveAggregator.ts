@@ -69,6 +69,112 @@ function intersectRanges(
   return { start, end };
 }
 
+/**
+ * Apportion a leave's `daysClaimed` to a specific fiscal year when the
+ * leave spans a year boundary.
+ *
+ * LEGAL BASIS (verbatim from 勞動部 函釋):
+ *   "病假之一年，係以曆年計算，非以勞工到職日起算" (calendar year)
+ *   "若勞工跨年請假，應分年計算，並依各年度上限分別適用"
+ *   (year-spanning leaves are calculated separately by year, with each
+ *    year's limit applied independently)
+ *   — 勞動2字第41739號函 + 民法第123條
+ *
+ * APPORTIONMENT METHOD: calendar-day count.
+ *   For a leave from Dec 28, 2025 to Jan 5, 2026 (9 calendar days):
+ *     - 4 days fall in 2025 (Dec 28-31)
+ *     - 5 days fall in 2026 (Jan 1-5)
+ *   When apportioning to fiscal year 2026, this function returns
+ *   { apportionedDays: 5, splitForYearBoundary: true, ... }
+ *
+ * EDGE CASES:
+ *   - Leave entirely within fiscal year → apportionedDays = original
+ *     daysClaimed, splitForYearBoundary = false
+ *   - Leave entirely outside fiscal year → apportionedDays = 0,
+ *     splitForYearBoundary = false (caller should filter these out)
+ *   - daysClaimed != calendar span (e.g., half-day leaves with
+ *     daysClaimed=0.5 across 1 calendar day): we proportionally
+ *     scale: apportionedDays = daysClaimed * (overlap / totalSpan)
+ *
+ * @param originalStart leave's actual start date (may be in prior year)
+ * @param originalEnd leave's actual end date (may be in following year)
+ * @param originalDaysClaimed days as recorded on workflow_submission
+ * @param fiscalYear the calendar year to apportion to (e.g., 2026)
+ * @returns apportionment result; if apportionedDays is 0, caller should skip
+ */
+export function apportionDaysToFiscalYear(
+  originalStart: Date,
+  originalEnd: Date,
+  originalDaysClaimed: number,
+  fiscalYear: number,
+): {
+  apportionedDays: number;
+  splitForYearBoundary: boolean;
+  fiscalYearStart: Date;
+  fiscalYearEnd: Date;
+} {
+  // Fiscal year boundaries: [Jan 1 00:00 UTC, Jan 1 next year 00:00 UTC)
+  const fiscalYearStart = new Date(Date.UTC(fiscalYear, 0, 1));
+  const fiscalYearEnd = new Date(Date.UTC(fiscalYear + 1, 0, 1));
+
+  // Treat fiscal year as [start, end_exclusive). The leave end_date is
+  // inclusive (a leave ending Dec 31 occupies that day). For interval
+  // math, treat the leave as [start, end + 1 day) too.
+  const leaveStartTs = originalStart.getTime();
+  // Add 1 day to make end exclusive
+  const leaveEndExclusiveTs =
+    originalEnd.getTime() + 24 * 60 * 60 * 1000;
+
+  const fyStartTs = fiscalYearStart.getTime();
+  const fyEndTs = fiscalYearEnd.getTime();
+
+  // Overlap of [leaveStart, leaveEndExclusive) and [fyStart, fyEnd)
+  const overlapStartTs = Math.max(leaveStartTs, fyStartTs);
+  const overlapEndTs = Math.min(leaveEndExclusiveTs, fyEndTs);
+
+  if (overlapEndTs <= overlapStartTs) {
+    // No overlap — leave entirely outside this fiscal year
+    return {
+      apportionedDays: 0,
+      splitForYearBoundary: false,
+      fiscalYearStart,
+      fiscalYearEnd,
+    };
+  }
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const overlapCalendarDays = Math.round((overlapEndTs - overlapStartTs) / dayMs);
+  const totalCalendarDays = Math.round(
+    (leaveEndExclusiveTs - leaveStartTs) / dayMs,
+  );
+
+  // Did the leave straddle the fiscal year boundary?
+  const splitForYearBoundary =
+    leaveStartTs < fyStartTs || leaveEndExclusiveTs > fyEndTs;
+
+  // Apportion daysClaimed proportionally.
+  // Common case: daysClaimed === totalCalendarDays (whole days)
+  //   → apportionedDays = overlapCalendarDays exactly
+  // Edge case: half-day record (daysClaimed = 0.5, totalCalendar = 1)
+  //   → apportionedDays = 0.5 * (overlap/total)
+  // Edge case: daysClaimed > totalCalendar (data anomaly, very rare)
+  //   → still proportional
+  let apportionedDays: number;
+  if (originalDaysClaimed === totalCalendarDays) {
+    apportionedDays = overlapCalendarDays;
+  } else {
+    apportionedDays =
+      (originalDaysClaimed * overlapCalendarDays) / totalCalendarDays;
+  }
+
+  return {
+    apportionedDays,
+    splitForYearBoundary,
+    fiscalYearStart,
+    fiscalYearEnd,
+  };
+}
+
 // ── Public types ─────────────────────────────────────────────────────
 
 /**
@@ -164,6 +270,14 @@ export type YtdContext = {
     startDate: Date;
     endDate: Date;
     durationType: string | null;
+    /**
+     * True when this YTD record was apportioned from a leave that
+     * straddled the fiscal year boundary. The `daysClaimed` here
+     * reflects only the days falling in this fiscal year, not the
+     * original record's full count. The sourceWorkflowSubmissionId
+     * still links back to the original record for audit.
+     */
+    splitForYearBoundary?: boolean;
   }>;
 };
 
@@ -529,19 +643,72 @@ export async function aggregateLeaveData(input: {
         });
       }
 
-      // YTD: include leave if it started in the calendar year before
-      // this period. (Whole leave counted as YTD if start_date < windowEnd
-      // AND start_date >= windowStart. We use start_date as the anchor;
-      // ytdCaps.ts will sum days appropriately.)
-      if (start >= windowStart && start < windowEnd) {
-        ytdRecords.push({
-          sourceWorkflowSubmissionId: leave.id,
-          leaveTypeRaw,
+      // YTD apportionment (Phase 3b.5 Step 5 — Gap #4 fix):
+      //
+      // Per 勞動2字第41739號函: "病假之一年，係以曆年計算" — the YTD
+      // window is the calendar year [Jan 1, period start). A leave
+      // that started in the prior year but extends into this year
+      // contributes its overlapping days to THIS year's YTD.
+      //
+      // We use end-date as the inclusion criterion (not start-date as
+      // before) so year-spanning leaves are caught. Days are then
+      // apportioned to the current fiscal year via apportionDaysToFiscalYear.
+      //
+      // CONDITION: leave overlaps the YTD window [windowStart, windowEnd)
+      //   - end >= windowStart (some part of leave falls in/after Jan 1)
+      //   - start < windowEnd (some part of leave falls before period start)
+      const fiscalYear = periodYear;
+      if (end >= windowStart && start < windowEnd) {
+        const apportioned = apportionDaysToFiscalYear(
+          start,
+          end,
           daysClaimed,
-          startDate: start,
-          endDate: end,
-          durationType: fd.duration_type ?? null,
-        });
+          fiscalYear,
+        );
+
+        // Filter out the days that fall in the CURRENT period (they're
+        // already counted in leavesInPeriod and should not double-count
+        // in YTD). Subtract: YTD = "apportioned to fiscal year" minus
+        // "days in current period".
+        //
+        // Reuse the existing intersectRanges output: if the leave
+        // overlapped the period, periodOverlap.start..end gave the
+        // current-period days. We subtract those from apportionedDays.
+        const periodOverlap = intersectRanges(
+          start,
+          end,
+          periodStart,
+          periodEnd,
+        );
+        let ytdApportionedDays = apportioned.apportionedDays;
+        if (periodOverlap) {
+          const periodCalendarDays = daysBetween(
+            periodOverlap.start,
+            periodOverlap.end,
+          );
+          // Scale period days proportionally if daysClaimed != calendar span
+          const totalCalSpan = daysBetween(start, end);
+          const periodApportionedDays =
+            daysClaimed === totalCalSpan
+              ? periodCalendarDays
+              : (daysClaimed * periodCalendarDays) / totalCalSpan;
+          ytdApportionedDays = Math.max(
+            0,
+            ytdApportionedDays - periodApportionedDays,
+          );
+        }
+
+        if (ytdApportionedDays > 0) {
+          ytdRecords.push({
+            sourceWorkflowSubmissionId: leave.id,
+            leaveTypeRaw,
+            daysClaimed: ytdApportionedDays,
+            startDate: start,
+            endDate: end,
+            durationType: fd.duration_type ?? null,
+            splitForYearBoundary: apportioned.splitForYearBoundary,
+          });
+        }
       }
     }
 
