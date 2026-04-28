@@ -56,6 +56,38 @@ export type PayTreatmentInput = {
   ytdSummary: YtdSummary;
   /** Employee profile snapshot — used for tenure & insurance config */
   employee: EmployeeProfileSnapshot;
+  /**
+   * Optional chain context for continuous 病假 (Phase 3b.5 Step 6).
+   * When provided, half_pay_with_ytd_cap applies the day-31+ rule per
+   * 勞動部 勞動條3字第1120147882號函:
+   *   - Days 1-30 are counted as WORKING DAYS only
+   *   - Non-work days within days 1-30 are paid full per LSA Art. 39
+   *   - From day 31 onward, ALL calendar days (incl. weekends/holidays)
+   *     count toward the sick period and are unpaid
+   *
+   * The breakdown reflects only THIS record's portion of the chain that
+   * intersects the current period. The orchestrator computes these via
+   * continuousSickLeaveDetector + WorkingDayService.
+   *
+   * When omitted, the calculator falls back to legacy behavior
+   * (treats daysInPeriod as all-uniform, no work-day distinction).
+   * This keeps backward compatibility for non-sick leaves and for
+   * tests that don't set up a working-day service.
+   */
+  chainContext?: {
+    /** Work days in record's portion that fall in chain's days-1-30 region */
+    workDaysInDays1To30: number;
+    /**
+     * Non-work days in record's portion that fall in chain's days-1-30
+     * region. These are paid full per LSA Art. 39.
+     */
+    nonWorkDaysInDays1To30: number;
+    /**
+     * Calendar days in record's portion that fall in chain's day-31+
+     * region. All unpaid per 函釋, regardless of work-day status.
+     */
+    calendarDaysInDay31Plus: number;
+  };
 };
 
 export type PayTreatmentResult = {
@@ -229,7 +261,7 @@ function buildAttendanceBonusInteraction(
  *         Reaching this with skip_from_payroll is a contract violation.
  */
 export function applyPayTreatment(input: PayTreatmentInput): PayTreatmentResult {
-  const { definition, daysInPeriod, effectiveStart, ytdSummary, employee } = input;
+  const { definition, daysInPeriod, effectiveStart, ytdSummary, employee, chainContext } = input;
 
   // Compute Q5 audit-flag once; all return paths include it.
   const attendanceBonusInteraction = buildAttendanceBonusInteraction(definition);
@@ -323,6 +355,95 @@ export function applyPayTreatment(input: PayTreatmentInput): PayTreatmentResult 
       const capDays = treatment.capDays;
       const ytdAlreadyUsed = ytdSummary.sickHalfPayDaysUsed;
       const remainingInCap = Math.max(0, capDays - ytdAlreadyUsed);
+
+      // ── Chain-aware path (Phase 3b.5 Step 6) ──
+      //
+      // When chainContext is provided AND this is sick_unhospitalized,
+      // apply the day-31+ rule from 勞動條3字第1120147882號函:
+      //   - workDaysInDays1To30: candidates for half pay (subject to YTD cap)
+      //   - nonWorkDaysInDays1To30: full pay per LSA Art. 39 (NOT counted)
+      //   - calendarDaysInDay31Plus: ALL unpaid (incl. weekends)
+      if (
+        chainContext !== undefined &&
+        definition.canonicalKey === "sick_unhospitalized"
+      ) {
+        const work1to30 = chainContext.workDaysInDays1To30;
+        const nonWork1to30 = chainContext.nonWorkDaysInDays1To30;
+        const cal31Plus = chainContext.calendarDaysInDay31Plus;
+
+        // Apply YTD cap to days-1-30 work days
+        const halfPayDays = Math.min(work1to30, remainingInCap);
+        const cap1to30Beyond = work1to30 - halfPayDays;
+
+        // Day-31+ region: all unpaid regardless of cap
+        // Plus any work-day in days-1-30 that exceeded YTD cap
+        const unpaidDays = cap1to30Beyond + cal31Plus;
+        const fullPayDays = nonWork1to30; // per LSA Art. 39
+
+        const halfPayDeduction = halfPayDays * dailyRate * 0.5;
+        const unpaidDeduction = unpaidDays * dailyRate;
+        const totalDeduction = roundHalfUpToInt(
+          halfPayDeduction + unpaidDeduction,
+        );
+
+        const notes: string[] = [
+          `Chain-aware sick leave (per 勞動部 勞動條3字第1120147882號函): ` +
+            `record's portion contributes ${work1to30} work-day(s) + ` +
+            `${nonWork1to30} non-work-day(s) in chain's days-1-30 region, ` +
+            `${cal31Plus} calendar day(s) in chain's day-31+ region`,
+        ];
+        if (cap1to30Beyond > 0) {
+          notes.push(
+            `${cap1to30Beyond} day(s) exceed the ${capDays}-day annual cap ` +
+              `(YTD used: ${ytdAlreadyUsed}); treated as unpaid`,
+          );
+        }
+        if (cal31Plus > 0) {
+          notes.push(
+            `${cal31Plus} day(s) fall in chain's day-31+ region; per 函釋, ` +
+              `all such days (incl. weekends/holidays) are unpaid`,
+          );
+        }
+
+        const detailParts: string[] = [];
+        if (halfPayDays > 0) {
+          detailParts.push(
+            `${halfPayDays} half-pay work-day(s) (within ${capDays}-day cap)`,
+          );
+        }
+        if (fullPayDays > 0) {
+          detailParts.push(
+            `${fullPayDays} full-pay non-work-day(s) (LSA Art. 39, days 1-30)`,
+          );
+        }
+        if (cap1to30Beyond > 0) {
+          detailParts.push(`${cap1to30Beyond} unpaid (annual cap exhausted)`);
+        }
+        if (cal31Plus > 0) {
+          detailParts.push(
+            `${cal31Plus} unpaid calendar day(s) in day-31+ region`,
+          );
+        }
+
+        const detail =
+          `${daysInPeriod} day(s) of ${definition.canonicalNameZh} via chain rule: ` +
+          detailParts.join(" + ") +
+          ` → ${totalDeduction} NTD deduction`;
+
+        return {
+          deductionAmount: totalDeduction,
+          fullPayDays,
+          halfPayDays,
+          unpaidDays,
+          treatmentKind: "half_pay_with_ytd_cap",
+          dailyRateUsed: dailyRate,
+          calculationDetail: detail,
+          notes,
+          attendanceBonusInteraction,
+        };
+      }
+
+      // ── Legacy path: no chain context, treat daysInPeriod uniformly ──
 
       const halfPayDays = Math.min(daysInPeriod, remainingInCap);
       const beyondCapDays = daysInPeriod - halfPayDays;

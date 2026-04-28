@@ -916,3 +916,213 @@ describe("applyPayTreatment — attendanceBonusInteraction (Q5 audit flag)", () 
 function roundExpected(amount: number): number {
   return Math.floor(amount + 0.5);
 }
+
+// ── Phase 3b.5 Step 6 — chainContext (continuous sick leave) ────────
+
+describe("half_pay_with_ytd_cap with chainContext (Step 6)", () => {
+  // Daily rate 1500 (45000 / 30)
+
+  it("legacy behavior unchanged when chainContext absent", () => {
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 5,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 0 }),
+      employee: makeEmployee(),
+    });
+    // 5 days at half pay: 5 × 1500 × 0.5 = 3750
+    expect(result.deductionAmount).toBe(3750);
+    expect(result.halfPayDays).toBe(5);
+    expect(result.fullPayDays).toBe(0);
+    expect(result.unpaidDays).toBe(0);
+  });
+
+  it("chainContext: 5 work-days in days-1-30, 2 weekend non-work days", () => {
+    // Record covers Mon-Sun: 5 work days + 2 non-work days, all in days-1-30
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 7,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 0 }),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 5,
+        nonWorkDaysInDays1To30: 2,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    // 5 work days half pay: 5 × 1500 × 0.5 = 3750
+    // 2 non-work days full pay: 0 deduction (per LSA Art. 39)
+    expect(result.deductionAmount).toBe(3750);
+    expect(result.halfPayDays).toBe(5);
+    expect(result.fullPayDays).toBe(2);
+    expect(result.unpaidDays).toBe(0);
+  });
+
+  it("chainContext: pure day-31+ region — all unpaid", () => {
+    // Record entirely past day 30 of chain
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 7,
+      effectiveStart: new Date("2026-02-23T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 30 }),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 0,
+        nonWorkDaysInDays1To30: 0,
+        calendarDaysInDay31Plus: 7,
+      },
+    });
+    // 7 calendar days unpaid: 7 × 1500 = 10500
+    expect(result.deductionAmount).toBe(10500);
+    expect(result.unpaidDays).toBe(7);
+    expect(result.halfPayDays).toBe(0);
+    expect(result.fullPayDays).toBe(0);
+  });
+
+  it("chainContext: mix of days-1-30 and day-31+", () => {
+    // Record straddles day 30 boundary: 3 work-days in days-1-30,
+    // 1 non-work in days-1-30, 5 calendar in day-31+
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 9,
+      effectiveStart: new Date("2026-02-20T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 27 }),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 3,
+        nonWorkDaysInDays1To30: 1,
+        calendarDaysInDay31Plus: 5,
+      },
+    });
+    // 3 work-days half pay: 3 × 1500 × 0.5 = 2250
+    // 1 non-work full pay: 0
+    // 5 calendar day-31+ unpaid: 5 × 1500 = 7500
+    // Total: 9750
+    expect(result.deductionAmount).toBe(9750);
+    expect(result.halfPayDays).toBe(3);
+    expect(result.fullPayDays).toBe(1);
+    expect(result.unpaidDays).toBe(5);
+  });
+
+  it("chainContext: YTD cap exhausted — work-days flip to unpaid", () => {
+    // YTD already used 30 days; record's 5 work-days exceed cap entirely
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 7,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 30 }), // cap exhausted
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 5,
+        nonWorkDaysInDays1To30: 2,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    // 0 half pay (cap exhausted), 5 work-days unpaid: 5 × 1500 = 7500
+    // 2 non-work full pay: 0 (LSA Art. 39 still applies in days-1-30)
+    expect(result.deductionAmount).toBe(7500);
+    expect(result.halfPayDays).toBe(0);
+    expect(result.fullPayDays).toBe(2);
+    expect(result.unpaidDays).toBe(5);
+  });
+
+  it("chainContext: partial YTD cap remaining", () => {
+    // YTD has 28 used; cap 30; remaining 2. Record has 5 work-days.
+    // 2 → half pay; 3 → unpaid (cap exhausted).
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 5,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 28 }),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 5,
+        nonWorkDaysInDays1To30: 0,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    // 2 half pay: 2 × 1500 × 0.5 = 1500
+    // 3 unpaid: 3 × 1500 = 4500
+    // Total 6000
+    expect(result.deductionAmount).toBe(6000);
+    expect(result.halfPayDays).toBe(2);
+    expect(result.fullPayDays).toBe(0);
+    expect(result.unpaidDays).toBe(3);
+  });
+
+  it("chainContext: notes mention 函釋 citation", () => {
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 5,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd(),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 5,
+        nonWorkDaysInDays1To30: 0,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    const notes = result.notes.join(" ");
+    expect(notes).toContain("勞動條3字第1120147882號函");
+  });
+
+  it("chainContext: zero-day record returns zero deduction", () => {
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 0,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd(),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 0,
+        nonWorkDaysInDays1To30: 0,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    // Zero-day defensive return path
+    expect(result.deductionAmount).toBe(0);
+  });
+
+  it("chainContext does NOT affect non-sick leaves", () => {
+    // Personal leave with chainContext should ignore chainContext
+    const result = applyPayTreatment({
+      definition: getDef("personal_leave"),
+      daysInPeriod: 5,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd(),
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 5,
+        nonWorkDaysInDays1To30: 0,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    // Personal leave is unpaid: 5 × 1500 = 7500
+    expect(result.deductionAmount).toBe(7500);
+    expect(result.unpaidDays).toBe(5);
+  });
+
+  it("chainContext: only counts non-work days for full pay, not unpaid", () => {
+    // Verify nonWorkDaysInDays1To30 contributes to fullPayDays, NOT unpaidDays
+    const result = applyPayTreatment({
+      definition: getDef("sick_unhospitalized"),
+      daysInPeriod: 9,
+      effectiveStart: new Date("2026-04-13T00:00:00Z"),
+      ytdSummary: makeYtd({ sickHalfPayDaysUsed: 30 }), // cap exhausted
+      employee: makeEmployee(),
+      chainContext: {
+        workDaysInDays1To30: 5,
+        nonWorkDaysInDays1To30: 4,
+        calendarDaysInDay31Plus: 0,
+      },
+    });
+    // Even with cap exhausted: 5 work-days unpaid (5 × 1500 = 7500),
+    // 4 non-work full pay (LSA Art. 39 protects them)
+    expect(result.deductionAmount).toBe(7500);
+    expect(result.fullPayDays).toBe(4);
+    expect(result.unpaidDays).toBe(5);
+    expect(result.halfPayDays).toBe(0);
+  });
+});

@@ -50,6 +50,16 @@ import {
   type PayTreatmentResult,
 } from "./payTreatment";
 import { runAllLeaveValidators, formatWarning } from "./leaveValidators";
+import {
+  detectContinuousSickLeaveChains,
+  isDateInDay31PlusRegion,
+  type ContinuousSickLeaveChain,
+  type DetectionResult,
+} from "./continuousSickLeaveDetector";
+import {
+  getCalendarService,
+  type WorkingDayService,
+} from "../calendar/workingDayService";
 import type { LeaveTypeDefinition } from "./leaveOntology";
 
 // ── Public types ────────────────────────────────────────────────────
@@ -182,7 +192,7 @@ export type LeaveDeductionRunResult = {
  * can identify exactly which engine version produced a given line item.
  * Bump on any behavior change.
  */
-export const CALCULATOR_VERSION = "phase-3b-v1.0";
+export const CALCULATOR_VERSION = "phase-3b-v1.1";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -194,11 +204,22 @@ function toIsoDate(d: Date): string {
 /**
  * Build the LeaveOccurrenceResult for a single record.
  * Pure function — no I/O, no side effects.
+ *
+ * If `chainContextProvider` is provided, sick leave records are processed
+ * with the day-31+ rule per 勞動條3字第1120147882號函. Provider is a
+ * function that returns chain context for a given occurrence, or null if
+ * the record is not part of a continuous chain (or chain detection isn't
+ * enabled).
  */
 function processSingleLeave(
   occurrence: LeaveOccurrenceInPeriod,
   ytdSummary: YtdSummary,
   employee: EmployeeProfileSnapshot,
+  chainContextProvider?: (occ: LeaveOccurrenceInPeriod) => {
+    workDaysInDays1To30: number;
+    nonWorkDaysInDays1To30: number;
+    calendarDaysInDay31Plus: number;
+  } | null,
 ): LeaveOccurrenceResult {
   const classification: ClassificationResult = classify(
     occurrence.leaveTypeRaw,
@@ -246,12 +267,16 @@ function processSingleLeave(
   let payTreatmentResult: PayTreatmentResult | null = null;
   if (definition !== null) {
     try {
+      const chainContext = chainContextProvider
+        ? chainContextProvider(occurrence) ?? undefined
+        : undefined;
       payTreatmentResult = applyPayTreatment({
         definition,
         daysInPeriod: occurrence.daysInPeriod,
         effectiveStart: occurrence.effectiveStart,
         ytdSummary,
         employee,
+        chainContext,
       });
     } catch (err) {
       // applyPayTreatment throws only on skip_from_payroll (already
@@ -328,11 +353,82 @@ function buildAttendanceBonusFlags(
 }
 
 /**
+ * Compute per-record chain context for sick leaves in a chain.
+ *
+ * For each calendar day in the record's period intersection, classify
+ * it as:
+ *   - day-31+ region (per chain.thirtyFirstDayDate for that fiscal year)
+ *   - days-1-30, work day (using WorkingDayService.isWorkingDay)
+ *   - days-1-30, non-work day (LSA Art. 39 full pay)
+ *
+ * Returns the count tuple expected by PayTreatmentInput.chainContext.
+ */
+function computeRecordChainContext(
+  record: LeaveOccurrenceInPeriod,
+  chain: ContinuousSickLeaveChain,
+  svc: WorkingDayService,
+): {
+  workDaysInDays1To30: number;
+  nonWorkDaysInDays1To30: number;
+  calendarDaysInDay31Plus: number;
+} {
+  let work1to30 = 0;
+  let nonWork1to30 = 0;
+  let cal31Plus = 0;
+
+  // Iterate calendar days in [effectiveStart, effectiveEnd]
+  const cursor = new Date(
+    Date.UTC(
+      record.effectiveStart.getUTCFullYear(),
+      record.effectiveStart.getUTCMonth(),
+      record.effectiveStart.getUTCDate(),
+    ),
+  );
+  const stop = new Date(
+    Date.UTC(
+      record.effectiveEnd.getUTCFullYear(),
+      record.effectiveEnd.getUTCMonth(),
+      record.effectiveEnd.getUTCDate(),
+    ),
+  );
+
+  while (cursor.getTime() <= stop.getTime()) {
+    const inDay31Plus = isDateInDay31PlusRegion(chain, cursor);
+    if (inDay31Plus) {
+      cal31Plus++;
+    } else {
+      // In days-1-30 region
+      if (svc.isWorkingDay(cursor)) {
+        work1to30++;
+      } else {
+        nonWork1to30++;
+      }
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return {
+    workDaysInDays1To30: work1to30,
+    nonWorkDaysInDays1To30: nonWork1to30,
+    calendarDaysInDay31Plus: cal31Plus,
+  };
+}
+
+/**
  * Process a single employee's data into an EmployeeLeaveDeductionResult.
- * Pure function over already-aggregated data.
+ *
+ * Pure function over already-aggregated data when `workingDayService` is
+ * undefined (legacy mode). When provided, sick leaves are processed
+ * with chain detection (Phase 3b.5 Step 6) per 勞動條3字第1120147882號函:
+ * continuous 病假 of 30+ work-days flips to calendar-day counting from
+ * day 31 onward.
+ *
+ * The orchestrator (computeLeaveDeductions) loads WorkingDayService and
+ * passes it through. Tests can omit it for backward compatibility.
  */
 export function processEmployee(
   employee: AggregatedEmployee,
+  workingDayService?: WorkingDayService,
 ): EmployeeLeaveDeductionResult {
   const warnings: string[] = [...employee.warnings];
   const errors: string[] = [];
@@ -364,11 +460,55 @@ export function processEmployee(
   let totalHalfPayLeaveDays = 0;
   let totalFullPayLeaveDays = 0;
 
+  // Step 2a (Phase 3b.5 Step 6): if a working day service is available,
+  // detect continuous 病假 chains and prepare per-record chain context.
+  let chainDetection: DetectionResult | null = null;
+  let chainContextProvider:
+    | ((occ: LeaveOccurrenceInPeriod) => {
+        workDaysInDays1To30: number;
+        nonWorkDaysInDays1To30: number;
+        calendarDaysInDay31Plus: number;
+      } | null)
+    | undefined = undefined;
+
+  if (workingDayService !== undefined) {
+    chainDetection = detectContinuousSickLeaveChains(
+      employee.leavesInPeriod,
+      workingDayService,
+    );
+
+    chainContextProvider = (occ: LeaveOccurrenceInPeriod) => {
+      const idx = chainDetection!.recordToChainIndex.get(
+        occ.sourceWorkflowSubmissionId,
+      );
+      if (idx === undefined) return null;
+      const chain = chainDetection!.chains[idx];
+      return computeRecordChainContext(occ, chain, workingDayService);
+    };
+
+    // Surface multi-record chain warnings (Q2 = soft warn)
+    for (const chain of chainDetection.chains) {
+      if (chain.isMultiRecord) {
+        const sourceIds = chain.records
+          .map((r) => r.sourceWorkflowSubmissionId)
+          .join(", ");
+        warnings.push(
+          `[CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED] ${chain.records.length} ` +
+            `病假 records (${sourceIds}) were treated as one continuous ` +
+            `chain per 勞動部 勞動條3字第1120147882號函. If these records ` +
+            `are for DIFFERENT medical reasons, please verify the medical ` +
+            `certificates and adjust.`,
+        );
+      }
+    }
+  }
+
   for (const occurrence of employee.leavesInPeriod) {
     const result = processSingleLeave(
       occurrence,
       ytdSummary,
       employee.profile,
+      chainContextProvider,
     );
     leaveOccurrences.push(result);
 
@@ -466,10 +606,34 @@ export async function computeLeaveDeductions(input: {
     periodMonth: input.periodMonth,
   });
 
+  // Phase 3b.5 Step 6: load Taiwan calendar service for chain detection.
+  // Range: previous year through current year, to handle year-spanning
+  // continuous sick leave chains (per Q3: each year independent).
+  // If a missing-year error occurs (e.g., calendar not seeded for the
+  // requested period), we degrade gracefully — chain detection is
+  // skipped, calculator falls back to legacy uniform-day behavior, and
+  // a run-level warning is added so admins know to seed the calendar.
+  let workingDayService: WorkingDayService | undefined;
+  const runWarnings: string[] = [...aggregated.warnings];
+  try {
+    workingDayService = await getCalendarService([
+      input.periodYear - 1,
+      input.periodYear,
+    ]);
+  } catch (err) {
+    workingDayService = undefined;
+    const msg = err instanceof Error ? err.message : String(err);
+    runWarnings.push(
+      `[CALENDAR_UNAVAILABLE] Continuous-sick-leave chain detection ` +
+        `disabled: ${msg.split("\n")[0]}. Sick leaves processed with ` +
+        `legacy uniform-day rule (NOT applying day-31+ work-day distinction).`,
+    );
+  }
+
   // Process each employee through the pipeline
   const employees: EmployeeLeaveDeductionResult[] = [];
   for (const employee of aggregated.employees) {
-    employees.push(processEmployee(employee));
+    employees.push(processEmployee(employee, workingDayService));
   }
 
   return {
@@ -479,7 +643,7 @@ export async function computeLeaveDeductions(input: {
     periodStartDate: toIsoDate(aggregated.period.startDate),
     periodEndDate: toIsoDate(aggregated.period.endDate),
     employees,
-    runWarnings: aggregated.warnings,
+    runWarnings,
     computeTimeMs: Date.now() - startTime,
     calculatorVersion: CALCULATOR_VERSION,
   };

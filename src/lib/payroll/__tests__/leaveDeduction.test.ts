@@ -741,3 +741,259 @@ describe("processEmployee — validator integration", () => {
     expect(validatorWarnings[0]).toContain("ws-inperiod");
   });
 });
+
+// ── 13. Chain detection integration (Phase 3b.5 Step 6) ─────────────
+
+import type { WorkingDayService } from "../../calendar/workingDayService";
+
+/**
+ * Test helper: synthetic working day service with default Mon-Fri rule.
+ * Override map: { isoDate: isWorkingDay } for specific dates.
+ */
+function makeStubCalendarService(
+  overrides: Record<string, boolean> = {},
+): WorkingDayService {
+  const isWorkingDay = (d: Date): boolean => {
+    const iso = d.toISOString().split("T")[0];
+    if (iso in overrides) return overrides[iso];
+    const dow = d.getUTCDay();
+    return dow >= 1 && dow <= 5;
+  };
+  return {
+    years: new Set([2024, 2025, 2026]),
+    isWorkingDay,
+    getDayInfo: () => null,
+    countWorkingDaysBetween: (start: Date, end: Date) => {
+      if (start.getTime() > end.getTime()) return 0;
+      let count = 0;
+      const cursor = new Date(start.getTime());
+      while (cursor.getTime() <= end.getTime()) {
+        if (isWorkingDay(cursor)) count++;
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      return count;
+    },
+  };
+}
+
+describe("processEmployee — chain detection (Step 6)", () => {
+  it("legacy behavior preserved when no calendar service provided", () => {
+    // 7-day sick leave: 5 work + 2 weekend
+    // Legacy: all 7 treated as half pay → 7 × 1500 × 0.5 = 5250
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 7,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-19",
+          },
+        ],
+      }),
+    );
+    expect(result.totalLeaveDeductionAmount).toBe(5250);
+    expect(result.totalHalfPayLeaveDays).toBe(7);
+    expect(result.totalFullPayLeaveDays).toBe(0);
+  });
+
+  it("chain-aware: single record under 30 work-days, weekend included", () => {
+    // Same 7-day sick leave with calendar service → 5 work-days half pay,
+    // 2 weekend days full pay (LSA Art. 39)
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 7,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-19",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    // 5 half pay: 5 × 1500 × 0.5 = 3750
+    // 2 full pay: 0 deduction
+    expect(result.totalLeaveDeductionAmount).toBe(3750);
+    expect(result.totalHalfPayLeaveDays).toBe(5);
+    expect(result.totalFullPayLeaveDays).toBe(2);
+    expect(result.totalUnpaidLeaveDays).toBe(0);
+  });
+
+  it("chain-aware: continuous chain crosses day-31 boundary (大壯-style)", () => {
+    // 7 weekly Mon-Fri sick leave records bridged by weekends = 35 work days
+    // Day 31 is Mon Feb 16, 2026
+    // Period: April 2026 — none of these chain dates intersect April
+    // Need to use period that overlaps the chain
+    // Simpler: just run with all the records and observe the chain detection
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-01-05",
+            effectiveEnd: "2026-01-09",
+            sourceWorkflowSubmissionId: "wk-01-05",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-01-12",
+            effectiveEnd: "2026-01-16",
+            sourceWorkflowSubmissionId: "wk-01-12",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-01-19",
+            effectiveEnd: "2026-01-23",
+            sourceWorkflowSubmissionId: "wk-01-19",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-01-26",
+            effectiveEnd: "2026-01-30",
+            sourceWorkflowSubmissionId: "wk-01-26",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-02-02",
+            effectiveEnd: "2026-02-06",
+            sourceWorkflowSubmissionId: "wk-02-02",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-02-09",
+            effectiveEnd: "2026-02-13",
+            sourceWorkflowSubmissionId: "wk-02-09",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-02-16",
+            effectiveEnd: "2026-02-20",
+            sourceWorkflowSubmissionId: "wk-02-16",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+
+    // Expected: 30 work-days half pay + 5 calendar day-31+ unpaid
+    // Wait — the YTD cap is 30 days, and these are all in-period (no YTD).
+    // So all 30 work-days fit in the cap → half pay.
+    // The 31st onward = 5 work-days from week 7 (Mon-Fri Feb 16-20),
+    // but in chain-aware mode they're CALENDAR days from day 31:
+    //   Feb 16 (Mon) onwards: 5 calendar days (Mon Feb 16 → Fri Feb 20)
+    //   = all 5 unpaid (daily rate 1500)
+    // But records also include weekend bridges (Sat-Sun gap days are
+    //   NOT in records — they're bridge days outside record ranges)
+    // Total deduction: 30 × 1500 × 0.5 + 5 × 1500 = 22500 + 7500 = 30000
+    expect(result.totalLeaveDeductionAmount).toBe(30000);
+    expect(result.totalHalfPayLeaveDays).toBe(30);
+    expect(result.totalUnpaidLeaveDays).toBe(5);
+  });
+
+  it("chain-aware: surfaces multi-record chain warning", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+            sourceWorkflowSubmissionId: "wk-1",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-20",
+            effectiveEnd: "2026-04-24",
+            sourceWorkflowSubmissionId: "wk-2",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    const chainWarnings = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED"),
+    );
+    expect(chainWarnings).toHaveLength(1);
+    expect(chainWarnings[0]).toContain("wk-1");
+    expect(chainWarnings[0]).toContain("wk-2");
+    expect(chainWarnings[0]).toContain("勞動條3字第1120147882號函");
+  });
+
+  it("chain-aware: NO multi-record warning for single record", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    const chainWarnings = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED"),
+    );
+    expect(chainWarnings).toEqual([]);
+  });
+
+  it("chain-aware: NO multi-record warning for non-bridged records", () => {
+    // 2 records 1 work-day apart → 2 separate chains, no warning
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 1,
+            effectiveStart: "2026-04-13",
+            sourceWorkflowSubmissionId: "wk-a",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 1,
+            effectiveStart: "2026-04-15",
+            sourceWorkflowSubmissionId: "wk-b",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    const chainWarnings = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED"),
+    );
+    expect(chainWarnings).toEqual([]);
+  });
+
+  it("chain-aware: non-病假 leaves unaffected by chain detection", () => {
+    // Personal leave with calendar service: should still calculate as
+    // unpaid 5 × 1500 = 7500
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "事假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    expect(result.totalLeaveDeductionAmount).toBe(7500);
+    expect(result.totalUnpaidLeaveDays).toBe(5);
+  });
+});
