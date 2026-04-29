@@ -203,7 +203,7 @@ export type LeaveDeductionRunResult = {
  * can identify exactly which engine version produced a given line item.
  * Bump on any behavior change.
  */
-export const CALCULATOR_VERSION = "phase-3c-v1.0";
+export const CALCULATOR_VERSION = "phase-3d-v1.0";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -497,18 +497,49 @@ export function processEmployee(
       return computeRecordChainContext(occ, chain, workingDayService);
     };
 
-    // Surface multi-record chain warnings (Q2 = soft warn)
+    // Surface multi-record chain warnings (Q2 = soft warn).
+    // Phase 3d.3b: if all records in a chain share a cert ID, the chain
+    // is legally definitive (no warning needed). If at least one record
+    // lacks a cert, the chain was inferred via adjacency — surface a
+    // warning so HR can verify.
     for (const chain of chainDetection.chains) {
-      if (chain.isMultiRecord) {
-        const sourceIds = chain.records
-          .map((r) => r.sourceWorkflowSubmissionId)
-          .join(", ");
+      if (!chain.isMultiRecord) continue;
+
+      const allHaveCerts = chain.records.every(
+        (r) => r.medicalCertificateId !== null,
+      );
+      const sharedCertId =
+        allHaveCerts && chain.records.length > 0
+          ? chain.records[0].medicalCertificateId
+          : null;
+      const allShareSameCert =
+        sharedCertId !== null &&
+        chain.records.every(
+          (r) => r.medicalCertificateId === sharedCertId,
+        );
+
+      const sourceIds = chain.records
+        .map((r) => r.sourceWorkflowSubmissionId)
+        .join(", ");
+
+      if (allShareSameCert) {
+        // Cert-confirmed chain: high confidence, informational only
         warnings.push(
-          `[CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED] ${chain.records.length} ` +
+          `[CONTINUOUS_SICK_LEAVE_CHAIN_CONFIRMED] ${chain.records.length} ` +
+            `病假 records (${sourceIds}) share medical certificate ` +
+            `${sharedCertId} and are treated as one continuous illness ` +
+            `per 勞動部 勞動條3字第1120147882號函.`,
+        );
+      } else {
+        // Adjacency-inferred chain: HR should verify
+        warnings.push(
+          `[CONTINUOUS_SICK_LEAVE_CHAIN_INFERRED] ${chain.records.length} ` +
             `病假 records (${sourceIds}) were treated as one continuous ` +
-            `chain per 勞動部 勞動條3字第1120147882號函. If these records ` +
-            `are for DIFFERENT medical reasons, please verify the medical ` +
-            `certificates and adjust.`,
+            `chain per 勞動部 勞動條3字第1120147882號函. Cert IDs are not ` +
+            `populated for all records — chain inferred via date adjacency. ` +
+            `If these are for DIFFERENT medical reasons, please attach ` +
+            `medical certificates to each record so the calculator can ` +
+            `correctly distinguish them.`,
         );
       }
     }

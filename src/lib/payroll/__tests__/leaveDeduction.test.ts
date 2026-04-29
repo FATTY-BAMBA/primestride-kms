@@ -87,6 +87,7 @@ function makeOccurrence(partial: {
   sourceWorkflowSubmissionId?: string;
   durationType?: string | null;
   reason?: string | null;
+  medicalCertificateId?: string | null;
 }): LeaveOccurrenceInPeriod {
   const start = partial.effectiveStart ?? "2026-04-15";
   const end = partial.effectiveEnd ?? start;
@@ -105,6 +106,9 @@ function makeOccurrence(partial: {
     effectiveEnd: new Date(end + "T00:00:00Z"),
     spansBeyondPeriod: false,
     approvedAt: new Date(start + "T08:00:00Z"),
+    medicalCertificateId: partial.medicalCertificateId ?? null,
+    treatmentPeriodStart: null,
+    treatmentPeriodEnd: null,
   };
 }
 
@@ -923,7 +927,7 @@ describe("processEmployee — chain detection (Step 6)", () => {
       makeStubCalendarService(),
     );
     const chainWarnings = result.warnings.filter((w) =>
-      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED"),
+      /CONTINUOUS_SICK_LEAVE_CHAIN_(CONFIRMED|INFERRED)/.test(w),
     );
     expect(chainWarnings).toHaveLength(1);
     expect(chainWarnings[0]).toContain("wk-1");
@@ -946,7 +950,7 @@ describe("processEmployee — chain detection (Step 6)", () => {
       makeStubCalendarService(),
     );
     const chainWarnings = result.warnings.filter((w) =>
-      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED"),
+      /CONTINUOUS_SICK_LEAVE_CHAIN_(CONFIRMED|INFERRED)/.test(w),
     );
     expect(chainWarnings).toEqual([]);
   });
@@ -973,7 +977,7 @@ describe("processEmployee — chain detection (Step 6)", () => {
       makeStubCalendarService(),
     );
     const chainWarnings = result.warnings.filter((w) =>
-      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_DETECTED"),
+      /CONTINUOUS_SICK_LEAVE_CHAIN_(CONFIRMED|INFERRED)/.test(w),
     );
     expect(chainWarnings).toEqual([]);
   });
@@ -1092,5 +1096,139 @@ describe("processEmployee — attendance bonus integration", () => {
         (b) => b.sourceWorkflowSubmissionId === "ws-2",
       ),
     ).toBeDefined();
+  });
+});
+
+// ── 15. Cert-confirmed vs cert-inferred warning surface (Phase 3d.3b) ──
+
+describe("processEmployee — cert-aware chain warnings (Phase 3d.3b)", () => {
+  it("chain with all-shared cert IDs surfaces CONFIRMED warning", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+            sourceWorkflowSubmissionId: "wk-1",
+            medicalCertificateId: "CERT-FLU-001",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-20",
+            effectiveEnd: "2026-04-24",
+            sourceWorkflowSubmissionId: "wk-2",
+            medicalCertificateId: "CERT-FLU-001",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    const confirmed = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_CONFIRMED"),
+    );
+    const inferred = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_INFERRED"),
+    );
+    expect(confirmed).toHaveLength(1);
+    expect(inferred).toHaveLength(0);
+    expect(confirmed[0]).toContain("CERT-FLU-001");
+  });
+
+  it("chain with no cert IDs surfaces INFERRED warning", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+            sourceWorkflowSubmissionId: "wk-1",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-20",
+            effectiveEnd: "2026-04-24",
+            sourceWorkflowSubmissionId: "wk-2",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    const inferred = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_INFERRED"),
+    );
+    expect(inferred).toHaveLength(1);
+    expect(inferred[0]).toContain("Cert IDs are not populated");
+  });
+
+  it("chain with partial cert coverage surfaces INFERRED warning", () => {
+    // One record has cert, one doesn't → adjacency-inferred linkage → INFERRED
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+            sourceWorkflowSubmissionId: "wk-1",
+            medicalCertificateId: "CERT-001",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-20",
+            effectiveEnd: "2026-04-24",
+            sourceWorkflowSubmissionId: "wk-2",
+            medicalCertificateId: null,
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    const inferred = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_INFERRED"),
+    );
+    const confirmed = result.warnings.filter((w) =>
+      w.includes("CONTINUOUS_SICK_LEAVE_CHAIN_CONFIRMED"),
+    );
+    expect(inferred).toHaveLength(1);
+    expect(confirmed).toHaveLength(0);
+  });
+
+  it("different cert IDs prevent chain (no warning at all, separate chains)", () => {
+    const result = processEmployee(
+      makeAggregatedEmployee({
+        leaves: [
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-13",
+            effectiveEnd: "2026-04-17",
+            sourceWorkflowSubmissionId: "wk-1",
+            medicalCertificateId: "CERT-FLU",
+          },
+          {
+            leaveTypeRaw: "病假",
+            daysInPeriod: 5,
+            effectiveStart: "2026-04-20",
+            effectiveEnd: "2026-04-24",
+            sourceWorkflowSubmissionId: "wk-2",
+            medicalCertificateId: "CERT-INJURY",
+          },
+        ],
+      }),
+      makeStubCalendarService(),
+    );
+    // Different certs → 2 separate single-record chains → no chain warning
+    const allChainWarnings = result.warnings.filter((w) =>
+      /CONTINUOUS_SICK_LEAVE_CHAIN_(CONFIRMED|INFERRED)/.test(w),
+    );
+    expect(allChainWarnings).toHaveLength(0);
   });
 });

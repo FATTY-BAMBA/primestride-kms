@@ -125,7 +125,7 @@ STEP 2: ` : ""}Parse the text into the correct form fields.
 
 FORM SCHEMAS:
 
-LEAVE: { leave_type, start_date, end_date, days, duration_type, hours_requested, reason, proxy }
+LEAVE: { leave_type, start_date, end_date, days, duration_type, hours_requested, reason, proxy, medical_certificate_id, treatment_period_start, treatment_period_end }
   leave_type options and Taiwanese detection rules:
   ┌──────────────────────────────────────────────────────────────┐
   │ 特休 Annual     │ 特休, 年假, 年休, annual leave, PTO        │
@@ -169,6 +169,23 @@ LEAVE: { leave_type, start_date, end_date, days, duration_type, hours_requested,
 
   Default leave_type: 事假 Personal (if type cannot be determined)
   CRITICAL: 補休 ≠ 特休. Never confuse these two.
+
+  MEDICAL CERTIFICATE FIELDS (Phase 3d.3b):
+  Only populate these for 病假 (Sick leave). Default to empty string for all
+  other leave types AND when not mentioned. NEVER hallucinate cert numbers.
+  - medical_certificate_id: extract if user mentions a cert number explicitly
+    (e.g., "醫師證明 ABC-123", "看診證明編號是 XY9981", "診斷書編號 D-2026-001")
+    Examples: "醫師開的證明 MED-2026-789" → medical_certificate_id="MED-2026-789"
+              "我感冒了" → medical_certificate_id="" (no cert mentioned)
+  - treatment_period_start / treatment_period_end: extract if user mentions
+    the treatment window the cert covers, distinct from the leave dates.
+    Example: "醫生說從3/15到3/22要休養" → treatment_period_start="2026-03-15",
+              treatment_period_end="2026-03-22"
+    If only single date mentioned, leave both empty.
+  - For 病假 < 3 days OR no cert mentioned → all three fields = "" (empty)
+  - Per 勞工請假規則 第10條, 3+ day sick leave should have a cert, but the
+    parser should NOT invent one. Only extract what the user actually said.
+
 ${proxyContext}
 
 OVERTIME: { date, start_time, end_time, hours, overtime_type, reason, project }

@@ -67,7 +67,38 @@ const fieldLabels: Record<string, string> = {
   hours: "時數", overtime_type: "加班類別", project: "專案",
   destination: "地點", purpose: "目的",
   transport: "交通", budget: "預估費用", accommodation: "住宿",
+  // Phase 3d.3b: medical certificate fields (shown for 病假 ≥3 days)
+  medical_certificate_id: "醫療證明編號",
+  treatment_period_start: "證明起始日",
+  treatment_period_end: "證明結束日",
 };
+
+/**
+ * Phase 3d.3b: When a leave is 病假 with days ≥ 3, ensure the medical
+ * certificate fields are present in formData so the renderer shows them.
+ * Per 勞工請假規則 第10條, 3+ day sick leave should have a medical cert.
+ *
+ * If parser already extracted cert info, preserve it. Otherwise initialize
+ * to empty strings so the user can fill them in.
+ */
+function enrichFormDataWithCertFields(
+  formData: Record<string, any>,
+  formType?: string,
+): Record<string, any> {
+  if (formType !== "leave") return formData;
+  const isSickLeave =
+    typeof formData.leave_type === "string" &&
+    (formData.leave_type.includes("病假") || /sick/i.test(formData.leave_type));
+  const days = Number(formData.days);
+  const requiresCert = isSickLeave && Number.isFinite(days) && days >= 3;
+  if (!requiresCert) return formData;
+  return {
+    ...formData,
+    medical_certificate_id: formData.medical_certificate_id ?? "",
+    treatment_period_start: formData.treatment_period_start ?? "",
+    treatment_period_end: formData.treatment_period_end ?? "",
+  };
+}
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "⏳ 待審核", color: "#D97706", bg: "#FEF3C7" },
@@ -259,7 +290,11 @@ export default function WorkflowsPage() {
       });
       const data = await res.json();
       if (!res.ok || data.error) { setMessage(`⚠️ ${data.error || "AI 解析失敗"}`); setTimeout(() => setMessage(""), 5000); return; }
-      if (data.form_data) { setFormData(data.form_data); setParsedType(data.form_type || "leave"); }
+      if (data.form_data) {
+        const enriched = enrichFormDataWithCertFields(data.form_data, data.form_type);
+        setFormData(enriched);
+        setParsedType(data.form_type || "leave");
+      }
     } catch { setMessage("⚠️ AI 解析失敗，請再試一次。"); setTimeout(() => setMessage(""), 5000); }
     finally { setParsing(false); }
   };
@@ -456,6 +491,36 @@ export default function WorkflowsPage() {
             </div>
 
             <div style={{ padding: "12px 20px" }}>
+              {/* Phase 3d.3b: Cert advisory for sick leave ≥ 3 days */}
+              {(() => {
+                const isSick = typeof formData.leave_type === "string" &&
+                  (formData.leave_type.includes("病假") || /sick/i.test(formData.leave_type));
+                const days = Number(formData.days);
+                if (!isSick || !Number.isFinite(days) || days < 3) return null;
+                const certIdEmpty = !formData.medical_certificate_id;
+                return (
+                  <div style={{
+                    padding: "10px 14px",
+                    marginBottom: 12,
+                    background: certIdEmpty ? "#FEF3C7" : "#D1FAE5",
+                    border: `1px solid ${certIdEmpty ? "#FCD34D" : "#86EFAC"}`,
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: certIdEmpty ? "#92400E" : "#065F46",
+                    lineHeight: 1.5,
+                  }}>
+                    {certIdEmpty ? "⚠️ " : "✅ "}
+                    <strong>{certIdEmpty ? "建議附上醫療證明" : "醫療證明已記錄"}</strong>
+                    {certIdEmpty && (
+                      <>
+                        {" — "}
+                        依《勞工請假規則》第10條，連續病假3日以上應提供醫師證明書。
+                        若有醫療證明，請於下方欄位填寫編號（可選填）。
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               {!showEditMode ? (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
                   {Object.entries(formData).filter(([key]) => !key.startsWith("_")).map(([key, value]) => (

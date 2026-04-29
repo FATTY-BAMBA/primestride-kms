@@ -147,21 +147,38 @@ function gapIsAllNonWorkingDays(
 
 /**
  * Check if records A then B (A.end < B.start) are linked.
- * Linkage: gap [A.end+1, B.start-1] is empty OR all non-working days.
  *
- * Special cases:
- *   - Overlap (A.end >= B.start): treated as linked (data quality issue;
- *     err on the side of combining)
- *   - Adjacent (A.end + 1 == B.start): trivially linked
+ * Linkage rules in priority order (Phase 3d.3b):
+ *
+ *   1. CERT-ID OVERRIDE: if both records have a medicalCertificateId,
+ *      they link if and only if the IDs match. Different cert IDs ALWAYS
+ *      mean different illnesses, even if the dates are adjacent. This is
+ *      the legally-decisive rule per 勞動部 函釋: medical certificates
+ *      are the evidence of treatment continuity.
+ *
+ *   2. ADJACENCY (fallback): when at least one record lacks a cert ID,
+ *      fall back to the Phase 3b.5 Step 6 rule:
+ *        - Overlap (A.end >= B.start) → linked (data quality combine)
+ *        - Adjacent (A.end + 1 == B.start) → linked
+ *        - Gap [A.end+1, B.start-1] is all non-working days → linked
+ *        - Otherwise → not linked
+ *
+ * The adjacency fallback is conservative — it may over-combine records
+ * that are actually for different illnesses. The orchestrator surfaces
+ * a warning so HR can review. Once cert IDs are populated (via the
+ * Phase 3d.3b UI), false positives go to zero.
  */
 function recordsLink(
   a: LeaveOccurrenceInPeriod,
   b: LeaveOccurrenceInPeriod,
   svc: WorkingDayService,
 ): boolean {
-  // Overlap or same day: combine
+  // ── 1. Cert-ID override (Phase 3d.3b) ──
+  if (a.medicalCertificateId !== null && b.medicalCertificateId !== null) {
+    return a.medicalCertificateId === b.medicalCertificateId;
+  }
+  // ── 2. Adjacency fallback (Phase 3b.5 Step 6) ──
   if (a.originalEnd.getTime() >= b.originalStart.getTime()) return true;
-  // Gap range: [a.end + 1, b.start - 1] inclusive
   const gapStart = addDays(a.originalEnd, 1);
   const gapEnd = addDays(b.originalStart, -1);
   return gapIsAllNonWorkingDays(gapStart, gapEnd, svc);

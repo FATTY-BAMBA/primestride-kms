@@ -62,6 +62,9 @@ function makeLeave(partial: {
     effectiveEnd: end,
     spansBeyondPeriod: false,
     approvedAt: new Date(start.getTime() + 28800000),
+    medicalCertificateId: null,
+    treatmentPeriodStart: null,
+    treatmentPeriodEnd: null,
   };
 }
 

@@ -254,6 +254,37 @@ export type LeaveOccurrenceInPeriod = {
   spansBeyondPeriod: boolean;
   /** Approval timestamp from workflow_submissions */
   approvedAt: Date | null;
+  /**
+   * Medical certificate identifier from form_data.medical_certificate_id
+   * (Phase 3d.3b). When present, used by the chain detector to group
+   * records by physician-issued cert rather than calendar adjacency.
+   *
+   * Two records sharing the same cert ID are DEFINITIVELY part of the
+   * same continuous illness (per 勞動部 函釋: medical certificates are
+   * the legal evidence of treatment continuity).
+   *
+   * Two records with DIFFERENT cert IDs are DEFINITIVELY different
+   * illnesses, regardless of date proximity.
+   *
+   * NULL means no cert was captured (legal in Taiwan for sick leave
+   * < 3 days per 勞工請假規則 第10條, but optional for ≥3 days too —
+   * employer may waive). Detector falls back to adjacency rule.
+   */
+  medicalCertificateId: string | null;
+  /**
+   * Treatment period start from form_data.treatment_period_start (Phase
+   * 3d.3b). The first date the medical cert covers. May extend before
+   * the leave_start_date if the doctor signed the cert earlier.
+   * Only meaningful when medicalCertificateId is set.
+   */
+  treatmentPeriodStart: Date | null;
+  /**
+   * Treatment period end from form_data.treatment_period_end (Phase
+   * 3d.3b). The last date the medical cert covers. May extend after
+   * the leave_end_date.
+   * Only meaningful when medicalCertificateId is set.
+   */
+  treatmentPeriodEnd: Date | null;
 };
 
 /**
@@ -353,6 +384,11 @@ type WorkflowSubmissionRow = {
     duration_type?: string;
     hours_requested?: number | string | null;
     reason?: string;
+    // Phase 3d.3b: medical certificate fields (optional, present when
+    // submitter attached a 醫療證明 to a leave request)
+    medical_certificate_id?: string;
+    treatment_period_start?: string;
+    treatment_period_end?: string;
   } | null;
 };
 
@@ -377,6 +413,23 @@ function parseNumberLoose(v: number | string | null | undefined): number | null 
     return Number.isFinite(n) ? n : null;
   }
   return null;
+}
+
+/**
+ * Extract a normalized medical certificate ID from form_data.
+ *
+ * Returns null for empty/whitespace strings or non-string inputs.
+ * Trims and uppercases the ID for stable matching across records
+ * (e.g., "abc-123" and "ABC-123 " become "ABC-123" — same chain).
+ *
+ * Phase 3d.3b: cert IDs are optional. Most casual sick leave (< 3 days)
+ * won't have one. The detector falls back to adjacency rule when null.
+ */
+function extractCertId(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (trimmed === "") return null;
+  return trimmed.toUpperCase();
 }
 
 // ── Main entry point ─────────────────────────────────────────────────
@@ -650,6 +703,10 @@ export async function aggregateLeaveData(input: {
           effectiveEnd: intersection.end,
           spansBeyondPeriod,
           approvedAt: parseDate(leave.reviewed_at),
+          // Phase 3d.3b: medical certificate fields (optional)
+          medicalCertificateId: extractCertId(fd.medical_certificate_id),
+          treatmentPeriodStart: parseDate(fd.treatment_period_start),
+          treatmentPeriodEnd: parseDate(fd.treatment_period_end),
         });
       }
 

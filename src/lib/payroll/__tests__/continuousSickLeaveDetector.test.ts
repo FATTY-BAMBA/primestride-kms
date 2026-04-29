@@ -66,6 +66,9 @@ function makeSickRecord(partial: {
     effectiveEnd: end,
     spansBeyondPeriod: false,
     approvedAt: new Date(partial.start + "T08:00:00Z"),
+    medicalCertificateId: null,
+    treatmentPeriodStart: null,
+    treatmentPeriodEnd: null,
   };
 }
 
@@ -564,5 +567,177 @@ describe("determinism", () => {
     expect(r1.chains[0].records.map((r) => r.sourceWorkflowSubmissionId)).toEqual(
       r2.chains[0].records.map((r) => r.sourceWorkflowSubmissionId),
     );
+  });
+});
+
+// ── 12. Cert-ID linkage (Phase 3d.3b) ──────────────────────────────
+
+describe("cert-ID linkage rules (Phase 3d.3b)", () => {
+  it("two records with SAME cert ID always link, even with work-day gap", () => {
+    // Without cert: Mon 4/13 and Wed 4/22 wouldn't link (Tue 4/14 is work day).
+    // With matching cert IDs: they DO link (cert ID overrides adjacency).
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-04-13", sourceId: "a" }),
+          medicalCertificateId: "CERT-001",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-22", sourceId: "b" }),
+          medicalCertificateId: "CERT-001",
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(1);
+    expect(result.chains[0].records).toHaveLength(2);
+  });
+
+  it("two records with DIFFERENT cert IDs do NOT link, even when adjacent", () => {
+    // Without cert: Mon-Fri then next Mon-Fri would chain via weekend bridge.
+    // With different cert IDs: they're DIFFERENT illnesses, separate chains.
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-04-13", end: "2026-04-17", sourceId: "a" }),
+          medicalCertificateId: "CERT-FLU",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-20", end: "2026-04-24", sourceId: "b" }),
+          medicalCertificateId: "CERT-INJURY",
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(2);
+  });
+
+  it("one record with cert, one without → falls back to adjacency", () => {
+    // Mixed cert/no-cert: detector falls back to date adjacency rule.
+    // Mon-Fri then next Mon-Fri (weekend bridge) → linked.
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-04-13", end: "2026-04-17", sourceId: "a" }),
+          medicalCertificateId: "CERT-001",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-20", end: "2026-04-24", sourceId: "b" }),
+          medicalCertificateId: null,
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(1);
+  });
+
+  it("three records with same cert ID across long date gaps all chain", () => {
+    // Cert IDs trump dates entirely. Three months apart all chain if same cert.
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-01-15", sourceId: "a" }),
+          medicalCertificateId: "CERT-CHRONIC",
+        },
+        {
+          ...makeSickRecord({ start: "2026-02-15", sourceId: "b" }),
+          medicalCertificateId: "CERT-CHRONIC",
+        },
+        {
+          ...makeSickRecord({ start: "2026-03-15", sourceId: "c" }),
+          medicalCertificateId: "CERT-CHRONIC",
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(1);
+    expect(result.chains[0].records).toHaveLength(3);
+  });
+
+  it("cert ID matching is case-insensitive equivalent (post-normalization)", () => {
+    // The aggregator uppercase-normalizes cert IDs at extraction, so by the
+    // time records reach the detector they're already normalized.
+    // Verify: both 'CERT-001' in input → linked.
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-04-13", sourceId: "a" }),
+          medicalCertificateId: "CERT-001",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-22", sourceId: "b" }),
+          medicalCertificateId: "CERT-001",
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(1);
+  });
+
+  it("cert linkage works across year boundary", () => {
+    // Same cert ID, records in different fiscal years → still one chain.
+    // (Year-boundary handling for budget computation is independent.)
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2025-12-15", sourceId: "a" }),
+          medicalCertificateId: "CERT-Y1",
+        },
+        {
+          ...makeSickRecord({ start: "2026-02-15", sourceId: "b" }),
+          medicalCertificateId: "CERT-Y1",
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(1);
+    // But the year breakdowns should still be separate (one per year)
+    expect(result.chains[0].yearBreakdowns).toHaveLength(2);
+  });
+
+  it("cert linkage trumps overlap rule", () => {
+    // Two records OVERLAP in dates BUT have different cert IDs.
+    // Cert difference wins: separate chains (data quality issue but legally correct).
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-04-13", end: "2026-04-17", sourceId: "a" }),
+          medicalCertificateId: "CERT-A",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-15", end: "2026-04-20", sourceId: "b" }),
+          medicalCertificateId: "CERT-B",
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(2);
+  });
+
+  it("mixed cert and adjacency: only cert-pairs link via cert; adjacency fallback for the rest", () => {
+    // Three records:
+    //   A (cert X, Apr 13)
+    //   B (cert X, Apr 22)  ← links to A by cert
+    //   C (no cert, Apr 23) ← would link to B by adjacency (next day)
+    // Result: all three in one chain (A-B by cert, B-C by adjacency)
+    const result = detectContinuousSickLeaveChains(
+      [
+        {
+          ...makeSickRecord({ start: "2026-04-13", sourceId: "a" }),
+          medicalCertificateId: "CERT-X",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-22", sourceId: "b" }),
+          medicalCertificateId: "CERT-X",
+        },
+        {
+          ...makeSickRecord({ start: "2026-04-23", sourceId: "c" }),
+          medicalCertificateId: null,
+        },
+      ],
+      makeStubService(),
+    );
+    expect(result.chains).toHaveLength(1);
+    expect(result.chains[0].records).toHaveLength(3);
   });
 });

@@ -39,6 +39,9 @@ function makeInPeriodOccurrence(partial: {
     effectiveEnd: end,
     spansBeyondPeriod: false,
     approvedAt: new Date(partial.effectiveDate + "T08:00:00Z"),
+    medicalCertificateId: null,
+    treatmentPeriodStart: null,
+    treatmentPeriodEnd: null,
   };
 }
 
