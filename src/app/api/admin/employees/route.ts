@@ -2,6 +2,12 @@ import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { getUserOrganization } from "@/lib/get-user-organization";
+import {
+  EmployeeUpdateSchema,
+  buildSupabaseUpdate,
+} from "@/lib/admin/employeeUpdateSchema";
+import { applyTaiwanPayrollDefaults } from "@/lib/admin/employeeUpdateDefaults";
+import { fetchPayrollReferenceData } from "@/lib/payroll/fetchBrackets";
 
 export const dynamic = "force-dynamic";
 
@@ -166,12 +172,26 @@ export async function GET() {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
+// ====================================================================
 // PATCH /api/admin/employees
-// Update employee profile fields — admin only
-// ══════════════════════════════════════════════════════════════
+// Update employee profile fields - admin only
+//
+// Architecture (Phase 3j hardening, Apr 30 2026):
+//   1. Auth + org membership check (unchanged from original)
+//   2. Parse body via EmployeeUpdateSchema (Zod)
+//   3. Verify the user being edited is in the same org
+//   4. Fetch payroll reference data (effective today)
+//   5. Apply Taiwan payroll smart-defaults (bracket-aware)
+//   6. Build Supabase update payload (strips undefined fields)
+//   7. Write to DB
+//
+// Smart-defaults are bracket-aware: nhi/labor/pension amounts snap to
+// the correct bracket tier from the database, not hardcoded constants.
+// This automatically handles annual bracket changes without code edits.
+// =====================================================================
 export async function PATCH(req: NextRequest) {
   try {
+    // 1. Auth
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -181,99 +201,57 @@ export async function PATCH(req: NextRequest) {
     const isAdmin = ["owner", "admin"].includes(org.role || "");
     if (!isAdmin) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
 
-    const body = await req.json();
-    const { user_id, ...updates } = body;
+    // 2. Parse body via schema
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
 
-    if (!user_id) return NextResponse.json({ error: "user_id required" }, { status: 400 });
+    const parsed = EmployeeUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const path = issue?.path.length ? issue.path.join(".") + ": " : "";
+      return NextResponse.json(
+        { error: `${path}${issue?.message ?? "Validation failed"}` },
+        { status: 400 },
+      );
+    }
 
-    // Verify user belongs to this org
+    const validated = parsed.data;
+
+    // 3. Verify target user is in same org
     const { data: member } = await supabase
       .from("organization_members")
       .select("user_id")
       .eq("organization_id", org.organization_id)
-      .eq("user_id", user_id)
+      .eq("user_id", validated.user_id)
       .single();
 
-    if (!member) return NextResponse.json({ error: "Employee not in organization" }, { status: 403 });
-
-    // Only allow safe profile fields to be updated
-    const allowedFields = [
-      "full_name", "phone", "address", "birth_date", "national_id",
-      "emergency_contact_name", "emergency_contact_phone",
-      "hire_date", "department", "job_title", "employee_id",
-      "employment_type", "salary_base", "salary_currency",
-      "bank_code", "bank_account", "labor_insurance_id",
-      "health_insurance_id", "gender", "nationality",
-      "termination_date", "termination_reason", "notes",
-      // Phase 3j: payroll calculator fields
-      "nhi_insured_salary", "labor_insured_salary",
-      "attendance_bonus_monthly", "pension_contribution_wage",
-    ];
-
-    // Date fields — convert empty string to null to avoid Postgres type errors
-    const dateFields = ["birth_date", "hire_date", "termination_date"];
-    // Number fields — convert empty string to null
-    const numberFields = [
-      "salary_base",
-      // Phase 3j: payroll calculator fields
-      "nhi_insured_salary", "labor_insured_salary",
-      "attendance_bonus_monthly", "pension_contribution_wage",
-    ];
-
-    const safeUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
-    for (const key of allowedFields) {
-      if (!(key in updates)) continue;
-      let value = updates[key];
-
-      // Date fields: empty/undefined → null (date columns are nullable)
-      if (dateFields.includes(key)) {
-        if (value === "" || value === undefined) {
-          safeUpdates[key] = null;
-          continue;
-        }
-        safeUpdates[key] = value;
-        continue;
-      }
-
-      // Number fields: empty → SKIP entirely (don't update column at all).
-      // This preserves existing DB value AND avoids null on NOT NULL columns
-      // like attendance_bonus_monthly (which has DEFAULT 0). Admin who wants
-      // to clear a bonus must explicitly enter 0.
-      if (numberFields.includes(key)) {
-        if (value === "" || value === undefined || value === null) {
-          continue;  // skip — leave column unchanged
-        }
-        const n = Number(value);
-        if (!Number.isFinite(n)) {
-          continue;  // skip invalid numeric input rather than corrupt
-        }
-        safeUpdates[key] = n;
-        continue;
-      }
-
-      // All other fields: pass through as-is
-      safeUpdates[key] = value;
+    if (!member) {
+      return NextResponse.json({ error: "Employee not in organization" }, { status: 403 });
     }
 
-    // Phase 3j: smart defaults — if admin sets salary_base but leaves
-    // insurance amounts blank, default them to salary_base. This is the
-    // correct Taiwan default for >95% of SMB employees per 健保法 第21條
-    // (lower bound = labor insurance amount, capped at NHI ceiling).
-    // Admin can override later if salary exceeds 勞保 cap (NT$45,800).
-    if (safeUpdates.salary_base && safeUpdates.salary_base > 0) {
-      if ("nhi_insured_salary" in safeUpdates && safeUpdates.nhi_insured_salary === null) {
-        safeUpdates.nhi_insured_salary = safeUpdates.salary_base;
-      }
-      if ("labor_insured_salary" in safeUpdates && safeUpdates.labor_insured_salary === null) {
-        // Cap at labor insurance ceiling (NT$45,800 for 2026)
-        safeUpdates.labor_insured_salary = Math.min(safeUpdates.salary_base, 45800);
-      }
-    }
+    // 4. Fetch payroll reference data
+    // Effective date = today. Smart-defaults use whatever brackets are
+    // active right now. Future enhancement: could use the employee's
+    // hire_date or the next payroll period's start.
+    const refData = await fetchPayrollReferenceData(new Date());
 
+    // 5. Apply Taiwan payroll smart-defaults
+    const withDefaults = applyTaiwanPayrollDefaults(validated, refData);
+
+    // 6. Build DB update payload
+    // buildSupabaseUpdate strips user_id (used as WHERE), adds updated_at,
+    // and removes undefined fields (so untouched columns stay untouched).
+    const updatePayload = buildSupabaseUpdate(withDefaults);
+
+    // 7. Write to Supabase
     const { error } = await supabase
       .from("profiles")
-      .update(safeUpdates)
-      .eq("id", user_id);
+      .update(updatePayload)
+      .eq("id", validated.user_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
