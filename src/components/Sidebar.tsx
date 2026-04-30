@@ -24,7 +24,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Menu,
-  X
+  X,
+  Wallet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import UserMenu from "./UserMenu";
@@ -89,6 +90,7 @@ export default function Sidebar({ children }: SidebarProps) {
     { href: "/workflows", icon: FileText, label: "表單申請", labelEn: "Forms", badge: true },
     { href: "/clock/manual", icon: ClipboardList, label: "我的打卡", labelEn: "My Clock-in" },
     { href: "/admin?tab=attendance", icon: ClipboardCheck, label: "出勤審核", labelEn: "Attendance Review", adminOnly: true },
+    { href: "/admin/payroll", icon: Wallet, label: "薪資計算", labelEn: "Payroll", adminOnly: true },
   ];
 
   const analyticsLinks: LinkItem[] = [
