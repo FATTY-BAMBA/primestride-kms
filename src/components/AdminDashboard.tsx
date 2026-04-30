@@ -168,6 +168,11 @@ interface EmployeeSummary {
   employment_type: string;
   salary_base: number | null;
   salary_currency: string;
+  // Phase 3j: payroll calculator fields
+  nhi_insured_salary: number | null;
+  labor_insured_salary: number | null;
+  attendance_bonus_monthly: number | null;
+  pension_contribution_wage: number | null;
   bank_code: string | null;
   bank_account: string | null;
   labor_insurance_id: string | null;
@@ -4741,7 +4746,13 @@ export default function AdminDashboard() {
                                   department: emp.department || "", hire_date: emp.hire_date || "",
                                   birth_date: emp.birth_date || "", employee_id: emp.employee_id || "",
                                   employment_type: emp.employment_type || "full_time",
-                                  salary_base: emp.salary_base || "", gender: emp.gender || "",
+                                  salary_base: emp.salary_base || "",
+                                  // Phase 3j: payroll calculator fields
+                                  nhi_insured_salary: emp.nhi_insured_salary || "",
+                                  labor_insured_salary: emp.labor_insured_salary || "",
+                                  attendance_bonus_monthly: emp.attendance_bonus_monthly || "",
+                                  pension_contribution_wage: emp.pension_contribution_wage || "",
+                                  gender: emp.gender || "",
                                   national_id: emp.national_id || "", address: emp.address || "",
                                   emergency_contact_name: emp.emergency_contact_name || "",
                                   emergency_contact_phone: emp.emergency_contact_phone || "",
@@ -4771,6 +4782,11 @@ export default function AdminDashboard() {
                                 { key: "phone", label: "電話 Phone", type: "text" },
                                 { key: "national_id", label: "身分證字號 National ID", type: "text" },
                                 { key: "salary_base", label: "底薪 Base Salary (NT$)", type: "number" },
+                                // Phase 3j: payroll calculator fields
+                                { key: "nhi_insured_salary", label: "健保投保金額 NHI Insured (NT$)", type: "number" },
+                                { key: "labor_insured_salary", label: "勞保投保薪資 Labor Insured (NT$)", type: "number" },
+                                { key: "attendance_bonus_monthly", label: "全勤獎金 Monthly Attendance Bonus (NT$)", type: "number" },
+                                { key: "pension_contribution_wage", label: "退休金提繳工資 Pension Wage (NT$)", type: "number" },
                                 { key: "bank_code", label: "銀行代碼 Bank Code", type: "text" },
                                 { key: "bank_account", label: "銀行帳號 Bank Account", type: "text" },
                                 { key: "labor_insurance_id", label: "勞保 Labor Insurance ID", type: "text" },

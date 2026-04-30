@@ -40,7 +40,7 @@ export async function GET() {
     // Get full profiles including all new HRM fields
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, full_name, email, avatar_url, birth_date, national_id, phone, address, emergency_contact_name, emergency_contact_phone, hire_date, department, job_title, employee_id, employment_type, salary_base, salary_currency, bank_code, bank_account, labor_insurance_id, health_insurance_id, gender, nationality, termination_date, notes")
+      .select("id, full_name, email, avatar_url, birth_date, national_id, phone, address, emergency_contact_name, emergency_contact_phone, hire_date, department, job_title, employee_id, employment_type, salary_base, salary_currency, bank_code, bank_account, labor_insurance_id, health_insurance_id, gender, nationality, termination_date, notes, nhi_insured_salary, labor_insured_salary, attendance_bonus_monthly, pension_contribution_wage")
       .in("id", userIds);
 
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
@@ -114,6 +114,11 @@ export async function GET() {
         employment_type: profile?.employment_type || "full_time",
         salary_base: profile?.salary_base || null,
         salary_currency: profile?.salary_currency || "TWD",
+        // Phase 3j: payroll calculator fields
+        nhi_insured_salary: profile?.nhi_insured_salary || null,
+        labor_insured_salary: profile?.labor_insured_salary || null,
+        attendance_bonus_monthly: profile?.attendance_bonus_monthly || null,
+        pension_contribution_wage: profile?.pension_contribution_wage || null,
         bank_code: profile?.bank_code || null,
         bank_account: profile?.bank_account || null,
         labor_insurance_id: profile?.labor_insurance_id || null,
@@ -200,12 +205,20 @@ export async function PATCH(req: NextRequest) {
       "bank_code", "bank_account", "labor_insurance_id",
       "health_insurance_id", "gender", "nationality",
       "termination_date", "termination_reason", "notes",
+      // Phase 3j: payroll calculator fields
+      "nhi_insured_salary", "labor_insured_salary",
+      "attendance_bonus_monthly", "pension_contribution_wage",
     ];
 
     // Date fields — convert empty string to null to avoid Postgres type errors
     const dateFields = ["birth_date", "hire_date", "termination_date"];
     // Number fields — convert empty string to null
-    const numberFields = ["salary_base"];
+    const numberFields = [
+      "salary_base",
+      // Phase 3j: payroll calculator fields
+      "nhi_insured_salary", "labor_insured_salary",
+      "attendance_bonus_monthly", "pension_contribution_wage",
+    ];
 
     const safeUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
     for (const key of allowedFields) {
@@ -215,6 +228,21 @@ export async function PATCH(req: NextRequest) {
         if (numberFields.includes(key) && (value === "" || value === undefined)) value = null;
         if (numberFields.includes(key) && value !== null) value = Number(value) || null;
         safeUpdates[key] = value;
+      }
+    }
+
+    // Phase 3j: smart defaults — if admin sets salary_base but leaves
+    // insurance amounts blank, default them to salary_base. This is the
+    // correct Taiwan default for >95% of SMB employees per 健保法 第21條
+    // (lower bound = labor insurance amount, capped at NHI ceiling).
+    // Admin can override later if salary exceeds 勞保 cap (NT$45,800).
+    if (safeUpdates.salary_base && safeUpdates.salary_base > 0) {
+      if ("nhi_insured_salary" in safeUpdates && safeUpdates.nhi_insured_salary === null) {
+        safeUpdates.nhi_insured_salary = safeUpdates.salary_base;
+      }
+      if ("labor_insured_salary" in safeUpdates && safeUpdates.labor_insured_salary === null) {
+        // Cap at labor insurance ceiling (NT$45,800 for 2026)
+        safeUpdates.labor_insured_salary = Math.min(safeUpdates.salary_base, 45800);
       }
     }
 
