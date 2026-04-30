@@ -226,7 +226,13 @@ export async function PATCH(req: NextRequest) {
         let value = updates[key];
         if (dateFields.includes(key) && (value === "" || value === undefined)) value = null;
         if (numberFields.includes(key) && (value === "" || value === undefined)) value = null;
-        if (numberFields.includes(key) && value !== null) value = Number(value) || null;
+        if (numberFields.includes(key) && value !== null) {
+          // BUG FIX (Phase 3j post-ship): Number(value) || null treats 0 as
+          // falsy, which broke saves when admin entered 0 for attendance_bonus_monthly
+          // (a NOT NULL column). Now: only fall back to null on actual NaN.
+          const n = Number(value);
+          value = Number.isFinite(n) ? n : null;
+        }
         safeUpdates[key] = value;
       }
     }
