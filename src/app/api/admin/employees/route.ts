@@ -222,19 +222,37 @@ export async function PATCH(req: NextRequest) {
 
     const safeUpdates: Record<string, any> = { updated_at: new Date().toISOString() };
     for (const key of allowedFields) {
-      if (key in updates) {
-        let value = updates[key];
-        if (dateFields.includes(key) && (value === "" || value === undefined)) value = null;
-        if (numberFields.includes(key) && (value === "" || value === undefined)) value = null;
-        if (numberFields.includes(key) && value !== null) {
-          // BUG FIX (Phase 3j post-ship): Number(value) || null treats 0 as
-          // falsy, which broke saves when admin entered 0 for attendance_bonus_monthly
-          // (a NOT NULL column). Now: only fall back to null on actual NaN.
-          const n = Number(value);
-          value = Number.isFinite(n) ? n : null;
+      if (!(key in updates)) continue;
+      let value = updates[key];
+
+      // Date fields: empty/undefined → null (date columns are nullable)
+      if (dateFields.includes(key)) {
+        if (value === "" || value === undefined) {
+          safeUpdates[key] = null;
+          continue;
         }
         safeUpdates[key] = value;
+        continue;
       }
+
+      // Number fields: empty → SKIP entirely (don't update column at all).
+      // This preserves existing DB value AND avoids null on NOT NULL columns
+      // like attendance_bonus_monthly (which has DEFAULT 0). Admin who wants
+      // to clear a bonus must explicitly enter 0.
+      if (numberFields.includes(key)) {
+        if (value === "" || value === undefined || value === null) {
+          continue;  // skip — leave column unchanged
+        }
+        const n = Number(value);
+        if (!Number.isFinite(n)) {
+          continue;  // skip invalid numeric input rather than corrupt
+        }
+        safeUpdates[key] = n;
+        continue;
+      }
+
+      // All other fields: pass through as-is
+      safeUpdates[key] = value;
     }
 
     // Phase 3j: smart defaults — if admin sets salary_base but leaves
