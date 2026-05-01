@@ -6,6 +6,7 @@ import {
   EmployeeUpdateSchema,
   buildSupabaseUpdate,
 } from "@/lib/admin/employeeUpdateSchema";
+import { mergePartialEmployeeUpdate } from "@/lib/admin/mergePartialEmployeeUpdate";
 import { applyTaiwanPayrollDefaults } from "@/lib/admin/employeeUpdateDefaults";
 import { fetchPayrollReferenceData } from "@/lib/payroll/fetchBrackets";
 
@@ -219,7 +220,29 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const validated = parsed.data;
+    let validated = parsed.data;
+
+    // 2.5. Complete validation for partial PATCHes.
+    //
+    // The schema's wage-floor rule depends on pay_basis + employment_type.
+    // If the input has salary_base but is missing one of those context
+    // fields, the schema deliberately skips the floor check. This helper
+    // fetches the missing context from the DB, merges it with the input,
+    // and re-validates.
+    // See mergePartialEmployeeUpdate.ts for the full contract: when fetch
+    // happens, what gets merged, what error codes propagate.
+    const merged = await mergePartialEmployeeUpdate(supabase, validated);
+    if (!merged.ok) {
+      return NextResponse.json(
+        {
+          error: merged.error,
+          errorCode: merged.errorCode,
+          ...(merged.schemaErrorCode && { schemaErrorCode: merged.schemaErrorCode }),
+        },
+        { status: merged.statusCode },
+      );
+    }
+    validated = merged.data;
 
     // 3. Verify target user is in same org
     const { data: member } = await supabase
