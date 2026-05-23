@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ComplianceConflictScanner from "@/components/ComplianceConflictScanner";
 import { FormTemplate } from "@/components/FormTemplates";
 import ApprovalQueueCard from "@/components/ApprovalQueueCard";
@@ -256,6 +257,11 @@ function useLocalStorage<T>(key: string, initial: T): [T, (v: T) => void] {
   };
   return [value, setStoredValue];
 }
+
+// Admin dashboard tab union - used for URL-routed tab state per ADR 0001
+type AdminTab = "overview" | "pending" | "employees" | "leave" | "wallchart" | "compliance" | "esg" | "attendance";
+const VALID_TABS: readonly AdminTab[] = ["overview", "pending", "employees", "leave", "wallchart", "compliance", "esg", "attendance"];
+const isValidTab = (value: string | null): value is AdminTab => value !== null && (VALID_TABS as readonly string[]).includes(value);
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -2006,10 +2012,52 @@ function AttendanceApprovalTab({
 
 export default function AdminDashboard() {
   // State management
-  const [tab, setTab] = useLocalStorage<"overview" | "pending" | "employees" | "leave" | "wallchart" | "compliance" | "esg" | "attendance">(
-    "admin_last_tab",
-    "overview"
-  );
+  // Tab state: URL is source of truth, localStorage is fallback. See ADR 0001.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab");
+
+  const [tab, setTabInternal] = useState<AdminTab>(() => {
+    // First, try URL parameter (source of truth)
+    if (isValidTab(urlTab)) {
+      return urlTab;
+    }
+    // Then, try localStorage (fallback for URL-less entry like /admin)
+    if (typeof window !== "undefined") {
+      try {
+        const stored = window.localStorage.getItem("admin_last_tab");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (isValidTab(parsed)) {
+            return parsed;
+          }
+        }
+      } catch {
+        // localStorage may throw in private browsing or with corrupt data
+      }
+    }
+    return "overview";
+  });
+
+  // Sync URL changes back to state (handles browser back/forward navigation)
+  useEffect(() => {
+    if (isValidTab(urlTab) && urlTab !== tab) {
+      setTabInternal(urlTab);
+    }
+  }, [urlTab, tab]);
+
+  // setTab: update state, URL, and localStorage atomically
+  const setTab = useCallback((newTab: AdminTab) => {
+    setTabInternal(newTab);
+    try {
+      window.localStorage.setItem("admin_last_tab", JSON.stringify(newTab));
+    } catch {
+      // localStorage may throw - non-fatal, state and URL still update
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", newTab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
