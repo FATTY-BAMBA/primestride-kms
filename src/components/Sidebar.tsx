@@ -6,12 +6,10 @@ import { usePathname } from "next/navigation";
 import { 
   Library,
   Home,
-  FolderKanban, 
   Bot, 
   Search, 
   FileText, 
   BarChart3, 
-  Share2, 
   Settings, 
   Users, 
   UserCircle,
@@ -25,7 +23,9 @@ import {
   ChevronLeft,
   Menu,
   X,
-  Wallet
+  Wallet,
+  Scale,
+  Leaf
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import UserMenu from "./UserMenu";
@@ -79,33 +79,43 @@ export default function Sidebar({ children }: SidebarProps) {
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  const mainLinks: LinkItem[] = [
+  const topLinks: LinkItem[] = [
     { href: "/home", icon: Home, label: "首頁", labelEn: "Home" },
-    { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
-    { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent", adminOnly: true },
-    { href: "/search", icon: Search, label: "搜尋", labelEn: "Search" },
   ];
 
-  const hrLinks: LinkItem[] = [
-    { href: "/workflows", icon: FileText, label: "表單申請", labelEn: "Forms", badge: true },
+  const myWorkLinks: LinkItem[] = [
+    { href: "/workflows", icon: FileText, label: "表單申請", labelEn: "Requests", badge: true },
     { href: "/clock/manual", icon: ClipboardList, label: "我的打卡", labelEn: "My Clock-in" },
-    { href: "/admin?tab=attendance", icon: ClipboardCheck, label: "出勤審核", labelEn: "Attendance Review", adminOnly: true },
-    { href: "/admin/payroll", icon: Wallet, label: "薪資計算", labelEn: "Payroll", adminOnly: true },
+    { href: "/my-pay", icon: Wallet, label: "我的薪資", labelEn: "My Pay" },
+    { href: "/todo", icon: ClipboardCheck, label: "待辦", labelEn: "To-Do" },
+  ];
+
+  const knowledgeLinks: LinkItem[] = [
+    { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
+    { href: "/search", icon: Search, label: "搜尋", labelEn: "Ask Atlas" },
+  ];
+
+  const manageLinks: LinkItem[] = [
+    { href: "/admin", icon: Settings, label: "概覽", labelEn: "Overview", adminOnly: true },
+    { href: "/admin?tab=employees", icon: Users, label: "員工", labelEn: "Employees", adminOnly: true },
+    { href: "/admin/attendance", icon: ClipboardCheck, label: "出勤", labelEn: "Attendance", adminOnly: true },
+    { href: "/admin/payroll", icon: Wallet, label: "薪資", labelEn: "Payroll", adminOnly: true },
+    { href: "/admin/compliance", icon: Scale, label: "合規", labelEn: "Compliance", adminOnly: true },
+    { href: "/admin/esg", icon: Leaf, label: "ESG 報告", labelEn: "ESG Report", adminOnly: true },
+    { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "Atlas Agent", adminOnly: true },
+    { href: "/teams", icon: UserCircle, label: "群組", labelEn: "Groups", adminOnly: true },
+    { href: "/team", icon: Users, label: "成員", labelEn: "Members", adminOnly: true },
   ];
 
   const analyticsLinks: LinkItem[] = [
-    { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
-    { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph", adminOnly: true },
-    { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Metrics", adminOnly: true },
+    { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning Insights", adminOnly: true },
+    { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Platform Metrics", adminOnly: true },
   ];
 
-  const adminLinks: LinkItem[] = [
-    { href: "/admin", icon: Settings, label: "管理", labelEn: "Admin" },
-    { href: "/team", icon: Users, label: "成員", labelEn: "Members" },
-    { href: "/teams", icon: UserCircle, label: "群組", labelEn: "Groups" },
-    { href: "/developer", icon: Key, label: "API", labelEn: "Developer" },
-    { href: "/audit-logs", icon: Clock, label: "操作紀錄", labelEn: "Audit Logs" },
-    { href: "/branding", icon: Tag, label: "品牌設定", labelEn: "Branding" },
+  const settingsLinks: LinkItem[] = [
+    { href: "/developer", icon: Key, label: "API", labelEn: "Developer", adminOnly: true },
+    { href: "/audit-logs", icon: Clock, label: "操作紀錄", labelEn: "Audit Logs", adminOnly: true },
+    { href: "/branding", icon: Tag, label: "品牌設定", labelEn: "Branding", adminOnly: true },
   ];
 
   const isActive = (href: string) => {
@@ -206,32 +216,46 @@ export default function Sidebar({ children }: SidebarProps) {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4 px-3">
-          <SectionHeader title={lang === "zh" ? "主要功能" : "MAIN"} isCollapsed={isCollapsed} />
+          {/* Top: Home alone, no section header */}
           <div className="space-y-0.5 mb-4">
-            {mainLinks.map((link) => (
+            {topLinks.map((link) => (
               <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
             ))}
           </div>
 
-          <SectionHeader title={lang === "zh" ? "人資" : "HR"} isCollapsed={isCollapsed} />
+          <SectionHeader title={lang === "zh" ? "我的工作" : "MY WORK"} isCollapsed={isCollapsed} />
           <div className="space-y-0.5 mb-4">
-            {hrLinks.map((link) => (
+            {myWorkLinks.map((link) => (
               <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
             ))}
           </div>
 
-          <SectionHeader title={lang === "zh" ? "分析" : "ANALYTICS"} isCollapsed={isCollapsed} />
+          <SectionHeader title={lang === "zh" ? "知識" : "KNOWLEDGE"} isCollapsed={isCollapsed} />
           <div className="space-y-0.5 mb-4">
-            {analyticsLinks.map((link) => (
+            {knowledgeLinks.map((link) => (
               <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
             ))}
           </div>
 
           {isAdmin && (
             <>
-              <SectionHeader title={lang === "zh" ? "管理" : "ADMIN"} isCollapsed={isCollapsed} />
+              <SectionHeader title={lang === "zh" ? "管理" : "MANAGE"} isCollapsed={isCollapsed} />
+              <div className="space-y-0.5 mb-4">
+                {manageLinks.map((link) => (
+                  <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
+                ))}
+              </div>
+
+              <SectionHeader title={lang === "zh" ? "分析" : "ANALYTICS"} isCollapsed={isCollapsed} />
+              <div className="space-y-0.5 mb-4">
+                {analyticsLinks.map((link) => (
+                  <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
+                ))}
+              </div>
+
+              <SectionHeader title={lang === "zh" ? "設定" : "SETTINGS"} isCollapsed={isCollapsed} />
               <div className="space-y-0.5">
-                {adminLinks.map((link) => (
+                {settingsLinks.map((link) => (
                   <NavLink key={link.href} link={link} isCollapsed={isCollapsed} />
                 ))}
               </div>
