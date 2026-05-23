@@ -82,7 +82,7 @@ export default function Sidebar({ children }: SidebarProps) {
   const mainLinks: LinkItem[] = [
     { href: "/home", icon: Home, label: "首頁", labelEn: "Home" },
     { href: "/library", icon: Library, label: "文件庫", labelEn: "Library" },
-    { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent" },
+    { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "AI Agent", adminOnly: true },
     { href: "/search", icon: Search, label: "搜尋", labelEn: "Search" },
   ];
 
@@ -95,8 +95,8 @@ export default function Sidebar({ children }: SidebarProps) {
 
   const analyticsLinks: LinkItem[] = [
     { href: "/learning", icon: BarChart3, label: "學習分析", labelEn: "Learning", adminOnly: true },
-    { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph" },
-    { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Metrics" },
+    { href: "/ai-graph", icon: Share2, label: "知識圖譜", labelEn: "Graph", adminOnly: true },
+    { href: "/metrics", icon: BarChart3, label: "指標數據", labelEn: "Metrics", adminOnly: true },
   ];
 
   const adminLinks: LinkItem[] = [
