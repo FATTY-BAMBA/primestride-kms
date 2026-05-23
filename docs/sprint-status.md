@@ -1,8 +1,9 @@
 # Atlas EIP IA Restructure Sprint — Status
 
-**Last updated:** 2026-05-23, end of Day 1
-**Current HEAD:** `7b3cd42` — Phase C.1 route stubs and redirects
+**Last updated:** 2026-05-24, end of Day 2
+**Current HEAD:** `d82cb8d` — feat(admin): URL-routed tab state per ADR 0001
 **Branch:** main, in sync with origin
+**Last session work:** Phase D.1 complete — URL-routed tab state implemented and verified on production
 
 This document tracks the state of the IA restructure sprint and serves as the entry point for future sessions. It's updated at the end of each working session.
 
@@ -48,15 +49,14 @@ This document tracks the state of the IA restructure sprint and serves as the en
 
 Tested live at primestrideatlas.com end of session. Numbered by priority for Phase D triage.
 
-### HIGH priority (blocks promised UX)
+### ✅ Resolved
 
-**1. localStorage tab override on admin sub-routes**
-- File: `src/components/AdminDashboard.tsx:2009` uses `useLocalStorage` for tab state
-- Bug: URL `?tab=` parameter gets overridden by stored localStorage value on hydration
-- Affects all three redirects (`/admin/attendance`, `/admin/compliance`, `/admin/esg`)
-- Concrete example: user clicks 合規 → URL becomes `?tab=compliance` → page shows whatever tab was last visited
-- Pre-existing bug, affected old sidebar too but wasn't visible because old sidebar didn't promote these items
-- Fix approach: read `useSearchParams` first, fall back to localStorage second
+**1. localStorage tab override on admin sub-routes** — Fixed in commit `d82cb8d` per ADR 0001
+- Implementation: URL-routed tab state with localStorage fallback
+- Verified on production: all 8 click-test scenarios pass
+- See `docs/adr/0001-url-routed-tab-state.md` for full design rationale
+
+### HIGH priority (blocks promised UX)
 
 **2. Sidebar active state on admin sub-routes**
 - File: `src/components/Sidebar.tsx` `isActive` function around line 115-118
@@ -104,10 +104,10 @@ Tested live at primestrideatlas.com end of session. Numbered by priority for Pha
 
 Fix issues 1 and 2 because they undermine the value of B.2 + C.1. Estimated 30-60 minutes total.
 
-**Step D.1: Fix localStorage tab override**
-- Read `AdminDashboard.tsx` lines 2000-2050 (tab state initialization)
-- Modify the `useLocalStorage` hook OR add a `useSearchParams` check before it
-- Verify: clicking 合規 / ESG / 出勤 in sidebar lands on the correct tab consistently
+**Step D.1: Fix localStorage tab override** — ✅ DONE in commit `d82cb8d`
+- Implementation per ADR 0001 (`docs/adr/0001-url-routed-tab-state.md`)
+- URL is source of truth, localStorage preserved as fallback, Suspense boundary added
+- All 8 acceptance criteria verified on production
 
 **Step D.2: Fix sidebar active state for admin sub-routes**
 - Read `Sidebar.tsx` `isActive` function
