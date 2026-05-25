@@ -30,8 +30,9 @@ export default function ManualEntryPage() {
   const [windowDays] = useState(WINDOW_DAYS_DEFAULT);
 
   const [workDate, setWorkDate] = useState<string>(() => {
-    const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return d.toISOString().slice(0, 10);
+    // Default to today: most users open this form to backfill the same day's
+    // missed clock-out. Users entering past days will change the date manually.
+    return new Date().toISOString().slice(0, 10);
   });
   const [clockInTime, setClockInTime] = useState('');
   const [clockOutTime, setClockOutTime] = useState('');
