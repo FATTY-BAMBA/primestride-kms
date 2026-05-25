@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   description: "AI-powered Enterprise Intelligence Platform for Taiwan businesses. 2026 Labor Standards compliance, knowledge management, and workflow automation.",
 };
 
+// Atlas EIP is an authed app; every route requires Clerk auth (headers/cookies).
+// Routes are inherently dynamic. Declaring this here lets components like Sidebar
+// use useSearchParams without per-component Suspense boundaries. See ADR 0002.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: {
