@@ -1,9 +1,9 @@
 # Atlas EIP IA Restructure Sprint — Status
 
-**Last updated:** 2026-05-25, Day 3
-**Current HEAD:** `e3367ef` — docs(adr-0002): amend - Approach C selected over A; status Implemented
-**Branch:** main, in sync with origin
-**Last session work:** Phase D.2 complete (sidebar active state shipped to production via Approach C, force-dynamic at root layout). Both HIGH priority issues from the IA sprint are now resolved.
+**Last updated:** 2026-05-26, Day 4
+**Current HEAD:** `c540641` — fix(org-switcher): eliminate Loading flash on page navigation
+**Branch:** main, 5 commits ahead of origin (pending push)
+**Last session work:** Cosmetic fixes batch — 5 issues resolved (keyboard shortcut bonus, manual entry default date, metrics default window, teams header nowrap, org switcher loading flash). 4 issues deferred: one needs an ADR (dark theme consolidation), three are not in source code (Clerk UI typo, DB data duplicate, DB data typo).
 
 This document tracks the state of the IA restructure sprint and serves as the entry point for future sessions. It's updated at the end of each working session.
 
@@ -62,41 +62,48 @@ Tested live at primestrideatlas.com end of session. Numbered by priority for Pha
 - Verified on production: all 10 click-test scenarios pass
 - See `docs/adr/0002-sidebar-active-state.md` for full design rationale and revision history
 
+**Bonus. Keyboard shortcut Cmd+7/Cmd+8 unreachable** — Fixed in commit `7c54d87`
+- Pre-existing bug spotted during D.1 investigation. Handler checked `e.key <= "6"` but tabs array had 8 entries. One-char fix to `<= "8"`.
+
+**3. OrgSwitcher "Loading..." race condition** — Fixed in commit `c540641`
+- Replaced visible "Loading..." pill with invisible placeholder (visibility: hidden) to eliminate the flash on every page navigation. Optimistic localStorage rendering deferred until org name is also cached.
+
+**5. /clock/manual default date is yesterday** — Fixed in commit `4bf9380`
+- 80% of users open the form to backfill today's missed clock-out, not yesterday's missed clock-in. Default changed to today. Backfill range (7 days) unchanged.
+
+**6. /metrics default 30-day window shows 0s** — Fixed in commit `b2a7543`
+- Pilot-stage default changed from 30 → 7 days. 30/90 buttons remain for users who want longer windows. May want smart-default revisiting once data accumulates beyond 30 days.
+
+**7. /teams page header buttons wrapping to "cramped vertical text"** — Partially fixed in commit `4407cf4`
+- Added `whiteSpace: "nowrap"` and `flexShrink: 0` to both header buttons. Verified in source. NOTE: production screenshot 2026-05-26 shows buttons still rendering as vertical squares — may need Vercel redeploy verification, OR root cause is broader than this fix addresses (deferred to next session diagnosis).
+
 ### HIGH priority (blocks promised UX)
 
 _(None remaining. Both sprint-priority bugs resolved.)_
 
 ### MEDIUM priority (cosmetic / polish)
 
-**3. OrgSwitcher "Loading..." race condition**
-- Org switcher at sidebar bottom occasionally shows "Loading..." instead of "PrimeStride AI"
-- `/api/branding` response handling needs proper loading state
+_(None remaining. All cosmetic items either resolved or moved to Deferred below.)_
 
-**4. /team and /teams use dark theme**
-- Inconsistent with light-themed rest of product
-- Check `AppShell.tsx` theme logic or page-level overrides
+### Deferred — requires design decision or data fix (not a code fix)
 
-**5. /clock/manual default date is yesterday**
-- Should default to today
+**4. /team and /teams use dark theme** — Deferred to a future "design system pass"
+- Root cause: `.card` class in `globals.css` has `background: var(--bg-card)` which resolves dark. Used by 30+ places. Some pages override inline with `background: "white"`, others don't.
+- Investigation 2026-05-26 confirmed `/team` and `/teams` use bare `className="card"` while `/library`, `/admin`, `/metrics` add inline white-background overrides.
+- Proper fix needs an ADR: decide on light as canonical theme, update `--bg-card` CSS variable, audit and clean up redundant inline overrides. Out of scope for a cosmetic-batch session.
+- Related concern flagged by user 2026-05-26: button styling inconsistency on these pages (black "Back to Library" vs blue "+ Invite Member" — primary/secondary roles not visually distinguished consistently across the app).
 
-**6. /metrics default 30-day window shows 0s**
-- Change default to 90 days OR implement smart-default (smallest window with non-zero data)
+**8. Typo: "Company Adminstration"** — Not in source code
+- Exhaustive grep across `src/` returned only the sprint-status file itself. Sidebar.tsx, UserMenu.tsx, OrgSwitcher.tsx contain no "Administration" string.
+- Conclusion: the typo is in Clerk's organization management UI (third-party library). Fixing requires Clerk's localization API customization, not a code change in this repo.
 
-**7. /teams page has cramped header layout**
-- "← 返回文件庫" and "+ 新增群組" buttons rendered as cramped vertical text
-- Narrow container issue
+**9. Duplicate employee records** — Data, not code
+- "abdoulie fatty" (afatty13@gmail.com) and "Abdoulie Fatty" (primestrideai@gmail.com) — same person, two profiles in the `profiles` table. Likely from testing with two accounts.
+- Fix: manual DB cleanup (delete one row, reassign references). Not a code change.
 
-### LOW priority (typos / data hygiene)
-
-**8. Typo: "Company Adminstration"** in Admin group description
-- Should be "Administration"
-
-**9. Duplicate employee records**
-- "abdoulie fatty" (afatty13@gmail.com) and "Abdoulie Fatty" (primestrideai@gmail.com) — same person, two records
-- Data cleanup item, not navigation
-
-**10. Document detail page has "vv1.0" typo**
-- Should be "v1.0"
+**10. Document detail page has "vv1.0" typo** — Data, not code
+- Investigated version-construction code at `api/versions/route.ts:96` and `api/documents/[docId]/route.ts:212-216`. Both correct — regex puts "v" outside the capture group, parseInt extracts only digits.
+- Conclusion: a specific document's `current_version` DB field contains "vv1.0", likely from earlier buggy code or manual entry. Fix is a one-row UPDATE on the documents table.
 
 ---
 
