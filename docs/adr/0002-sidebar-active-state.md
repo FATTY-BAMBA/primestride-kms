@@ -1,10 +1,23 @@
 # ADR 0002: Sidebar Active State for Composite URLs (Pathname + Query)
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-05-24
+**Revised:** 2026-05-25 (implementation: Approach C selected over A)
 **Sprint:** IA Restructure (Phase D)
 **Author:** Atlas EIP team
 **Related:** ADR 0001 (URL-routed tab state), `docs/sprint-status.md` issue #2
+
+---
+
+## Revision history
+
+- **v1 (2026-05-24):** Initial draft. Approach A (Suspense wrap at parent layout level) selected; Approach C (force-dynamic) rejected on performance grounds.
+- **v2 (2026-05-25):** Implementation phase. During investigation, two findings changed the calculus:
+  1. Sidebar's `NavLink` and `SidebarContent` are parent-scope closures (not standalone components), making clean Approach B-style extraction impractical without a 2-3 hour refactor.
+  2. Atlas EIP's authed routes were already effectively dynamic (Clerk auth requires headers/cookies), so the "performance cost" of force-dynamic was illusory — there was no real static rendering to lose. Approach C reconsidered and selected. Approach A formally superseded.
+
+Implementation commits: `9029e6e` (layout force-dynamic), `7d3ec17` (sidebar isActive + hrefs).
+All 10 acceptance criteria verified on production 2026-05-25.
 
 ---
 
@@ -144,7 +157,9 @@ The shared layout file that currently renders `<Sidebar />` wraps it directly:
 - The fallback `<SidebarSkeleton />` must be designed — empty sidebar would cause layout shift on page load
 - If multiple layout files independently render Sidebar, we must update each one
 
-**Verdict:** Selected as primary recommendation.
+**Verdict (v1):** Selected as primary recommendation.
+
+**Verdict (v2 — 2026-05-25):** Superseded by Approach C during implementation. See revision history. Approach A remains a valid alternative; future engineers may revisit if route-segment migration makes pages staticable.
 
 ### Approach B: Extract URL-reading logic into a child Client Component inside Sidebar
 
@@ -192,7 +207,9 @@ Add `await connection()` to the parent layout's Server Component, opting the ent
 - Goes against Next.js's recommended pattern of preserving static rendering where possible
 - Treats the symptom, not the cause
 
-**Verdict:** Rejected. Performance trade-off is too large for the value gained.
+**Verdict (v1):** Rejected. Performance trade-off assumed too large for the value gained.
+
+**Verdict (v2 — 2026-05-25):** Reconsidered and SELECTED during implementation. The "performance trade-off" was reassessed and found to be illusory for Atlas EIP specifically: authed pages were already dynamic due to Clerk's headers/cookies access, so force-dynamic just makes explicit what was already true. Combined with the discovery that Sidebar's internal components are parent-scope closures (making clean Approach B-style extraction impractical), this became the pragmatic choice. See revision history.
 
 ### Approach D: Avoid `useSearchParams` entirely; use `window.location.search` inside a `useEffect`
 
@@ -361,7 +378,7 @@ All 10 must pass before declaring this ADR implemented.
 
 **Wrapping `<Suspense>` inside Sidebar around a child component (Approach B):** Kept as fallback if layout investigation reveals complications. Approach A is preferred for simplicity but Approach B remains viable.
 
-**Using `connection()` to force dynamic rendering (Approach C):** Rejected for performance reasons.
+**Using `connection()` to force dynamic rendering (Approach C):** Selected during implementation (v2). See revision history. The performance trade-off was reassessed once we recognized the app was already effectively dynamic.
 
 **Using `window.location` in `useEffect` (Approach D):** Rejected for UX reasons (flash of wrong state).
 
