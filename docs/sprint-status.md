@@ -1,9 +1,9 @@
 # Atlas EIP IA Restructure Sprint — Status
 
-**Last updated:** 2026-05-24, end of Day 2 (late session)
-**Current HEAD:** `4a58391` — docs: ADR 0002 - Sidebar active state for composite URLs
+**Last updated:** 2026-05-25, Day 3
+**Current HEAD:** `e3367ef` — docs(adr-0002): amend - Approach C selected over A; status Implemented
 **Branch:** main, in sync with origin
-**Last session work:** Phase D.1 complete (URL-routed tab state shipped to production). Phase D.2 attempted, reverted before commit due to Suspense boundary cascade affecting 25 pages. Architectural fix captured in ADR 0002 for next session.
+**Last session work:** Phase D.2 complete (sidebar active state shipped to production via Approach C, force-dynamic at root layout). Both HIGH priority issues from the IA sprint are now resolved.
 
 This document tracks the state of the IA restructure sprint and serves as the entry point for future sessions. It's updated at the end of each working session.
 
@@ -56,15 +56,15 @@ Tested live at primestrideatlas.com end of session. Numbered by priority for Pha
 - Verified on production: all 8 click-test scenarios pass
 - See `docs/adr/0001-url-routed-tab-state.md` for full design rationale
 
+**2. Sidebar active state on admin sub-routes** — Fixed in commits `9029e6e` + `7d3ec17` per ADR 0002 (revised v2)
+- Implementation: force-dynamic at root layout + composite-URL `isActive` in Sidebar
+- Approach C selected over original Approach A (parent-scope closures made A impractical; authed app was already effectively dynamic so C had no real cost)
+- Verified on production: all 10 click-test scenarios pass
+- See `docs/adr/0002-sidebar-active-state.md` for full design rationale and revision history
+
 ### HIGH priority (blocks promised UX)
 
-**2. Sidebar active state on admin sub-routes**
-- File: `src/components/Sidebar.tsx` `isActive` function at line 121
-- Bug: clicking 合規 / ESG / 出勤 in sidebar lands on `/admin?tab=...` → sidebar highlights 概覽 instead of the clicked item
-- `isActive` logic doesn't consider query string
-- Fix is more involved than initially scoped — Sidebar lives in a shared layout, and adding `useSearchParams` to it cascades a Suspense boundary requirement to every page using the layout
-- Implementation captured in `docs/adr/0002-sidebar-active-state.md` (Approach A: Suspense wrap at layout level)
-- Status: ready for next-session implementation, not a quick fix
+_(None remaining. Both sprint-priority bugs resolved.)_
 
 ### MEDIUM priority (cosmetic / polish)
 
@@ -111,14 +111,11 @@ Fix issues 1 and 2 because they undermine the value of B.2 + C.1. Estimated 30-6
 - URL is source of truth, localStorage preserved as fallback, Suspense boundary added
 - All 8 acceptance criteria verified on production
 
-**Step D.2: Fix sidebar active state for admin sub-routes** — design captured in ADR 0002
-- Implementation per `docs/adr/0002-sidebar-active-state.md` (Approach A)
-- First: investigation phase — find every layout file rendering `<Sidebar />`
-- Then: design Sidebar fallback skeleton, wrap Sidebar in Suspense at layout level
-- Update `isActive` to handle 4 href shapes (library, admin?tab=, /admin, fallthrough)
-- Update 3 sidebar hrefs from `/admin/X` to `/admin?tab=X` form
-- Verify: `npm run build` succeeds + 10 manual acceptance criteria pass on production
-- Estimated effort: 60-90 minutes for a fresh session (not a quick patch)
+**Step D.2: Fix sidebar active state for admin sub-routes** — DONE in commits `9029e6e` + `7d3ec17`
+- Approach C implemented (force-dynamic at root layout) — see ADR 0002 v2 amendment for why C was selected over the originally-proposed A
+- isActive updated to handle 4 href shapes
+- 3 sidebar hrefs updated to query-string form
+- Production build verified, all 10 acceptance criteria pass
 
 After D.1 and D.2, the 3 redirects work correctly end-to-end (URL → correct tab → correct sidebar highlight). This completes the promised UX of B.2 + C.1.
 
