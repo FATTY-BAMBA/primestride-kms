@@ -88,15 +88,16 @@ export default function OrgSwitcher() {
 
   // Don't show if user has only one org
   if (loading) {
+    // Render an invisible placeholder of the right size to prevent
+    // layout shift when the org name appears. Avoids the jarring
+    // "Loading..." flash on every page navigation.
     return (
       <div style={{
-        padding: "8px 12px",
-        background: "rgba(124, 58, 237, 0.1)",
-        borderRadius: 8,
+        padding: "8px 14px",
         fontSize: 13,
-        color: "#6B7280",
+        visibility: "hidden",
       }}>
-        Loading...
+        &nbsp;
       </div>
     );
   }
