@@ -134,14 +134,14 @@ export default function GroupsPage() {
             </div>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Link href="/library" className="btn" style={{ padding: "8px 14px", fontSize: 13 }}>
+              <Link href="/library" className="btn" style={{ padding: "8px 14px", fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>
                 {t("← 返回文件庫", "← Back to Library")}
               </Link>
               {isAdmin && (
                 <button
                   onClick={() => setShowCreateModal(true)}
                   className="btn btn-primary"
-                  style={{ padding: "8px 14px", fontSize: 13 }}
+                  style={{ padding: "8px 14px", fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}
                 >
                   {t("➕ 新增群組", "➕ Create Group")}
                 </button>
