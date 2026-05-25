@@ -36,7 +36,7 @@ export default function MetricsPage() {
   const [data, setData] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [period, setPeriod] = useState<'7' | '30' | '90'>('30');
+  const [period, setPeriod] = useState<'7' | '30' | '90'>('7');
 
   useEffect(() => {
     setLoading(true);
