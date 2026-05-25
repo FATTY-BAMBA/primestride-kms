@@ -2233,7 +2233,7 @@ export default function AdminDashboard() {
         setShowShortcuts(false);
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") {
         const tabs = ["overview", "pending", "employees", "leave", "wallchart", "compliance", "esg", "attendance"] as const;
         setTab(tabs[parseInt(e.key) - 1]);
         return;
