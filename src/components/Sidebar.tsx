@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { 
   Library,
   Home,
@@ -46,6 +46,8 @@ interface LinkItem {
 
 export default function Sidebar({ children }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
   const [collapsed, setCollapsed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [lang, setLang] = useState<"zh" | "en">("zh");
@@ -98,10 +100,10 @@ export default function Sidebar({ children }: SidebarProps) {
   const manageLinks: LinkItem[] = [
     { href: "/admin", icon: Settings, label: "概覽", labelEn: "Overview", adminOnly: true },
     { href: "/admin?tab=employees", icon: Users, label: "員工", labelEn: "Employees", adminOnly: true },
-    { href: "/admin/attendance", icon: ClipboardCheck, label: "出勤", labelEn: "Attendance", adminOnly: true },
+    { href: "/admin?tab=wallchart", icon: ClipboardCheck, label: "出勤", labelEn: "Attendance", adminOnly: true },
     { href: "/admin/payroll", icon: Wallet, label: "薪資", labelEn: "Payroll", adminOnly: true },
-    { href: "/admin/compliance", icon: Scale, label: "合規", labelEn: "Compliance", adminOnly: true },
-    { href: "/admin/esg", icon: Leaf, label: "ESG 報告", labelEn: "ESG Report", adminOnly: true },
+    { href: "/admin?tab=compliance", icon: Scale, label: "合規", labelEn: "Compliance", adminOnly: true },
+    { href: "/admin?tab=esg", icon: Leaf, label: "ESG 報告", labelEn: "ESG Report", adminOnly: true },
     { href: "/agent", icon: Bot, label: "AI 助手", labelEn: "Atlas Agent", adminOnly: true },
     { href: "/teams", icon: UserCircle, label: "群組", labelEn: "Groups", adminOnly: true },
     { href: "/team", icon: Users, label: "成員", labelEn: "Members", adminOnly: true },
@@ -119,7 +121,22 @@ export default function Sidebar({ children }: SidebarProps) {
   ];
 
   const isActive = (href: string) => {
+    // /library: match the route and any nested doc page (preserves existing behavior)
     if (href === "/library") return pathname === "/library" || pathname.startsWith("/library/");
+
+    // Hrefs targeting an admin tab via ?tab=X
+    // (e.g. /admin?tab=compliance, /admin?tab=esg, /admin?tab=wallchart)
+    if (href.startsWith("/admin?tab=")) {
+      const hrefTab = href.split("tab=")[1];
+      return pathname === "/admin" && currentTab === hrefTab;
+    }
+
+    // /admin (Overview): only when on admin page with no tab OR tab=overview
+    if (href === "/admin") {
+      return pathname === "/admin" && (!currentTab || currentTab === "overview");
+    }
+
+    // All other routes: exact match or descendant route
     return pathname === href || pathname.startsWith(href + "/");
   };
 
