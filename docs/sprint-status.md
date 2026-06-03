@@ -1,9 +1,9 @@
 # Atlas EIP IA Restructure Sprint — Status
 
-**Last updated:** 2026-05-26, Day 4
-**Current HEAD:** `c540641` — fix(org-switcher): eliminate Loading flash on page navigation
-**Branch:** main, 5 commits ahead of origin (pending push)
-**Last session work:** Cosmetic fixes batch — 5 issues resolved (keyboard shortcut bonus, manual entry default date, metrics default window, teams header nowrap, org switcher loading flash). 4 issues deferred: one needs an ADR (dark theme consolidation), three are not in source code (Clerk UI typo, DB data duplicate, DB data typo).
+**Last updated:** 2026-06-03, Day 5
+**Current HEAD:** `d4f05e4` — docs(adr-0003): propose shadcn/ui migration; deprecate legacy design tokens
+**Branch:** main
+**Last session work:** ADR 0003 drafted — proposes completing the shadcn/ui migration that was started March 2026 but never finished. Two design systems currently coexist (System A: shadcn/ui used by /library; System B: legacy custom CSS used everywhere else, ~128 class consumers + 119 inline var references). The drift on /team and /teams is the visible symptom. Six-phase migration plan with full token mapping. Status: Proposed, awaiting Phase 1 (install missing shadcn components).
 
 This document tracks the state of the IA restructure sprint and serves as the entry point for future sessions. It's updated at the end of each working session.
 
@@ -87,11 +87,11 @@ _(None remaining. All cosmetic items either resolved or moved to Deferred below.
 
 ### Deferred — requires design decision or data fix (not a code fix)
 
-**4. /team and /teams use dark theme** — Deferred to a future "design system pass"
-- Root cause: `.card` class in `globals.css` has `background: var(--bg-card)` which resolves dark. Used by 30+ places. Some pages override inline with `background: "white"`, others don't.
-- Investigation 2026-05-26 confirmed `/team` and `/teams` use bare `className="card"` while `/library`, `/admin`, `/metrics` add inline white-background overrides.
-- Proper fix needs an ADR: decide on light as canonical theme, update `--bg-card` CSS variable, audit and clean up redundant inline overrides. Out of scope for a cosmetic-batch session.
-- Related concern flagged by user 2026-05-26: button styling inconsistency on these pages (black "Back to Library" vs blue "+ Invite Member" — primary/secondary roles not visually distinguished consistently across the app).
+**4. /team and /teams use dark theme** — ADR 0003 drafted 2026-06-03; awaiting approval to begin Phase 1
+- Root cause traced: Atlas EIP has TWO design systems running in parallel. System A (shadcn/ui, installed March 3 2026, used by /library only) and System B (legacy custom CSS tokens, .btn/.card classes, used everywhere else). The dark cards on /team and /teams are the visible symptom of the unfinished March 2026 migration.
+- Scope measured: 91 `className="btn"` consumers, 37 `className="card"` consumers, 119 inline `var(--bg-card)` etc. references across 6 files.
+- See `docs/adr/0003-shadcn-ui-migration.md` for full migration plan (6 phases, ~9-10 sessions, complete token mapping included).
+- Related concern from user 2026-05-26 (inconsistent button styling on /team and /teams) is addressed by Phase 2 of ADR 0003 (migrate to shadcn's `<Button>` variants — default, outline, destructive — gives a coherent visual hierarchy).
 
 **8. Typo: "Company Adminstration"** — Not in source code
 - Exhaustive grep across `src/` returned only the sprint-status file itself. Sidebar.tsx, UserMenu.tsx, OrgSwitcher.tsx contain no "Administration" string.
