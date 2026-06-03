@@ -5,13 +5,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import {
-  FileText, Clock, Users, Library, Bot,
-  Upload, Link as LinkIcon, PenLine,
-  AlertTriangle, CheckCircle2, TrendingUp,
-  ArrowRight, ChevronRight, Zap, Shield,
-  DollarSign, Calendar, Bell, Search
+  FileText,
+  Clock,
+  Users,
+  Library,
+  Bot,
+  Upload,
+  Zap,
+  Bell,
+  Shield,
+  ChevronRight,
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  Inbox,
+  BookOpen,
+  PenLine,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import ClockStatusBar from "@/components/ClockStatusBar";
+
+// Types
 
 type RecentDoc = {
   doc_id: string;
@@ -41,19 +58,42 @@ type DashboardData = {
   } | null;
 };
 
+type Priority = "urgent" | "high" | "normal";
+
 type SmartAction = {
   id: string;
-  priority: "urgent" | "high" | "normal";
-  icon: React.ReactNode;
+  priority: Priority;
+  icon: React.ComponentType<{ className?: string }>;
   label: string;
   sublabel: string;
   href: string;
-  accentColor: string;
-  bgColor: string;
-  badge?: string;
+  badge?: number;
 };
 
-function timeAgo(dateStr: string, isZh: boolean) {
+type StatColor = "purple" | "danger" | "blue" | "success";
+
+type StatCardData = {
+  label: string;
+  value: number | string;
+  icon: React.ComponentType<{ className?: string }>;
+  href?: string;
+  color: StatColor;
+  pulse?: boolean;
+  trend?: string;
+};
+
+type OnboardingStep = {
+  step: number;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  desc: string;
+  href: string;
+  done: boolean;
+};
+
+// Helpers
+
+function timeAgo(dateStr: string, isZh: boolean): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
@@ -65,18 +105,35 @@ function timeAgo(dateStr: string, isZh: boolean) {
   return new Date(dateStr).toLocaleDateString();
 }
 
-function PulsingDot({ color }: { color: string }) {
-  return (
-    <span style={{ position: "relative", display: "inline-flex", width: 8, height: 8 }}>
-      <span style={{
-        position: "absolute", inset: 0, borderRadius: "50%",
-        background: color, opacity: 0.4,
-        animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite",
-      }} />
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, position: "relative" }} />
-    </span>
-  );
+function getGreeting(hour: number, isZh: boolean): string {
+  if (isZh) {
+    if (hour < 5) return "夜深了";
+    if (hour < 12) return "早安";
+    if (hour < 18) return "午安";
+    return "晚安";
+  }
+  if (hour < 5) return "Still up?";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
+
+// Design Tokens (ADR 0004)
+
+const COLOR_MAP: Record<StatColor, { bg: string; text: string }> = {
+  purple: { bg: "bg-purple-50", text: "text-purple-600" },
+  danger: { bg: "bg-red-50", text: "text-red-600" },
+  blue: { bg: "bg-blue-50", text: "text-blue-600" },
+  success: { bg: "bg-emerald-50", text: "text-emerald-600" },
+};
+
+const PRIORITY_STYLES: Record<Priority, { border: string; bg: string; text: string }> = {
+  urgent: { border: "border-red-200", bg: "bg-red-50", text: "text-red-600" },
+  high: { border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
+  normal: { border: "border-slate-200", bg: "bg-slate-50", text: "text-slate-600" },
+};
+
+// Component
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -86,552 +143,701 @@ export default function DashboardPage() {
   useEffect(() => {
     document.title = "Home — Atlas EIP";
     Promise.all([
-      fetch("/api/profile").then(r => r.json()),
-      fetch("/api/learning-summary").then(r => r.json()),
-      fetch("/api/workflows?view=all&status=pending").then(r => r.json()),
-      fetch("/api/workflows?status=pending").then(r => r.json()),
-      fetch("/api/org-members").then(r => r.json()),
-      fetch("/api/branding").then(r => r.json()),
-      fetch("/api/organizations").then(r => r.json()),
-      fetch("/api/subscription").then(r => r.json()),
-      fetch("/api/workflows?view=all").then(r => r.json()),
-      fetch("/api/clock/today").then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([profile, docs, orgWorkflows, myWorkflows, members, branding, orgs, sub, allWorkflows, clockToday]) => {
-      const actualOrgName = orgs.organizations?.[0]?.name || "";
-      const orgName = branding.branding?.org_name || actualOrgName || (profile.language === "zh" ? "貴公司" : "your organization");
-
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const allSubs = allWorkflows.submissions || [];
-      const approvedThisMonth = allSubs.filter((s: any) => s.status === "approved" && s.created_at >= monthStart).length;
-      const overtimeHours = allSubs
-        .filter((s: any) => s.form_type === "overtime" && s.status === "approved" && s.created_at >= monthStart)
-        .reduce((sum: number, s: any) => sum + (Number(s.form_data?.hours) || 0), 0);
-
-      setData({
-        pendingFormsOrg: orgWorkflows.submissions?.length || 0,
-        pendingFormsMine: myWorkflows.submissions?.length || 0,
-        totalDocs: docs.documents?.length || 0,
-        recentDocs: (docs.documents || [])
-          .sort((a: any, b: any) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime())
-          .slice(0, 5),
-        memberCount: members.members?.length || 0,
-        role: profile.role || "member",
-        full_name: profile.full_name || profile.email?.split("@")[0] || "there",
-        org_name: orgName,
-        language: profile.language || "en",
-        trialDaysRemaining: sub.trial_days_remaining || 0,
-        planId: sub.subscription?.plan_id || "explorer",
-        subscriptionStatus: sub.status || "free",
-        approvedThisMonth,
-        overtimeHours,
+      fetch("/api/profile").then((r) => r.json()),
+      fetch("/api/learning-summary").then((r) => r.json()),
+      fetch("/api/workflows?view=all&status=pending").then((r) => r.json()),
+      fetch("/api/workflows?status=pending").then((r) => r.json()),
+      fetch("/api/org-members").then((r) => r.json()),
+      fetch("/api/branding").then((r) => r.json()),
+      fetch("/api/organizations").then((r) => r.json()),
+      fetch("/api/subscription").then((r) => r.json()),
+      fetch("/api/workflows?view=all").then((r) => r.json()),
+      fetch("/api/clock/today")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(
+      ([
+        profile,
+        docs,
+        orgWorkflows,
+        myWorkflows,
+        members,
+        branding,
+        orgs,
+        sub,
+        allWorkflows,
         clockToday,
-      });
-    }).catch(() => {}).finally(() => setLoading(false));
+      ]) => {
+        const actualOrgName = orgs.organizations?.[0]?.name || "";
+        const orgName =
+          branding.branding?.org_name ||
+          actualOrgName ||
+          (profile.language === "zh" ? "貴公司" : "your organization");
+
+        const now = new Date();
+        const monthStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1
+        ).toISOString();
+        const allSubs = allWorkflows.submissions || [];
+        const approvedThisMonth = allSubs.filter(
+          (s: { status: string; created_at: string }) =>
+            s.status === "approved" && s.created_at >= monthStart
+        ).length;
+        const overtimeHours = allSubs
+          .filter(
+            (s: { form_type: string; status: string; created_at: string }) =>
+              s.form_type === "overtime" &&
+              s.status === "approved" &&
+              s.created_at >= monthStart
+          )
+          .reduce(
+            (sum: number, s: { form_data?: { hours?: number } }) =>
+              sum + (Number(s.form_data?.hours) || 0),
+            0
+          );
+
+        setData({
+          pendingFormsOrg: orgWorkflows.submissions?.length || 0,
+          pendingFormsMine: myWorkflows.submissions?.length || 0,
+          totalDocs: docs.documents?.length || 0,
+          recentDocs: (docs.documents || [])
+            .sort(
+              (a: { updated_at?: string }, b: { updated_at?: string }) =>
+                new Date(b.updated_at || 0).getTime() -
+                new Date(a.updated_at || 0).getTime()
+            )
+            .slice(0, 5),
+          memberCount: members.members?.length || 0,
+          role: profile.role || "member",
+          full_name:
+            profile.full_name ||
+            profile.email?.split("@")[0] ||
+            "there",
+          org_name: orgName,
+          language: profile.language || "en",
+          trialDaysRemaining: sub.trial_days_remaining || 0,
+          planId: sub.subscription?.plan_id || "explorer",
+          subscriptionStatus: sub.status || "free",
+          approvedThisMonth,
+          overtimeHours,
+          clockToday,
+        });
+      }
+    ).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const isAdmin = data && ["owner", "admin"].includes(data.role);
+  const isAdmin = data ? ["owner", "admin"].includes(data.role) : false;
   const isZh = data?.language === "zh";
   const hour = new Date().getHours();
-
-  const greeting = isZh
-    ? (hour < 5 ? "夜深了" : hour < 12 ? "早安" : hour < 18 ? "午安" : "晚安")
-    : (hour < 5 ? "Still up?" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
-
+  const greeting = getGreeting(hour, isZh ?? false);
   const firstName = data?.full_name?.split(" ")[0] || "";
 
-  // ── Smart Actions: context-aware, priority-sorted ──
+  // Smart Actions
   const buildSmartActions = (): SmartAction[] => {
     if (!data) return [];
     const actions: SmartAction[] = [];
 
-    // URGENT: pending reviews (admin)
     if (isAdmin && data.pendingFormsOrg > 0) {
       actions.push({
         id: "pending-review",
         priority: "urgent",
-        icon: <Bell className="w-4 h-4" />,
-        label: isZh ? `${data.pendingFormsOrg} 份表單等待審核` : `${data.pendingFormsOrg} form${data.pendingFormsOrg > 1 ? "s" : ""} need review`,
-        sublabel: isZh ? "員工正在等待您的決定" : "Employees are waiting on your decision",
+        icon: Bell,
+        label: isZh
+          ? `${data.pendingFormsOrg} 份表單等待審核`
+          : `${data.pendingFormsOrg} form${data.pendingFormsOrg > 1 ? "s" : ""} need review`,
+        sublabel: isZh
+          ? "員工正在等待您的決定"
+          : "Employees are waiting on your decision",
         href: "/admin",
-        accentColor: "#DC2626",
-        bgColor: "#FEF2F2",
-        badge: String(data.pendingFormsOrg),
+        badge: data.pendingFormsOrg,
       });
     }
 
-    // URGENT: trial expiring soon
     if (isAdmin && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 7) {
       actions.push({
         id: "trial-expiry",
         priority: "urgent",
-        icon: <Clock className="w-4 h-4" />,
-        label: isZh ? `試用期還剩 ${data.trialDaysRemaining} 天` : `Trial ends in ${data.trialDaysRemaining} days`,
-        sublabel: isZh ? "聯絡我們確保服務不中斷" : "Contact us to keep full access",
+        icon: Clock,
+        label: isZh
+          ? `試用期還剩 ${data.trialDaysRemaining} 天`
+          : `Trial ends in ${data.trialDaysRemaining} days`,
+        sublabel: isZh
+          ? "聯絡我們確保服務不中斷"
+          : "Contact us to keep full access",
         href: "mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約",
-        accentColor: "#D97706",
-        bgColor: "#FFFBEB",
       });
     }
 
-    // HIGH: no documents yet (admin)
     if (isAdmin && data.totalDocs === 0) {
       actions.push({
         id: "upload-first",
         priority: "high",
-        icon: <Upload className="w-4 h-4" />,
-        label: isZh ? "上傳您的第一份員工手冊" : "Upload your first employee handbook",
-        sublabel: isZh ? "讓 Ask Atlas 開始回答員工問題" : "Enable Ask Atlas to answer employee questions",
+        icon: Upload,
+        label: isZh
+          ? "上傳您的第一份員工手冊"
+          : "Upload your first employee handbook",
+        sublabel: isZh
+          ? "讓 Ask Atlas 開始回答員工問題"
+          : "Enable Ask Atlas to answer employee questions",
         href: "/library/new",
-        accentColor: "#7C3AED",
-        bgColor: "#F5F3FF",
       });
     }
 
-    // HIGH: pending my own forms (member)
     if (!isAdmin && data.pendingFormsMine > 0) {
       actions.push({
         id: "my-pending",
         priority: "high",
-        icon: <Clock className="w-4 h-4" />,
-        label: isZh ? `${data.pendingFormsMine} 份申請等待主管審核` : `${data.pendingFormsMine} request${data.pendingFormsMine > 1 ? "s" : ""} awaiting approval`,
-        sublabel: isZh ? "主管即將審核您的申請" : "Your manager will review soon",
+        icon: Inbox,
+        label: isZh
+          ? `${data.pendingFormsMine} 份申請等待主管審核`
+          : `${data.pendingFormsMine} request${data.pendingFormsMine > 1 ? "s" : ""} awaiting approval`,
+        sublabel: isZh
+          ? "主管即將審核您的申請"
+          : "Your manager will review soon",
         href: "/workflows",
-        accentColor: "#2563EB",
-        bgColor: "#EFF6FF",
       });
     }
 
-    // HIGH: overtime high this month (admin)
     if (isAdmin && data.overtimeHours >= 30) {
       actions.push({
         id: "overtime-alert",
         priority: "high",
-        icon: <Shield className="w-4 h-4" />,
-        label: isZh ? `本月加班已達 ${data.overtimeHours} 小時` : `${data.overtimeHours}h overtime this month`,
-        sublabel: isZh ? "查看 Shadow Audit 了解風險詳情" : "Check Shadow Audit for risk details",
+        icon: Shield,
+        label: isZh
+          ? `本月加班已達 ${data.overtimeHours} 小時`
+          : `${data.overtimeHours}h overtime this month`,
+        sublabel: isZh
+          ? "查看 Shadow Audit 了解風險詳情"
+          : "Check Shadow Audit for risk details",
         href: "/admin",
-        accentColor: "#DC2626",
-        bgColor: "#FEF2F2",
       });
     }
 
-    // NORMAL: submit a request
     actions.push({
       id: "submit-request",
       priority: "normal",
-      icon: <FileText className="w-4 h-4" />,
-      label: isZh ? "用一句話提交申請" : "Submit a request in one sentence",
-      sublabel: isZh ? "請假、加班、出差 — AI 自動辨識" : "Leave, overtime, business trip — AI parses it",
+      icon: PenLine,
+      label: isZh
+        ? "用一句話提交申請"
+        : "Submit a request in one sentence",
+      sublabel: isZh
+        ? "請假、加班、出差 — AI 自動辨識"
+        : "Leave, overtime, business trip — AI parses it",
       href: "/workflows",
-      accentColor: "#7C3AED",
-      bgColor: "#F5F3FF",
     });
 
-    // NORMAL: ask atlas
     actions.push({
       id: "ask-atlas",
       priority: "normal",
-      icon: <Bot className="w-4 h-4" />,
-      label: isZh ? "詢問 Atlas 關於公司政策" : "Ask Atlas about company policy",
-      sublabel: isZh ? "AI 即時回答，有來源引用" : "Instant AI answers with source citations",
+      icon: Bot,
+      label: isZh
+        ? "詢問 Atlas 關於公司政策"
+        : "Ask Atlas about company policy",
+      sublabel: isZh
+        ? "AI 即時回答，有來源引用"
+        : "Instant AI answers with source citations",
       href: "/search",
-      accentColor: "#EC4899",
-      bgColor: "#FDF2F8",
     });
 
-    // NORMAL: browse library
     if (data.totalDocs > 0) {
       actions.push({
         id: "browse-library",
         priority: "normal",
-        icon: <Library className="w-4 h-4" />,
-        label: isZh ? `瀏覽知識庫 (${data.totalDocs} 份文件)` : `Browse knowledge base (${data.totalDocs} docs)`,
-        sublabel: isZh ? "搜尋公司政策和規章" : "Search company policies and documents",
+        icon: BookOpen,
+        label: isZh
+          ? `瀏覽知識庫 (${data.totalDocs} 份文件)`
+          : `Browse knowledge base (${data.totalDocs} docs)`,
+        sublabel: isZh
+          ? "搜尋公司政策和規章"
+          : "Search company policies and documents",
         href: "/library",
-        accentColor: "#0891B2",
-        bgColor: "#ECFEFF",
       });
     }
 
-    // NORMAL: admin-specific
     if (isAdmin) {
       actions.push({
         id: "upload-doc",
         priority: "normal",
-        icon: <Upload className="w-4 h-4" />,
-        label: isZh ? "上傳或匯入文件" : "Upload or import a document",
-        sublabel: isZh ? "PDF、Word、網址、YouTube 均支援" : "PDF, Word, URL, YouTube supported",
+        icon: Upload,
+        label: isZh
+          ? "上傳或匯入文件"
+          : "Upload or import a document",
+        sublabel: isZh
+          ? "PDF、Word、網址、YouTube 均支援"
+          : "PDF, Word, URL, YouTube supported",
         href: "/library/new",
-        accentColor: "#059669",
-        bgColor: "#F0FDF4",
       });
     }
 
-    // Sort: urgent first, then high, then normal
-    const order = { urgent: 0, high: 1, normal: 2 };
-    return actions.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 5);
+    const order: Record<Priority, number> = { urgent: 0, high: 1, normal: 2 };
+    return actions
+      .sort((a, b) => order[a.priority] - order[b.priority])
+      .slice(0, 5);
   };
 
   const smartActions = buildSmartActions();
 
-  // ── Stat cards: meaningful metrics only ──
-  const statCards = data ? [
-    {
-      label: isZh ? "文件數" : "Documents",
-      value: data.totalDocs,
-      icon: FileText,
-      color: "#7C3AED",
-      bg: "#F5F3FF",
-      href: "/library",
-      trend: data.totalDocs > 0 ? undefined : (isZh ? "尚無文件" : "Upload your first"),
-    },
-    {
-      label: isZh ? (isAdmin ? "待審核" : "我的待審") : (isAdmin ? "Pending Reviews" : "My Pending"),
-      value: isAdmin ? data.pendingFormsOrg : data.pendingFormsMine,
-      icon: Clock,
-      color: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0 ? "#DC2626" : "#059669",
-      bg: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0 ? "#FEF2F2" : "#F0FDF4",
-      href: isAdmin ? "/admin" : "/workflows",
-      pulse: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0,
-    },
-    {
-      label: isZh ? "團隊成員" : "Team Members",
-      value: data.memberCount,
-      icon: Users,
-      color: "#2563EB",
-      bg: "#EFF6FF",
-      href: isAdmin ? "/team" : undefined,
-    },
-    {
-      label: isAdmin
-        ? (isZh ? "今日出勤率" : "Today's Attendance")
-        : (isZh ? "本月打卡天數" : "Days Clocked"),
-      value: isAdmin
-        ? `${data.clockToday?.summary?.attendanceRate ?? 0}%`
-        : (data.clockToday?.monthlyDays ?? 0),
-      icon: Clock,
-      color: "#059669",
-      bg: "#F0FDF4",
-      href: isAdmin ? "/admin?tab=attendance" : "/clock/manual",
-      trend: isAdmin && data.clockToday?.summary
-        ? (isZh ? `${data.clockToday.summary.total} 人應到` : `${data.clockToday.summary.total} expected`)
-        : undefined,
-    },
-  ] : [];
+  // Stat Cards
+  const statCards: StatCardData[] = data
+    ? [
+        {
+          label: isZh ? "文件數" : "Documents",
+          value: data.totalDocs,
+          icon: FileText,
+          href: "/library",
+          color: "purple",
+          trend: data.totalDocs > 0 ? undefined : isZh ? "尚無文件" : "Upload your first",
+        },
+        {
+          label: isZh
+            ? isAdmin
+              ? "待審核"
+              : "我的待審"
+            : isAdmin
+            ? "Pending Reviews"
+            : "My Pending",
+          value: isAdmin ? data.pendingFormsOrg : data.pendingFormsMine,
+          icon: Clock,
+          href: isAdmin ? "/admin" : "/workflows",
+          color: "danger",
+          pulse: (isAdmin ? data.pendingFormsOrg : data.pendingFormsMine) > 0,
+        },
+        {
+          label: isZh ? "團隊成員" : "Team Members",
+          value: data.memberCount,
+          icon: Users,
+          href: isAdmin ? "/team" : undefined,
+          color: "blue",
+        },
+        {
+          label: isAdmin
+            ? isZh
+              ? "今日出勤率"
+              : "Today's Attendance"
+            : isZh
+            ? "本月打卡天數"
+            : "Days Clocked",
+          value: isAdmin
+            ? `${data.clockToday?.summary?.attendanceRate ?? 0}%`
+            : data.clockToday?.monthlyDays ?? 0,
+          icon: Clock,
+          href: isAdmin ? "/admin?tab=attendance" : "/clock/manual",
+          color: "success",
+          trend:
+            isAdmin && data.clockToday?.summary
+              ? isZh
+                ? `${data.clockToday.summary.total} 人應到`
+                : `${data.clockToday.summary.total} expected`
+              : undefined,
+        },
+      ]
+    : [];
+
+  // Onboarding Steps
+  const onboardingSteps: OnboardingStep[] = data
+    ? [
+        {
+          step: 1,
+          icon: Upload,
+          title: isZh ? "上傳公司文件" : "Upload Documents",
+          desc: isZh
+            ? "員工手冊、規章制度、公司政策"
+            : "Handbook, policies, regulations",
+          href: "/library/new",
+          done: (data.totalDocs || 0) > 0,
+        },
+        {
+          step: 2,
+          icon: Users,
+          title: isZh ? "邀請團隊成員" : "Invite Team",
+          desc: isZh ? "讓員工開始使用" : "Get employees onboard",
+          href: "/team",
+          done: (data.memberCount || 0) > 1,
+        },
+        {
+          step: 3,
+          icon: PenLine,
+          title: isZh ? "提交第一筆申請" : "First Request",
+          desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing",
+          href: "/workflows",
+          done: false,
+        },
+      ]
+    : [];
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="space-y-6">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-28 rounded-xl" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+              <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+              <Skeleton className="h-80 rounded-xl lg:col-span-3" />
+            </div>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
+  if (!data) {
+    return (
+      <ProtectedRoute>
+        <div className="mx-auto max-w-5xl px-4 py-12 text-center">
+          <AlertCircle className="mx-auto h-10 w-10 text-red-400" />
+          <h3 className="mt-4 text-lg font-semibold text-slate-900">
+            {isZh ? "載入失敗" : "Failed to load"}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {isZh ? "請重新整理頁面" : "Please refresh the page"}
+          </p>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
-      <style>{`
-        @keyframes ping {
-          75%, 100% { transform: scale(2); opacity: 0; }
-        }
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .atlas-card {
-          animation: fadeSlideUp 0.35s ease forwards;
-        }
-        .atlas-card:nth-child(1) { animation-delay: 0.05s; opacity: 0; }
-        .atlas-card:nth-child(2) { animation-delay: 0.10s; opacity: 0; }
-        .atlas-card:nth-child(3) { animation-delay: 0.15s; opacity: 0; }
-        .atlas-card:nth-child(4) { animation-delay: 0.20s; opacity: 0; }
-        .action-row:hover .action-arrow { transform: translateX(3px); }
-        .action-arrow { transition: transform 0.15s ease; }
-        .doc-row:hover .doc-title { color: #7C3AED; }
-        .doc-title { transition: color 0.15s ease; }
-      `}</style>
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Clock Status Bar */}
+        <ClockStatusBar lang={data.language} />
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px 48px" }}>
-
-        {/* ── Clock Status Bar (PR 3b) ── */}
-        <ClockStatusBar lang={data?.language || "zh"} />
-
-        {/* ── Header ── */}
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.02em" }}>
-              {greeting}{data ? `，${firstName}` : ""} 👋
-            </h1>
-          </div>
-          <p style={{ fontSize: 14, color: "#94A3B8", margin: "6px 0 0", fontWeight: 400 }}>
-            {data
-              ? (isZh ? `以下是 ${data.org_name} 的最新動態` : `Here's what's happening at ${data.org_name}`)
-              : (isZh ? "載入中..." : "Loading...")}
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            {greeting}
+            {data ? `，${firstName}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 sm:text-base">
+            {isZh
+              ? `以下是 ${data.org_name} 的最新動態`
+              : `Here's what's happening at ${data.org_name}`}
           </p>
         </div>
 
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[1,2,3].map(i => (
-              <div key={i} style={{ height: 80, borderRadius: 12, background: "linear-gradient(90deg, #F8FAFC 25%, #F1F5F9 50%, #F8FAFC 75%)", backgroundSize: "400% 100%", animation: "shimmer 1.5s infinite" }} />
-            ))}
-          </div>
-        ) : (
-          <>
-            {/* ── Stat Cards ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 24 }}
-              className="lg:grid-cols-4">
-              {statCards.map((stat, i) => (
-                <div
-                  key={stat.label}
-                  className="atlas-card"
-                  onClick={() => stat.href && router.push(stat.href)}
-                  style={{
-                    background: "white",
-                    border: "1px solid #E2E8F0",
-                    borderRadius: 14,
-                    padding: "16px 18px",
-                    cursor: stat.href ? "pointer" : "default",
-                    transition: "box-shadow 0.2s, border-color 0.2s, transform 0.2s",
-                    animationDelay: `${i * 0.05}s`,
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                  onMouseEnter={e => {
-                    if (stat.href) {
-                      (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-                      (e.currentTarget as HTMLElement).style.borderColor = "#CBD5E1";
-                      (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.boxShadow = "none";
-                    (e.currentTarget as HTMLElement).style.borderColor = "#E2E8F0";
-                    (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: 9, background: stat.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <stat.icon style={{ width: 16, height: 16, color: stat.color }} />
-                    </div>
-                    {(stat as any).pulse && <PulsingDot color={stat.color} />}
-                  </div>
-                  <div style={{ fontSize: 28, fontWeight: 700, color: stat.color, lineHeight: 1, marginBottom: 4, letterSpacing: "-0.03em" }}>
-                    {stat.value ?? "—"}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#94A3B8", fontWeight: 500 }}>{stat.label}</div>
-                  {(stat as any).trend && (
-                    <div style={{ fontSize: 10, color: "#CBD5E1", marginTop: 3 }}>{(stat as any).trend}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* ── Onboarding checklist (first-time orgs) ── */}
-            {isAdmin && data && !((data.totalDocs || 0) > 0 && (data.memberCount || 0) > 1) && (
-              <div style={{
-                background: "linear-gradient(135deg, #7C3AED08 0%, #2563EB06 100%)",
-                border: "1px solid #DDD6FE",
-                borderRadius: 16, padding: 20, marginBottom: 20,
-              }} className="atlas-card">
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #7C3AED, #6D28D9)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Zap style={{ width: 18, height: 18, color: "white" }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: "#1E1B4B" }}>
-                      {isZh ? "完成設定，解鎖完整 AI 功能" : "Complete setup to unlock all AI features"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#8B5CF6" }}>
-                      {isZh ? "只需 3 個步驟，不到 5 分鐘" : "3 steps, less than 5 minutes"}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-                  {[
-                    { step: 1, icon: "📚", title: isZh ? "上傳公司文件" : "Upload Documents", desc: isZh ? "員工手冊、規章制度、公司政策" : "Handbook, policies, regulations", href: "/library/new", done: (data?.totalDocs || 0) > 0 },
-                    { step: 2, icon: "👥", title: isZh ? "邀請團隊成員" : "Invite Team", desc: isZh ? "讓員工開始使用" : "Get employees onboard", href: "/team", done: (data?.memberCount || 0) > 1 },
-                    { step: 3, icon: "💬", title: isZh ? "提交第一筆申請" : "First Request", desc: isZh ? "體驗 AI 自動填寫" : "Experience AI parsing", href: "/workflows", done: false },
-                  ].map(item => (
-                    <a key={item.step} href={item.href} style={{ textDecoration: "none" }}>
-                      <div style={{
-                        display: "flex", gap: 12, padding: "12px 14px",
-                        background: "white", borderRadius: 10,
-                        border: `1px solid ${item.done ? "#BBF7D0" : "#E8E3FF"}`,
-                        cursor: "pointer", transition: "all 0.15s",
-                      }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = "#7C3AED"; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(124,58,237,0.1)"; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = item.done ? "#BBF7D0" : "#E8E3FF"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-                      >
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: item.done ? "#D1FAE5" : "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-                          {item.done ? "✓" : item.icon}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "#1E1B4B", marginBottom: 2 }}>{item.title}</div>
-                          <div style={{ fontSize: 11, color: "#94A3B8" }}>{item.desc}</div>
-                        </div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Main content grid ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 16, alignItems: "start" }}>
-
-              {/* ── Smart Actions ── */}
-              <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 16, overflow: "hidden" }} className="atlas-card">
-                <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F8FAFC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: "#F5F3FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Zap style={{ width: 14, height: 14, color: "#7C3AED" }} />
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
-                      {isZh ? "今日重點" : "Today's Focus"}
-                    </span>
-                  </div>
-                  {smartActions.some(a => a.priority === "urgent") && (
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      {isZh ? "需要處理" : "Action needed"}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ padding: "6px 0" }}>
-                  {smartActions.map((action, i) => (
+        {/* Stat Cards */}
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {statCards.map((stat) => {
+            const colors = COLOR_MAP[stat.color];
+            return (
+              <Card
+                key={stat.label}
+                className={`group border-slate-200 transition-all duration-200 hover:border-slate-300 hover:shadow-md ${
+                  stat.href ? "cursor-pointer" : ""
+                }`}
+                onClick={() => stat.href && router.push(stat.href)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
                     <div
-                      key={action.id}
-                      className="action-row"
-                      onClick={() => router.push(action.href)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "11px 18px", cursor: "pointer",
-                        borderBottom: i < smartActions.length - 1 ? "1px solid #F8FAFC" : "none",
-                        transition: "background 0.15s",
-                        background: action.priority === "urgent" ? `${action.bgColor}` : "transparent",
-                      }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = action.bgColor; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = action.priority === "urgent" ? action.bgColor : "transparent"; }}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${colors.bg}`}
                     >
-                      <div style={{ width: 34, height: 34, borderRadius: 9, background: action.bgColor, border: `1px solid ${action.accentColor}20`, display: "flex", alignItems: "center", justifyContent: "center", color: action.accentColor, flexShrink: 0, position: "relative" }}>
-                        {action.icon}
-                        {action.badge && (
-                          <span style={{ position: "absolute", top: -5, right: -5, width: 16, height: 16, borderRadius: "50%", background: action.accentColor, color: "white", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {action.badge}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", marginBottom: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {action.label}
-                        </div>
-                        <div style={{ fontSize: 11, color: "#94A3B8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {action.sublabel}
-                        </div>
-                      </div>
-                      <ChevronRight className="action-arrow" style={{ width: 14, height: 14, color: "#CBD5E1", flexShrink: 0 }} />
+                      <stat.icon
+                        className={`h-4 w-4 ${colors.text}`}
+                      />
                     </div>
-                  ))}
+                    {stat.pulse && (
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500"></span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
+                      {stat.value ?? "—"}
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-500">
+                        {stat.label}
+                      </span>
+                      {stat.trend && (
+                        <span className="text-[10px] text-slate-400">
+                          {stat.trend}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Onboarding Checklist */}
+        {isAdmin && data && !((data.totalDocs || 0) > 0 && (data.memberCount || 0) > 1) && (
+          <Card className="mb-6 border-purple-200 bg-gradient-to-br from-purple-50/50 to-blue-50/30">
+            <CardContent className="p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600">
+                  <Zap className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900">
+                    {isZh
+                      ? "完成設定，解鎖完整 AI 功能"
+                      : "Complete setup to unlock all AI features"}
+                  </h3>
+                  <p className="text-xs text-purple-600">
+                    {isZh
+                      ? "只需 3 個步驟，不到 5 分鐘"
+                      : "3 steps, less than 5 minutes"}
+                  </p>
                 </div>
               </div>
-
-              {/* ── Recent Documents ── */}
-              <div style={{ background: "white", border: "1px solid #E2E8F0", borderRadius: 16, overflow: "hidden" }} className="atlas-card">
-                <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid #F8FAFC", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Library style={{ width: 14, height: 14, color: "#059669" }} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                {onboardingSteps.map((item) => (
+                  <Link
+                    key={item.step}
+                    href={item.href}
+                    className={`group flex items-start gap-3 rounded-lg border p-3 transition-all hover:border-purple-300 hover:shadow-sm ${
+                      item.done ? "border-emerald-200" : "border-purple-100"
+                    } bg-white`}
+                  >
+                    <div
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+                        item.done ? "bg-emerald-100" : "bg-purple-50"
+                      }`}
+                    >
+                      {item.done ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <item.icon className="h-4 w-4 text-purple-600" />
+                      )}
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
-                      {isZh ? "最近文件" : "Recent Documents"}
-                    </span>
-                  </div>
-                  <Link href="/library" style={{ fontSize: 12, color: "#7C3AED", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: 3 }}>
-                    {isZh ? "查看全部" : "View all"} <ArrowRight style={{ width: 12, height: 12 }} />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {item.title}
+                      </p>
+                      <p className="text-xs text-slate-500">{item.desc}</p>
+                    </div>
                   </Link>
-                </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                {data?.recentDocs.length === 0 ? (
-                  <div style={{ padding: "36px 20px", textAlign: "center" }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 12, background: "#F8FAFC", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                      <Library style={{ width: 22, height: 22, color: "#CBD5E1" }} />
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          {/* Smart Actions */}
+          <div className="lg:col-span-2">
+            <Card className="border-slate-200">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-50">
+                      <Zap className="h-4 w-4 text-purple-600" />
                     </div>
-                    <p style={{ fontSize: 13, color: "#94A3B8", margin: "0 0 8px", fontWeight: 500 }}>
+                    <CardTitle className="text-sm font-semibold text-slate-900">
+                      {isZh ? "今日重點" : "Today's Focus"}
+                    </CardTitle>
+                  </div>
+                  {smartActions.some((a) => a.priority === "urgent") && (
+                    <Badge
+                      variant="destructive"
+                      className="h-5 text-[10px] font-semibold uppercase tracking-wider"
+                    >
+                      {isZh ? "需要處理" : "Action needed"}
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-1">
+                  {smartActions.map((action) => {
+                    const pStyle = PRIORITY_STYLES[action.priority];
+                    return (
+                      <button
+                        key={action.id}
+                        onClick={() => router.push(action.href)}
+                        className={`group flex w-full items-center gap-3 rounded-lg p-3 text-left transition-all hover:bg-slate-50 ${
+                          action.priority === "urgent" ? "bg-red-50/50" : ""
+                        }`}
+                      >
+                        <div
+                          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${pStyle.border} ${pStyle.bg} ${pStyle.text}`}
+                        >
+                          <action.icon className="h-4 w-4" />
+                          {action.badge && (
+                            <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                              {action.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {action.label}
+                            </p>
+                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-purple-400" />
+                          </div>
+                          <p className="truncate text-xs text-slate-500">
+                            {action.sublabel}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Recent Documents */}
+          <div className="lg:col-span-3">
+            <Card className="border-slate-200">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
+                      <Library className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <CardTitle className="text-sm font-semibold text-slate-900">
+                      {isZh ? "最近文件" : "Recent Documents"}
+                    </CardTitle>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs font-semibold text-purple-600 hover:bg-purple-50 hover:text-purple-700"
+                    onClick={() => router.push("/library")}
+                  >
+                    {isZh ? "查看全部" : "View all"}
+                    <ArrowRight className="ml-1 h-3 w-3" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {data.recentDocs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+                      <Library className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-slate-900">
                       {isZh ? "知識庫尚無文件" : "No documents yet"}
                     </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {isZh
+                        ? "上傳文件後將顯示於此"
+                        : "Files will appear here after upload"}
+                    </p>
                     {isAdmin && (
-                      <Link href="/library/new" style={{ fontSize: 12, color: "#7C3AED", fontWeight: 600, textDecoration: "none" }}>
-                        {isZh ? "上傳第一份文件 →" : "Upload your first document →"}
-                      </Link>
+                      <Button
+                        className="mt-3 h-8 bg-purple-600 text-xs hover:bg-purple-700"
+                        onClick={() => router.push("/library/new")}
+                      >
+                        {isZh ? "上傳第一份文件" : "Upload your first"}
+                        <ArrowRight className="ml-1 h-3 w-3" />
+                      </Button>
                     )}
                   </div>
                 ) : (
-                  <div style={{ padding: "4px 0" }}>
-                    {data?.recentDocs.map((doc, i) => (
-                      <Link key={doc.doc_id} href={`/library/${encodeURIComponent(doc.doc_id)}`} style={{ textDecoration: "none" }}>
-                        <div
-                          className="doc-row"
-                          style={{
-                            display: "flex", alignItems: "center", gap: 12, padding: "11px 18px",
-                            borderBottom: i < (data?.recentDocs.length || 0) - 1 ? "1px solid #F8FAFC" : "none",
-                            transition: "background 0.15s", cursor: "pointer",
-                          }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#FAFBFF"; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                        >
-                          <div style={{ width: 36, height: 36, borderRadius: 9, background: "#F5F3FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <FileText style={{ width: 16, height: 16, color: "#7C3AED" }} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p className="doc-title" style={{ fontSize: 13, fontWeight: 600, color: "#0F172A", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {doc.title}
-                            </p>
-                            <p style={{ fontSize: 11, color: "#94A3B8", margin: 0 }}>
-                              {doc.doc_type || "document"} · {doc.updated_at ? timeAgo(doc.updated_at, isZh ?? false) : ""}
-                            </p>
-                          </div>
-                          <ChevronRight style={{ width: 14, height: 14, color: "#E2E8F0", flexShrink: 0 }} />
+                  <div className="space-y-1">
+                    {data.recentDocs.map((doc) => (
+                      <Link
+                        key={doc.doc_id}
+                        href={`/library/${encodeURIComponent(doc.doc_id)}`}
+                        className="group flex items-center gap-3 rounded-lg p-2.5 transition-colors hover:bg-slate-50"
+                      >
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-purple-50">
+                          <FileText className="h-4 w-4 text-purple-600" />
                         </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-900 transition-colors group-hover:text-purple-700">
+                            {doc.title}
+                          </p>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <Badge
+                              variant="secondary"
+                              className="h-4 px-1.5 text-[10px] font-medium"
+                            >
+                              {doc.doc_type || "document"}
+                            </Badge>
+                            <span className="text-xs text-slate-400">
+                              {doc.updated_at
+                                ? timeAgo(doc.updated_at, isZh ?? false)
+                                : ""}
+                            </span>
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-purple-400" />
                       </Link>
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Trial Banners */}
+        {isAdmin && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 30 && data.trialDaysRemaining > 7 && (
+          <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-blue-900">
+                  {isZh
+                    ? `試用期還剩 ${data.trialDaysRemaining} 天`
+                    : `Trial ends in ${data.trialDaysRemaining} days`}
+                </p>
+                <p className="text-xs text-blue-700">
+                  {isZh
+                    ? "聯絡我們確保服務不中斷"
+                    : "Contact us to keep full access"}
+                </p>
               </div>
             </div>
+            <Button
+              size="sm"
+              className="h-8 bg-blue-600 text-xs hover:bg-blue-700"
+              asChild
+            >
+              <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約">
+                {isZh ? "聯絡我們" : "Contact Us"}
+              </a>
+            </Button>
+          </div>
+        )}
 
-            {/* ── Trial banners ── */}
-            {isAdmin && data && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 30 && data.trialDaysRemaining > 7 && (
-              <div style={{ marginTop: 16, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>⏳</span>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#1E40AF", margin: 0 }}>
-                      {isZh ? `試用期還剩 ${data.trialDaysRemaining} 天` : `Trial ends in ${data.trialDaysRemaining} days`}
-                    </p>
-                    <p style={{ fontSize: 11, color: "#3B82F6", margin: 0 }}>
-                      {isZh ? "聯絡我們確保服務不中斷" : "Contact us to keep full access"}
-                    </p>
-                  </div>
+        {isAdmin &&
+          (data.planId === "explorer" || data.planId === null) &&
+          data.trialDaysRemaining === 0 &&
+          data.subscriptionStatus === "expired" && (
+            <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <div>
+                  <p className="text-sm font-semibold text-red-900">
+                    {isZh ? "試用期已結束" : "Your trial has ended"}
+                  </p>
+                  <p className="text-xs text-red-700">
+                    {isZh
+                      ? "升級至付費方案以繼續使用完整功能"
+                      : "Upgrade to continue with full access"}
+                  </p>
                 </div>
-                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約" style={{ padding: "8px 16px", background: "#2563EB", color: "white", borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
-                  {isZh ? "聯絡我們" : "Contact Us"}
-                </a>
               </div>
-            )}
-
-            {isAdmin && data && (data.planId === "explorer" || data.planId === null) && data.trialDaysRemaining === 0 && data.subscriptionStatus === "expired" && (
-              <div style={{ marginTop: 16, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>🔒</span>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: "#991B1B", margin: 0 }}>
-                      {isZh ? "試用期已結束" : "Your trial has ended"}
-                    </p>
-                    <p style={{ fontSize: 11, color: "#DC2626", margin: 0 }}>
-                      {isZh ? "升級至付費方案以繼續使用完整功能" : "Upgrade to continue with full access"}
-                    </p>
-                  </div>
-                </div>
-                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案" style={{ padding: "8px 16px", background: "#DC2626", color: "white", borderRadius: 8, fontSize: 12, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
+              <Button
+                size="sm"
+                className="h-8 bg-red-600 text-xs hover:bg-red-700"
+                asChild
+              >
+                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案">
                   {isZh ? "升級方案" : "Upgrade Plan"}
                 </a>
-              </div>
-            )}
-          </>
-        )}
+              </Button>
+            </div>
+          )}
       </div>
     </ProtectedRoute>
   );

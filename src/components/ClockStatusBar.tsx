@@ -2,10 +2,19 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, AlertCircle, CheckCircle2, ChevronRight, Users, ScanLine } from "lucide-react";
+import {
+  Clock,
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Users,
+  ScanLine,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { clockCopy, t, tf, type Lang } from "@/lib/i18n/clock";
 
-// ── Types matching /api/clock/today response ──
 type PunchStatus = "in" | "out" | "not_in";
 
 interface MyStatus {
@@ -41,11 +50,13 @@ interface TodayPayload {
 
 interface ClockStatusBarProps {
   lang?: Lang;
-  graceMinutes?: number; // default 5
+  graceMinutes?: number;
 }
 
-// ── Helpers ──
-function formatTime(iso: string | null, timezone: string = "Asia/Taipei"): string {
+function formatTime(
+  iso: string | null,
+  timezone: string = "Asia/Taipei"
+): string {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleTimeString("en-GB", {
@@ -59,20 +70,18 @@ function formatTime(iso: string | null, timezone: string = "Asia/Taipei"): strin
 }
 
 function formatHours(minutes: number | null, lang: Lang): string {
-  if (minutes === null || minutes === 0) return lang === "zh" ? "0 小時" : "0h";
+  if (minutes === null || minutes === 0)
+    return lang === "zh" ? "0 小時" : "0h";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   if (lang === "zh") return `${h} 小時 ${m} 分鐘`;
   return `${h}h ${m}m`;
 }
 
-function isMobileViewport(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.innerWidth < 768;
-}
-
-// ── Component ──
-export default function ClockStatusBar({ lang = "zh", graceMinutes = 5 }: ClockStatusBarProps) {
+export default function ClockStatusBar({
+  lang = "zh",
+  graceMinutes = 5,
+}: ClockStatusBarProps) {
   const router = useRouter();
   const [data, setData] = useState<TodayPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +104,6 @@ export default function ClockStatusBar({ lang = "zh", graceMinutes = 5 }: ClockS
     }
   }, []);
 
-  // Initial fetch + polling + focus refresh
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 60_000);
@@ -110,276 +118,191 @@ export default function ClockStatusBar({ lang = "zh", graceMinutes = 5 }: ClockS
     };
   }, [fetchData]);
 
-  // ── Loading skeleton ──
   if (loading) {
     return (
-      <div
-        style={{
-          height: 64,
-          marginBottom: 24,
-          borderRadius: 14,
-          background: "linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%)",
-          backgroundSize: "400% 100%",
-          animation: "shimmer 1.5s infinite",
-        }}
-      >
-        <style>{`@keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }`}</style>
+      <div className="mb-6">
+        <Skeleton className="h-16 w-full rounded-xl" />
       </div>
     );
   }
 
-  // ── Error state — silent, don't block dashboard ──
   if (error || !data) return null;
 
-  // ── Non-work-day banner (subtle, doesn't take up space if employee) ──
   const isAdmin = data.role === "owner" || data.role === "admin";
 
+  // Non-work day
   if (!data.isWorkDayToday) {
     return (
-      <div
-        style={{
-          marginBottom: 24,
-          padding: "14px 18px",
-          borderRadius: 14,
-          background: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
-          border: "1px solid #E2E8F0",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            background: "white",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: "1px solid #E2E8F0",
-          }}
-        >
-          <Clock style={{ width: 16, height: 16, color: "#64748B" }} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>
-            {lang === "zh" ? "今日非工作日" : "Today is a non-work day"}
+      <Card className="mb-6 border-slate-200 bg-slate-50">
+        <CardContent className="flex items-center gap-3 py-3.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white">
+            <Clock className="h-4 w-4 text-slate-500" />
           </div>
-          <div style={{ fontSize: 12, color: "#94A3B8" }}>
-            {lang === "zh" ? "祝您假期愉快 ☕" : "Enjoy your day off ☕"}
+          <div>
+            <p className="text-sm font-semibold text-slate-700">
+              {lang === "zh" ? "今日非工作日" : "Today is a non-work day"}
+            </p>
+            <p className="text-xs text-slate-500">
+              {lang === "zh" ? "祝您假期愉快" : "Enjoy your day off"}
+            </p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
-  // ── Build status visual based on role + state ──
-  let bgGradient: string;
-  let borderColor: string;
-  let iconBg: string;
-  let iconColor: string;
-  let StatusIcon: typeof Clock;
-  let primaryText: string;
-  let secondaryText: string;
-  let buttonLabel: string;
-  let buttonHref: string;
-  let buttonColor: string;
+  // Build status config
+  let statusConfig: {
+    variant: "success" | "warning" | "info" | "neutral";
+    icon: typeof Clock;
+    title: string;
+    subtitle: string;
+    actionLabel: string;
+    actionHref: string;
+  };
 
   if (isAdmin && data.summary) {
-    // ── Admin view: org summary ──
     const { total, in: inCount, late, notIn } = data.summary;
     const hasIssues = late > 0 || notIn > 0;
 
-    bgGradient = hasIssues
-      ? "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)"
-      : "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)";
-    borderColor = hasIssues ? "#FDE68A" : "#BBF7D0";
-    iconBg = hasIssues ? "#FCD34D" : "#86EFAC";
-    iconColor = hasIssues ? "#92400E" : "#166534";
-    StatusIcon = Users;
-
-    primaryText =
-      lang === "zh"
-        ? `今日 ${total} 人應到 · ${inCount} 在崗 · ${late} 遲到 · ${notIn} 未到`
-        : `Today: ${total} expected · ${inCount} in · ${late} late · ${notIn} not in`;
-
-    secondaryText =
-      data.summary.attendanceRate >= 0
-        ? `${t(clockCopy.home.admin_attendance_rate, lang)} ${data.summary.attendanceRate}%`
-        : "";
-
-    buttonLabel = t(clockCopy.home.admin_view_details, lang);
-    buttonHref = "/admin?tab=attendance";
-    buttonColor = hasIssues ? "#92400E" : "#166534";
+    statusConfig = {
+      variant: hasIssues ? "warning" : "success",
+      icon: Users,
+      title:
+        lang === "zh"
+          ? `今日 ${total} 人應到 · ${inCount} 在崗 · ${late} 遲到 · ${notIn} 未到`
+          : `Today: ${total} expected · ${inCount} in · ${late} late · ${notIn} not in`,
+      subtitle:
+        data.summary.attendanceRate >= 0
+          ? `${t(clockCopy.home.admin_attendance_rate, lang)} ${
+              data.summary.attendanceRate
+            }%`
+          : "",
+      actionLabel: t(clockCopy.home.admin_view_details, lang),
+      actionHref: "/admin?tab=attendance",
+    };
   } else {
-    // ── Employee view: my status ──
     const { status, clockInISO, totalMinutes, lateMinutes } = data.myStatus;
     const isLate = (lateMinutes ?? 0) > graceMinutes;
 
     if (status === "not_in") {
-      bgGradient = "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)";
-      borderColor = "#E2E8F0";
-      iconBg = "#CBD5E1";
-      iconColor = "#475569";
-      StatusIcon = Clock;
-      primaryText = t(clockCopy.home.employee_status_not_in, lang);
-      secondaryText =
-        lang === "zh"
-          ? `應上班時間 ${data.workStartTime.slice(0, 5)}`
-          : `Work starts ${data.workStartTime.slice(0, 5)}`;
-      buttonLabel = t(clockCopy.home.employee_clock_in_now, lang);
-      buttonHref = isMobileViewport() ? "/clock/manual" : "/clock/manual";
-      buttonColor = "#7C3AED";
+      statusConfig = {
+        variant: "neutral",
+        icon: Clock,
+        title: t(clockCopy.home.employee_status_not_in, lang),
+        subtitle:
+          lang === "zh"
+            ? `應上班時間 ${data.workStartTime.slice(0, 5)}`
+            : `Work starts ${data.workStartTime.slice(0, 5)}`,
+        actionLabel: t(clockCopy.home.employee_clock_in_now, lang),
+        actionHref: "/clock/manual",
+      };
     } else if (status === "in") {
       if (isLate) {
-        bgGradient = "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)";
-        borderColor = "#FDE68A";
-        iconBg = "#FCD34D";
-        iconColor = "#92400E";
-        StatusIcon = AlertCircle;
-        secondaryText = tf(clockCopy.home.employee_late_today, lang, {
-          minutes: lateMinutes ?? 0,
-        });
-        buttonColor = "#92400E";
+        statusConfig = {
+          variant: "warning",
+          icon: AlertCircle,
+          title: t(clockCopy.home.employee_status_in, lang),
+          subtitle: tf(clockCopy.home.employee_late_today, lang, {
+            minutes: lateMinutes ?? 0,
+          }),
+          actionLabel: t(clockCopy.home.employee_clock_out_now, lang),
+          actionHref: "/clock/manual",
+        };
       } else {
-        bgGradient = "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)";
-        borderColor = "#BBF7D0";
-        iconBg = "#86EFAC";
-        iconColor = "#166534";
-        StatusIcon = CheckCircle2;
-        secondaryText = tf(clockCopy.home.employee_clock_in_at, lang, {
-          time: formatTime(clockInISO, data.timezone),
-        });
-        buttonColor = "#166534";
+        statusConfig = {
+          variant: "success",
+          icon: CheckCircle2,
+          title: t(clockCopy.home.employee_status_in, lang),
+          subtitle: tf(clockCopy.home.employee_clock_in_at, lang, {
+            time: formatTime(clockInISO, data.timezone),
+          }),
+          actionLabel: t(clockCopy.home.employee_clock_out_now, lang),
+          actionHref: "/clock/manual",
+        };
       }
-      primaryText = t(clockCopy.home.employee_status_in, lang);
-      buttonLabel = t(clockCopy.home.employee_clock_out_now, lang);
-      buttonHref = isMobileViewport() ? "/clock/manual" : "/clock/manual";
     } else {
-      // status === 'out'
-      bgGradient = "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)";
-      borderColor = "#BFDBFE";
-      iconBg = "#93C5FD";
-      iconColor = "#1E40AF";
-      StatusIcon = CheckCircle2;
-      primaryText = t(clockCopy.home.employee_status_out, lang);
-      secondaryText = tf(clockCopy.home.employee_total_today, lang, {
-        hours: formatHours(totalMinutes, lang),
-      });
-      buttonLabel = t(clockCopy.home.employee_view_today, lang);
-      buttonHref = "/clock/manual";
-      buttonColor = "#1E40AF";
+      statusConfig = {
+        variant: "info",
+        icon: CheckCircle2,
+        title: t(clockCopy.home.employee_status_out, lang),
+        subtitle: tf(clockCopy.home.employee_total_today, lang, {
+          hours: formatHours(totalMinutes, lang),
+        }),
+        actionLabel: t(clockCopy.home.employee_view_today, lang),
+        actionHref: "/clock/manual",
+      };
     }
   }
 
-  // ── Render ──
+  const variantStyles = {
+    success: {
+      card: "border-emerald-200 bg-emerald-50",
+      iconBg: "bg-emerald-100",
+      iconColor: "text-emerald-600",
+      button: "bg-emerald-600 hover:bg-emerald-700",
+    },
+    warning: {
+      card: "border-amber-200 bg-amber-50",
+      iconBg: "bg-amber-100",
+      iconColor: "text-amber-600",
+      button: "bg-amber-600 hover:bg-amber-700",
+    },
+    info: {
+      card: "border-blue-200 bg-blue-50",
+      iconBg: "bg-blue-100",
+      iconColor: "text-blue-600",
+      button: "bg-blue-600 hover:bg-blue-700",
+    },
+    neutral: {
+      card: "border-slate-200 bg-slate-50",
+      iconBg: "bg-slate-100",
+      iconColor: "text-slate-600",
+      button: "bg-purple-600 hover:bg-purple-700",
+    },
+  };
+
+  const styles = variantStyles[statusConfig.variant];
+  const StatusIcon = statusConfig.icon;
+
   return (
-    <div
-      onClick={() => router.push(buttonHref)}
-      style={{
-        marginBottom: 24,
-        padding: "14px 18px",
-        borderRadius: 14,
-        background: bgGradient,
-        border: `1px solid ${borderColor}`,
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        cursor: "pointer",
-        transition: "transform 0.2s, box-shadow 0.2s",
-        animation: "fadeSlideUp 0.4s ease forwards",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.06)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "none";
-      }}
+    <Card
+      className={`mb-6 cursor-pointer border transition-all duration-200 hover:shadow-md ${styles.card}`}
+      onClick={() => router.push(statusConfig.actionHref)}
     >
-      {/* Icon */}
-      <div
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
-          background: iconBg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <StatusIcon style={{ width: 20, height: 20, color: iconColor }} />
-      </div>
-
-      {/* Text */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <CardContent className="flex items-center gap-4 py-3.5">
         <div
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: "#0F172A",
-            letterSpacing: "-0.01em",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${styles.iconBg}`}
         >
-          {primaryText}
+          <StatusIcon className={`h-5 w-5 ${styles.iconColor}`} />
         </div>
-        {secondaryText && (
-          <div style={{ fontSize: 12, color: "#64748B", marginTop: 1 }}>{secondaryText}</div>
-        )}
-      </div>
 
-      {/* Action button */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "8px 14px",
-          borderRadius: 8,
-          background: "rgba(255,255,255,0.7)",
-          color: buttonColor,
-          fontSize: 13,
-          fontWeight: 600,
-          flexShrink: 0,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {!isAdmin && data.myStatus.status === "not_in" && isMobileViewport() && (
-          <ScanLine style={{ width: 14, height: 14 }} />
-        )}
-        <span>{buttonLabel}</span>
-        <ChevronRight style={{ width: 14, height: 14 }} />
-      </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900">
+            {statusConfig.title}
+          </p>
+          {statusConfig.subtitle && (
+            <p className="mt-0.5 text-xs text-slate-600">
+              {statusConfig.subtitle}
+            </p>
+          )}
+        </div>
 
-      <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 640px) {
-          .clock-bar-mobile {
-            flex-wrap: wrap;
-          }
-        }
-      `}</style>
+        <div className="flex shrink-0 items-center gap-2">
+          <ScanLine className="h-4 w-4 text-slate-400 sm:hidden" />
 
-      {/* Incomplete prior-day warning — small inline alert */}
-      {data.incompletePrior && !isAdmin && (
-        <div
-          style={{
-            position: "absolute",
-            // This div is rendered conditionally above the bar in the actual DashboardPage,
-            // but since we're inside the bar, we'll display it as a subtle dot indicator
-          }}
-        />
-      )}
-    </div>
+          <Button
+            size="sm"
+            className={`h-8 gap-1 text-xs font-semibold text-white ${styles.button}`}
+          >
+            <span className="hidden sm:inline">{statusConfig.actionLabel}</span>
+            <span className="sm:hidden">
+              {lang === "zh" ? "打卡" : "Clock"}
+            </span>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
