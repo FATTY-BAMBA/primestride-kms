@@ -163,10 +163,14 @@ export default function ClockStatusBar({
 
   if (isAdmin && data.summary) {
     const { total, in: inCount, late, notIn } = data.summary;
+    // Concerning only when day has actually started (someone in or late)
+    // AND there are real issues (late or absent). Avoids amber-by-default at 6am.
+    const dayHasStarted = inCount > 0 || late > 0;
     const hasIssues = late > 0 || notIn > 0;
+    const isConcerning = dayHasStarted && hasIssues;
 
     statusConfig = {
-      variant: hasIssues ? "warning" : "success",
+      variant: isConcerning ? "warning" : "neutral",
       icon: Users,
       title:
         lang === "zh"
@@ -240,25 +244,21 @@ export default function ClockStatusBar({
       card: "border-emerald-200 bg-emerald-50",
       iconBg: "bg-emerald-100",
       iconColor: "text-emerald-600",
-      button: "bg-emerald-600 hover:bg-emerald-700",
     },
     warning: {
       card: "border-amber-200 bg-amber-50",
       iconBg: "bg-amber-100",
       iconColor: "text-amber-600",
-      button: "bg-amber-600 hover:bg-amber-700",
     },
     info: {
       card: "border-blue-200 bg-blue-50",
       iconBg: "bg-blue-100",
       iconColor: "text-blue-600",
-      button: "bg-blue-600 hover:bg-blue-700",
     },
     neutral: {
-      card: "border-slate-200 bg-slate-50",
+      card: "border-slate-200 bg-white",
       iconBg: "bg-slate-100",
       iconColor: "text-slate-600",
-      button: "bg-purple-600 hover:bg-purple-700",
     },
   };
 
@@ -293,7 +293,7 @@ export default function ClockStatusBar({
 
           <Button
             size="sm"
-            className={`h-8 gap-1 text-xs font-semibold text-white ${styles.button}`}
+            className="h-8 gap-1 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700"
           >
             <span className="hidden sm:inline">{statusConfig.actionLabel}</span>
             <span className="sm:hidden">

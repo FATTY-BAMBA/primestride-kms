@@ -555,16 +555,14 @@ export default function DashboardPage() {
                     <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
                       {stat.value ?? "—"}
                     </div>
-                    <div className="mt-0.5 flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-500">
-                        {stat.label}
-                      </span>
-                      {stat.trend && (
-                        <span className="text-[10px] text-slate-400">
-                          {stat.trend}
-                        </span>
-                      )}
+                    <div className="mt-0.5 text-xs font-medium text-slate-500">
+                      {stat.label}
                     </div>
+                    {stat.trend && (
+                      <div className="mt-0.5 text-[10px] text-slate-400">
+                        {stat.trend}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -637,7 +635,7 @@ export default function DashboardPage() {
                     <div className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-50">
                       <Zap className="h-4 w-4 text-purple-600" />
                     </div>
-                    <CardTitle className="text-sm font-semibold text-slate-900">
+                    <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                       {isZh ? "今日重點" : "Today's Focus"}
                     </CardTitle>
                   </div>
@@ -701,7 +699,7 @@ export default function DashboardPage() {
                     <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
                       <Library className="h-4 w-4 text-emerald-600" />
                     </div>
-                    <CardTitle className="text-sm font-semibold text-slate-900">
+                    <CardTitle className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                       {isZh ? "最近文件" : "Recent Documents"}
                     </CardTitle>
                   </div>
