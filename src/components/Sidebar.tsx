@@ -216,9 +216,9 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             <Zap className="h-4 w-4 text-white" />
           </div>
           {!isCollapsed && (
-            <h1 className="text-sm font-bold tracking-tight text-slate-900">
+            <span className="text-sm font-bold tracking-tight text-slate-900 whitespace-nowrap">
               Atlas EIP
-            </h1>
+            </span>
           )}
         </div>
 
