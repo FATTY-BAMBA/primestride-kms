@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import StatCard, { type StatColor } from "@/components/ui/atlas/StatCard";
+import DocumentRow from "@/components/ui/atlas/DocumentRow";
+import ActionRow, { type Priority } from "@/components/ui/atlas/ActionRow";
+import AlertBanner from "@/components/ui/atlas/AlertBanner";
+import OnboardingCard, { type OnboardingStep } from "@/components/ui/atlas/OnboardingCard";
 import {
   FileText,
   Clock,
@@ -14,10 +18,8 @@ import {
   Zap,
   Bell,
   Shield,
-  ChevronRight,
   ArrowRight,
   AlertCircle,
-  CheckCircle2,
   Inbox,
   BookOpen,
   PenLine,
@@ -58,8 +60,6 @@ type DashboardData = {
   } | null;
 };
 
-type Priority = "urgent" | "high" | "normal";
-
 type SmartAction = {
   id: string;
   priority: Priority;
@@ -70,8 +70,6 @@ type SmartAction = {
   badge?: number;
 };
 
-type StatColor = "purple" | "danger" | "blue" | "success";
-
 type StatCardData = {
   label: string;
   value: number | string;
@@ -80,15 +78,6 @@ type StatCardData = {
   color: StatColor;
   pulse?: boolean;
   trend?: string;
-};
-
-type OnboardingStep = {
-  step: number;
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  desc: string;
-  href: string;
-  done: boolean;
 };
 
 // Helpers
@@ -117,21 +106,6 @@ function getGreeting(hour: number, isZh: boolean): string {
   if (hour < 18) return "Good afternoon";
   return "Good evening";
 }
-
-// Design Tokens (ADR 0004)
-
-const COLOR_MAP: Record<StatColor, { bg: string; text: string }> = {
-  purple: { bg: "bg-purple-50", text: "text-purple-600" },
-  danger: { bg: "bg-red-50", text: "text-red-600" },
-  blue: { bg: "bg-blue-50", text: "text-blue-600" },
-  success: { bg: "bg-emerald-50", text: "text-emerald-600" },
-};
-
-const PRIORITY_STYLES: Record<Priority, { border: string; bg: string; text: string }> = {
-  urgent: { border: "border-red-200", bg: "bg-red-50", text: "text-red-600" },
-  high: { border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-600" },
-  normal: { border: "border-slate-200", bg: "bg-slate-50", text: "text-slate-600" },
-};
 
 // Component
 
@@ -525,103 +499,35 @@ export default function DashboardPage() {
 
         {/* Stat Cards */}
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {statCards.map((stat) => {
-            const colors = COLOR_MAP[stat.color];
-            return (
-              <Card
-                key={stat.label}
-                className={`group border-slate-200 transition-all duration-200 hover:border-slate-300 hover:shadow-md ${
-                  stat.href ? "cursor-pointer" : ""
-                }`}
-                onClick={() => stat.href && router.push(stat.href)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${colors.bg}`}
-                    >
-                      <stat.icon
-                        className={`h-4 w-4 ${colors.text}`}
-                      />
-                    </div>
-                    {stat.pulse && (
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500"></span>
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-3">
-                    <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900">
-                      {stat.value ?? "—"}
-                    </div>
-                    <div className="mt-0.5 text-xs font-medium text-slate-500">
-                      {stat.label}
-                    </div>
-                    {stat.trend && (
-                      <div className="mt-0.5 text-[10px] text-slate-400">
-                        {stat.trend}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {statCards.map((stat) => (
+            <StatCard
+              key={stat.label}
+              label={stat.label}
+              value={stat.value}
+              icon={stat.icon}
+              color={stat.color}
+              href={stat.href}
+              pulse={stat.pulse}
+              trend={stat.trend}
+            />
+          ))}
         </div>
 
         {/* Onboarding Checklist */}
         {isAdmin && data && !((data.totalDocs || 0) > 0 && (data.memberCount || 0) > 1) && (
-          <Card className="mb-6 border-purple-200 bg-gradient-to-br from-purple-50/50 to-blue-50/30">
-            <CardContent className="p-5">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600">
-                  <Zap className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">
-                    {isZh
-                      ? "完成設定，解鎖完整 AI 功能"
-                      : "Complete setup to unlock all AI features"}
-                  </h3>
-                  <p className="text-xs text-purple-600">
-                    {isZh
-                      ? "只需 3 個步驟，不到 5 分鐘"
-                      : "3 steps, less than 5 minutes"}
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {onboardingSteps.map((item) => (
-                  <Link
-                    key={item.step}
-                    href={item.href}
-                    className={`group flex items-start gap-3 rounded-lg border p-3 transition-all hover:border-purple-300 hover:shadow-sm ${
-                      item.done ? "border-emerald-200" : "border-purple-100"
-                    } bg-white`}
-                  >
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
-                        item.done ? "bg-emerald-100" : "bg-purple-50"
-                      }`}
-                    >
-                      {item.done ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      ) : (
-                        <item.icon className="h-4 w-4 text-purple-600" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-slate-500">{item.desc}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <OnboardingCard
+            title={
+              isZh
+                ? "完成設定，解鎖完整 AI 功能"
+                : "Complete setup to unlock all AI features"
+            }
+            subtitle={
+              isZh
+                ? "只需 3 個步驟，不到 5 分鐘"
+                : "3 steps, less than 5 minutes"
+            }
+            steps={onboardingSteps}
+          />
         )}
 
         {/* Main Content Grid */}
@@ -651,40 +557,17 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="space-y-1">
-                  {smartActions.map((action) => {
-                    const pStyle = PRIORITY_STYLES[action.priority];
-                    return (
-                      <button
-                        key={action.id}
-                        onClick={() => router.push(action.href)}
-                        className={`group flex w-full items-center gap-3 rounded-lg p-3 text-left transition-all hover:bg-slate-50 ${
-                          action.priority === "urgent" ? "bg-red-50/50" : ""
-                        }`}
-                      >
-                        <div
-                          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${pStyle.border} ${pStyle.bg} ${pStyle.text}`}
-                        >
-                          <action.icon className="h-4 w-4" />
-                          {action.badge && (
-                            <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                              {action.badge}
-                            </span>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="truncate text-sm font-semibold text-slate-900">
-                              {action.label}
-                            </p>
-                            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-purple-400" />
-                          </div>
-                          <p className="truncate text-xs text-slate-500">
-                            {action.sublabel}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {smartActions.map((action) => (
+                    <ActionRow
+                      key={action.id}
+                      priority={action.priority}
+                      icon={action.icon}
+                      label={action.label}
+                      sublabel={action.sublabel}
+                      href={action.href}
+                      badge={action.badge}
+                    />
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -741,34 +624,17 @@ export default function DashboardPage() {
                 ) : (
                   <div className="space-y-1">
                     {data.recentDocs.map((doc) => (
-                      <Link
+                      <DocumentRow
                         key={doc.doc_id}
-                        href={`/library/${encodeURIComponent(doc.doc_id)}`}
-                        className="group flex items-center gap-3 rounded-lg p-2.5 transition-colors hover:bg-slate-50"
-                      >
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-purple-50">
-                          <FileText className="h-4 w-4 text-purple-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-slate-900 transition-colors group-hover:text-purple-700">
-                            {doc.title}
-                          </p>
-                          <div className="mt-0.5 flex items-center gap-2">
-                            <Badge
-                              variant="secondary"
-                              className="h-4 px-1.5 text-[10px] font-medium"
-                            >
-                              {doc.doc_type || "document"}
-                            </Badge>
-                            <span className="text-xs text-slate-400">
-                              {doc.updated_at
-                                ? timeAgo(doc.updated_at, isZh ?? false)
-                                : ""}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-purple-400" />
-                      </Link>
+                        docId={doc.doc_id}
+                        title={doc.title}
+                        docType={doc.doc_type}
+                        timeAgoLabel={
+                          doc.updated_at
+                            ? timeAgo(doc.updated_at, isZh ?? false)
+                            : undefined
+                        }
+                      />
                     ))}
                   </div>
                 )}
@@ -779,62 +645,36 @@ export default function DashboardPage() {
 
         {/* Trial Banners */}
         {isAdmin && data.trialDaysRemaining > 0 && data.trialDaysRemaining <= 30 && data.trialDaysRemaining > 7 && (
-          <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-blue-600" />
-              <div>
-                <p className="text-sm font-semibold text-blue-900">
-                  {isZh
-                    ? `試用期還剩 ${data.trialDaysRemaining} 天`
-                    : `Trial ends in ${data.trialDaysRemaining} days`}
-                </p>
-                <p className="text-xs text-blue-700">
-                  {isZh
-                    ? "聯絡我們確保服務不中斷"
-                    : "Contact us to keep full access"}
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              className="h-8 bg-blue-600 text-xs hover:bg-blue-700"
-              asChild
-            >
-              <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約">
-                {isZh ? "聯絡我們" : "Contact Us"}
-              </a>
-            </Button>
-          </div>
+          <AlertBanner
+            variant="warning"
+            icon={Clock}
+            title={
+              isZh
+                ? `試用期還剩 ${data.trialDaysRemaining} 天`
+                : `Trial ends in ${data.trialDaysRemaining} days`
+            }
+            subtitle={isZh ? "聯絡我們確保服務不中斷" : "Contact us to keep full access"}
+            ctaLabel={isZh ? "聯絡我們" : "Contact Us"}
+            ctaHref="mailto:hello@primestrideatlas.com?subject=Atlas EIP 續約"
+          />
         )}
 
         {isAdmin &&
           (data.planId === "explorer" || data.planId === null) &&
           data.trialDaysRemaining === 0 &&
           data.subscriptionStatus === "expired" && (
-            <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <AlertCircle className="h-5 w-5 text-red-600" />
-                <div>
-                  <p className="text-sm font-semibold text-red-900">
-                    {isZh ? "試用期已結束" : "Your trial has ended"}
-                  </p>
-                  <p className="text-xs text-red-700">
-                    {isZh
-                      ? "升級至付費方案以繼續使用完整功能"
-                      : "Upgrade to continue with full access"}
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="h-8 bg-red-600 text-xs hover:bg-red-700"
-                asChild
-              >
-                <a href="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案">
-                  {isZh ? "升級方案" : "Upgrade Plan"}
-                </a>
-              </Button>
-            </div>
+            <AlertBanner
+              variant="danger"
+              icon={AlertCircle}
+              title={isZh ? "試用期已結束" : "Your trial has ended"}
+              subtitle={
+                isZh
+                  ? "升級至付費方案以繼續使用完整功能"
+                  : "Upgrade to continue with full access"
+              }
+              ctaLabel={isZh ? "升級方案" : "Upgrade Plan"}
+              ctaHref="mailto:hello@primestrideatlas.com?subject=Atlas EIP 升級方案"
+            />
           )}
       </div>
     </ProtectedRoute>
