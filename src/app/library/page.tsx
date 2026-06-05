@@ -1,263 +1,229 @@
 "use client";
 
-import QuickCreate from "@/components/QuickCreate";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState, Suspense, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import { 
-  FolderKanban, 
-  FileText, 
-  File, 
-  Link as LinkIcon, 
-  Youtube, 
-  ClipboardList, 
-  Bot,
-  ChevronRight,
-  Search,
-  Filter,
-  Globe,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Edit3,
-  Trash2,
-  Plus,
-  ArrowLeft,
-  Zap,
-  Type,
-  Brain,
-  X,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import DocumentAccessToggle from "@/components/DocumentAccessToggle"; // ← NEW
+  FileText,
+  Search,
+  Plus,
+  X,
+  ChevronRight,
+  MoreHorizontal,
+  Folder,
+  Globe,
+  Youtube,
+  FileType,
+  Bot,
+  StickyNote,
+  Link as LinkIcon,
+  Clock,
+  AlertCircle,
+  Filter,
+  Sparkles,
+  Zap,
+  Brain,
+  Type,
+  Loader2,
+  Trash2,
+  Edit3,
+  FolderInput,
+  Shield,
+  ChevronDown,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import StatCard from "@/components/ui/atlas/StatCard";
+import OnboardingCard, { type OnboardingStep } from "@/components/ui/atlas/OnboardingCard";
+import DocumentAccessToggle from "@/components/DocumentAccessToggle";
+import QuickCreate from "@/components/QuickCreate";
 
-type Team = {
-  id: string;
-  name: string;
-  color: string;
-};
+/* ═══════════════════════════════════════════════════════════════
+   Types
+   ═══════════════════════════════════════════════════════════════ */
 
-type Folder = {
-  id: string;
-  name: string;
-  color: string;
-  icon: string;
-  parent_folder_id: string | null;
-  team_id: string | null;
-  documents: { count: number }[] | null;
-};
-
-type DocRow = {
+interface DocumentItem {
   doc_id: string;
   title: string;
-  current_version: string;
-  status: string;
-  doc_type: string | null;
+  doc_type: string;
+  doc_source: "file" | "note" | "url" | "youtube" | "template" | "ai-agent";
+  access_level: "all_members" | "admin_only";
+  folder_id: string | null;
+  team_id: string | null;
   domain: string | null;
-  tags: string[] | null;
-  file_url?: string | null;
-  team_id?: string | null;
-  folder_id?: string | null;
-  doc_source?: string | null;
-  teams?: Team | null;
-  updated_at?: string;
+  version: string | null;
+  status: string | null;
+  tags: string[];
   review_by?: string | null;
-  access_level?: "all_members" | "admin_only"; // ← NEW
-  feedback_counts: {
+  feedback?: {
     helped: number;
     not_confident: number;
     didnt_help: number;
   };
-};
+  created_at: string;
+  updated_at: string;
+}
 
-type Facets = {
-  doc_types: string[];
-  domains: string[];
-  ai_maturity_stages: string[];
-  statuses: string[];
-  top_tags: { tag: string; count: number }[];
-};
+interface FolderItem {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  parent_folder_id: string | null;
+  team_id: string | null;
+  documents?: [{ count: number }];
+}
 
-type SearchResult = {
+interface TeamItem {
+  id: string;
+  name: string;
+}
+
+interface SearchResultItem {
   doc_id: string;
   title: string;
-  version: string;
-  doc_type: string | null;
-  domain: string | null;
-  ai_maturity_stage: string | null;
-  tags: string[];
-  status: string | null;
-  source_url: string | null;
+  doc_type: string;
+  doc_source: string;
   score: number;
-  snippet: string;
-  section_title?: string;
-  section_path?: string;
-  why_matched?: string[];
-  search_mode?: string;
+  why_matched: string[];
+  section_title: string | null;
+  snippet: string | null;
+  access_level: string;
+  feedback?: {
+    helped: number;
+    not_confident: number;
+    didnt_help: number;
+  };
+}
+
+interface FacetsData {
+  top_tags: string[];
+}
+
+interface ProfileData {
+  is_admin?: boolean;
+  language?: string;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Doc-Type Sub-Palette (non-semantic, ADR 0004 compliant)
+   ═══════════════════════════════════════════════════════════════ */
+
+const DOC_TYPE_META: Record<string, { icon: React.ElementType; bg: string; text: string; label: string }> = {
+  file:      { icon: FileText,   bg: "bg-slate-100",  text: "text-slate-600",  label: "File" },
+  note:      { icon: StickyNote, bg: "bg-amber-100",  text: "text-amber-600",  label: "Note" },
+  url:       { icon: LinkIcon,   bg: "bg-sky-100",    text: "text-sky-600",    label: "URL" },
+  youtube:   { icon: Youtube,    bg: "bg-rose-100",   text: "text-rose-600",   label: "YouTube" },
+  template:  { icon: FileType,   bg: "bg-teal-100",   text: "text-teal-600",   label: "Template" },
+  "ai-agent":{ icon: Bot,        bg: "bg-violet-100", text: "text-violet-600", label: "AI" },
 };
 
-// ── Folder Creation Modal ──
-function CreateFolderModal({
-  open,
-  onClose,
-  onCreated,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onCreated: () => void;
-}) {
+function getDocMeta(source: string) {
+  return DOC_TYPE_META[source] || DOC_TYPE_META.file;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════════════════════════ */
+
+function timeAgo(date: string, isZh: boolean): string {
+  const d = new Date(date);
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (diff < 60) return isZh ? "剛剛" : "just now";
+  if (diff < 3600) return isZh ? `${Math.floor(diff / 60)} 分鐘前` : `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return isZh ? `${Math.floor(diff / 3600)} 小時前` : `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return isZh ? `${Math.floor(diff / 86400)} 天前` : `${Math.floor(diff / 86400)}d ago`;
+  return isZh ? `${Math.floor(diff / 604800)} 週前` : `${Math.floor(diff / 604800)}w ago`;
+}
+
+function scoreTier(score: number): { bg: string; text: string } {
+  if (score >= 0.6) return { bg: "bg-purple-100", text: "text-purple-700" };
+  if (score >= 0.4) return { bg: "bg-blue-100", text: "text-blue-700" };
+  return { bg: "bg-slate-100", text: "text-slate-600" };
+}
+
+function isOverdue(reviewBy: string | null | undefined): boolean {
+  if (!reviewBy) return false;
+  return new Date(reviewBy) < new Date();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Module-Scope Internal Components
+   ═══════════════════════════════════════════════════════════════ */
+
+function CreateFolderModal({ open, onClose, onCreated, isZh }: { open: boolean; onClose: () => void; onCreated: () => void; isZh: boolean }) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#7C3AED");
-  const [icon, setIcon] = useState("📁");
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-
-  const colors = ["#7C3AED", "#2563EB", "#059669", "#D97706", "#DC2626", "#EC4899", "#6B7280"];
-  const icons = ["📁", "📂", "📋", "📌", "🗂️", "💼", "🎯", "📚", "🔬", "💡"];
-
   const handleCreate = async () => {
     if (!name.trim()) return;
     setCreating(true);
-    setError("");
     try {
-      const res = await fetch("/api/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), color, icon }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setName("");
-        setColor("#7C3AED");
-        setIcon("📁");
-        onClose();
-        onCreated();
-      } else {
-        setError(data.error || "Failed to create folder");
-      }
+      await fetch("/api/folders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      onCreated();
+      onClose();
+      setName("");
     } catch {
-      setError("Failed to create folder");
+      // toast error
     } finally {
       setCreating(false);
     }
   };
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Folder</DialogTitle>
+          <DialogTitle className="text-lg font-semibold tracking-tight text-slate-900">
+            {isZh ? "新增資料夾" : "Create Folder"}
+          </DialogTitle>
         </DialogHeader>
-        
-        {error && (
-          <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-            {error}
+        <div className="space-y-4 pt-2">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={isZh ? "資料夾名稱" : "Folder name"}
+            className="h-10"
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose} className="h-9 px-4">
+              {isZh ? "取消" : "Cancel"}
+            </Button>
+            <Button onClick={handleCreate} disabled={creating || !name.trim()} className="h-9 px-4 bg-purple-600 hover:bg-purple-700">
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : isZh ? "建立" : "Create"}
+            </Button>
           </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-2">
-              Folder Name
-            </label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Onboarding Docs"
-              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-            />
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-2">
-              Icon
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {icons.map((ic) => (
-                <button
-                  key={ic}
-                  type="button"
-                  onClick={() => setIcon(ic)}
-                  className={cn(
-                    "w-10 h-10 rounded-lg border text-xl flex items-center justify-center transition-all",
-                    icon === ic 
-                      ? "border-violet-500 bg-violet-50" 
-                      : "border-slate-200 hover:border-slate-300"
-                  )}
-                >
-                  {ic}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-slate-700 block mb-2">
-              Color
-            </label>
-            <div className="flex gap-2">
-              {colors.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    "w-8 h-8 rounded-full transition-all",
-                    color === c ? "ring-2 ring-offset-2 ring-slate-900" : ""
-                  )}
-                  style={{ background: c }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleCreate} 
-            disabled={!name.trim() || creating}
-            className="bg-violet-600 hover:bg-violet-700"
-          >
-            {creating ? "Creating..." : "Create Folder"}
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ── Move to Folder Modal ──
-function MoveToFolderModal({
-  open,
-  docId,
-  folders,
-  onClose,
-  onMoved,
-}: {
+function MoveToFolderModal({ docId, folders, docs, open, onClose, onMoved, isZh }: {
+  docId: string | null;
+  folders: FolderItem[];
+  docs: DocumentItem[];
   open: boolean;
-  docId: string;
-  folders: Folder[];
   onClose: () => void;
   onMoved: () => void;
+  isZh: boolean;
 }) {
   const [moving, setMoving] = useState(false);
 
   const handleMove = async (folderId: string | null) => {
+    if (!docId) return;
     setMoving(true);
     try {
       const res = await fetch(`/api/documents/${encodeURIComponent(docId)}`, {
@@ -266,946 +232,1041 @@ function MoveToFolderModal({
         body: JSON.stringify({ folderId }),
       });
       if (res.ok) {
-        onClose();
         onMoved();
+        onClose();
       }
-    } catch {} finally {
+    } catch {
+      // toast error
+    } finally {
       setMoving(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Move to Folder</DialogTitle>
+          <DialogTitle className="text-lg font-semibold tracking-tight text-slate-900">
+            {isZh ? "移動到資料夾" : "Move to Folder"}
+          </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-2 max-h-72 overflow-y-auto">
+        <div className="space-y-2 pt-2 max-h-72 overflow-y-auto">
           <button
             onClick={() => handleMove(null)}
             disabled={moving}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+            className="w-full flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50"
           >
-            <Globe className="w-4 h-4 text-slate-400" />
-            <span>Unfiled (root)</span>
+            <Globe className="h-4 w-4 text-slate-400" />
+            <span className="font-medium text-slate-900">{isZh ? "未分類（根目錄）" : "Unfiled (root)"}</span>
           </button>
-
-          {folders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => handleMove(f.id)}
-              disabled={moving}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
-            >
-              <span>{f.icon}</span>
-              <span className="font-medium">{f.name}</span>
-            </button>
-          ))}
+          {folders.map((f) => {
+            const docCount = f.documents?.[0]?.count ?? docs.filter((d) => d.folder_id === f.id).length;
+            return (
+              <button
+                key={f.id}
+                onClick={() => handleMove(f.id)}
+                disabled={moving}
+                className="w-full flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50"
+              >
+                <span className="text-lg">{f.icon}</span>
+                <span className="font-medium text-slate-900">{f.name}</span>
+                <span className="ml-auto text-xs text-slate-400">{docCount} {isZh ? "份" : "docs"}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose} className="h-9 px-4" disabled={moving}>
+            {isZh ? "取消" : "Cancel"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-// ── Document Card Component ──
-function DocumentCard({ 
-  doc, 
-  folders, 
-  isAdmin, 
-  onMove 
-}: { 
-  doc: DocRow; 
-  folders: Folder[]; 
-  isAdmin: boolean;
-  onMove: (id: string) => void;
+function SearchModeControl({
+  searchMode,
+  setSearchMode,
+  setIsAdvancedSearchActive,
+  setSearchResults,
+  isZh,
+}: {
+  searchMode: "browse" | "keyword" | "semantic" | "hybrid";
+  setSearchMode: (m: "browse" | "keyword" | "semantic" | "hybrid") => void;
+  setIsAdvancedSearchActive: (v: boolean) => void;
+  setSearchResults: (r: SearchResultItem[]) => void;
+  isZh: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
-
-  const getDocIcon = () => {
-    const iconClass = "w-4 h-4";
-    switch (doc.doc_source) {
-      case "note": return <FileText className={cn(iconClass, "text-emerald-600")} />;
-      case "url": return <LinkIcon className={cn(iconClass, "text-blue-600")} />;
-      case "youtube": return <Youtube className={cn(iconClass, "text-red-600")} />;
-      case "template": return <ClipboardList className={cn(iconClass, "text-pink-600")} />;
-      case "ai-agent": return <Bot className={cn(iconClass, "text-violet-600")} />;
-      default:
-        if (doc.file_url) {
-          const ext = doc.doc_type?.toLowerCase() || "";
-          if (ext === "pdf" || doc.file_url?.includes(".pdf")) return <File className={cn(iconClass, "text-red-500")} />;
-        }
-        return <FileText className={cn(iconClass, "text-violet-600")} />;
-    }
-  };
-
-  const getIconBg = () => {
-    switch (doc.doc_source) {
-      case "note": return "bg-emerald-100";
-      case "url": return "bg-blue-100";
-      case "youtube": return "bg-red-100";
-      case "template": return "bg-pink-100";
-      case "ai-agent": return "bg-violet-100";
-      default: return "bg-slate-100";
-    }
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    return date.toLocaleDateString();
-  };
-
-  const totalFeedback = doc.feedback_counts.helped + doc.feedback_counts.not_confident + doc.feedback_counts.didnt_help;
-
+  const modes: { id: typeof searchMode; label: string; short: string; icon: React.ElementType }[] = [
+    { id: "browse",   label: isZh ? "瀏覽" : "Browse",   short: isZh ? "瀏覽" : "Browse", icon: Folder },
+    { id: "hybrid",   label: isZh ? "混合" : "Hybrid",   short: isZh ? "混合" : "Hybrd", icon: Zap },
+    { id: "keyword",  label: isZh ? "關鍵字" : "Keyword", short: isZh ? "關鍵" : "Keywd", icon: Type },
+    { id: "semantic", label: isZh ? "語義" : "Semantic", short: isZh ? "語義" : "Semnt", icon: Brain },
+  ];
   return (
-    <div
-      className="group bg-white border border-slate-200 rounded-xl p-4 hover:border-violet-300 hover:shadow-sm transition-all duration-200"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div className="flex items-start gap-4">
-        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", getIconBg())}>
-          {getDocIcon()}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h3 className="font-medium text-slate-900 truncate">{doc.title}</h3>
-            </div>
-            
-            <div className={cn(
-              "flex items-center gap-2 transition-opacity duration-200 flex-shrink-0",
-              hovered ? "opacity-100" : "opacity-0"
-            )}>
-              {isAdmin && (
-                <DocumentAccessToggle
-                  docId={doc.doc_id}
-                  currentLevel={doc.access_level || "all_members"}
-                  isAdmin={isAdmin}
-                />
+    <div className="flex flex-col gap-1.5">
+      <div className="flex rounded-lg bg-slate-100 p-1 gap-0.5 overflow-x-auto snap-x">
+        {modes.map((m) => {
+          const active = searchMode === m.id;
+          return (
+            <button
+              key={m.id}
+              onClick={() => {
+                setSearchMode(m.id);
+                if (m.id === "browse") {
+                  setIsAdvancedSearchActive(false);
+                  setSearchResults([]);
+                }
+              }}
+              className={cn(
+                "relative flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-150 shrink-0 snap-start",
+                "sm:px-4 sm:text-sm",
+                active
+                  ? "bg-white text-purple-700 shadow-sm border border-slate-200"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
               )}
-              {isAdmin && folders.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-slate-500 hover:text-slate-700"
-                  onClick={() => onMove(doc.doc_id)}
-                >
-                  <FolderKanban className="w-4 h-4" />
-                </Button>
+            >
+              <m.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">{m.label}</span>
+              <span className="sm:hidden">{m.short}</span>
+              {active && m.id !== "browse" && (
+                <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-purple-500" />
               )}
-              {isAdmin && (
-                <Link href={`/library/${encodeURIComponent(doc.doc_id)}/edit`}>
-                  <Button variant="ghost" size="sm" className="h-8 text-slate-500 hover:text-slate-700">
-                    <Edit3 className="w-4 h-4" />
-                  </Button>
-                </Link>
-              )}
-              <Link href={`/library/${encodeURIComponent(doc.doc_id)}`}>
-                <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700 text-white gap-1">
-                  開啟
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          {/* Meta row — clean, 2-line max */}
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            {doc.doc_type && (
-              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
-                {doc.doc_type}
-              </Badge>
-            )}
-            {doc.teams ? (
-              <Badge
-                className="font-normal text-xs border-0"
-                style={{ background: doc.teams.color + "20", color: doc.teams.color }}
-              >
-                {doc.teams.name}
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="bg-slate-100 text-slate-500 font-normal text-xs">
-                <Globe className="w-3 h-3 mr-1" />
-                全體成員可見
-              </Badge>
-            )}
-            {doc.folder_id && (
-              <Badge className="bg-amber-50 text-amber-600 border-0 text-xs font-normal">
-                {folders.find(f => f.id === doc.folder_id)?.icon || "📁"}{" "}
-                {folders.find(f => f.id === doc.folder_id)?.name}
-              </Badge>
-            )}
-            {doc.review_by && (() => {
-              const reviewDate = new Date(doc.review_by);
-              const now = new Date();
-              const daysUntil = Math.ceil((reviewDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-              if (daysUntil < 0) return (
-                <span className="flex items-center gap-1 text-xs text-red-600 font-semibold">
-                  ⚠️ 逾期審閱
-                </span>
-              );
-              if (daysUntil <= 30) return (
-                <span className="flex items-center gap-1 text-xs text-amber-600 font-semibold">
-                  🔔 {daysUntil}天後需審閱
-                </span>
-              );
-              return null;
-            })()}
-            <div className="flex items-center gap-3 ml-auto">
-              {totalFeedback > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  {doc.feedback_counts.helped > 0 && (
-                    <span className="flex items-center gap-1 text-emerald-600">
-                      <CheckCircle2 className="w-3 h-3" />{doc.feedback_counts.helped}
-                    </span>
-                  )}
-                  {doc.feedback_counts.not_confident > 0 && (
-                    <span className="flex items-center gap-1 text-amber-500">
-                      <AlertTriangle className="w-3 h-3" />{doc.feedback_counts.not_confident}
-                    </span>
-                  )}
-                  {doc.feedback_counts.didnt_help > 0 && (
-                    <span className="flex items-center gap-1 text-red-500">
-                      <XCircle className="w-3 h-3" />{doc.feedback_counts.didnt_help}
-                    </span>
-                  )}
-                </div>
-              )}
-              {doc.updated_at && (
-                <span className="text-xs text-slate-400">{formatDate(doc.updated_at)}</span>
-              )}
-            </div>
-          </div>
-        </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ── Search Result Card (for advanced search results) ──
-function SearchResultCard({ result, onNavigate }: { result: SearchResult; onNavigate: (docId: string) => void }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-slate-900">{result.title}</h3>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="text-xs text-slate-400">{result.version}</span>
-            {result.doc_type && (
-              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
-                {result.doc_type}
-              </Badge>
-            )}
-            {result.domain && (
-              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-normal text-xs">
-                {result.domain}
-              </Badge>
-            )}
-            {(result.search_mode === "semantic" || result.search_mode === "hybrid") && result.score > 0 && (
-              <Badge className={cn(
-                "border-0 text-xs font-semibold",
-                result.score >= 60 
-                  ? "bg-violet-100 text-violet-700" 
-                  : result.score >= 40 
-                    ? "bg-blue-50 text-blue-600" 
-                    : "bg-slate-100 text-slate-600"
-              )}>
-                {result.search_mode === "hybrid" ? "⚡" : "🧠"} {result.score}% match
-              </Badge>
-            )}
-          </div>
-        </div>
-        <Button 
-          size="sm" 
-          className="h-8 bg-violet-600 hover:bg-violet-700 text-white gap-1"
-          onClick={() => onNavigate(result.doc_id)}
-        >
-          View <ChevronRight className="w-4 h-4" />
-        </Button>
-      </div>
-
-      {result.why_matched && result.why_matched.length > 0 && (
-        <p className="text-xs text-violet-600 mt-2">
-          {result.search_mode === "hybrid" ? "⚡ " : "🧠 "}
-          Why matched: {result.why_matched.slice(0, 4).join(" · ")}
-        </p>
-      )}
-
-      {result.section_title && (
-        <p className="text-xs text-slate-500 mt-1">
-          Match in: <strong>{result.section_title}</strong>
-        </p>
-      )}
-
-      {result.snippet && (
-        <div className="mt-3 p-3 bg-slate-50 rounded-lg text-sm text-slate-600 leading-relaxed">
-          {result.snippet}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main Library Content ──
-function LibraryContent() {
-  const searchParams = useSearchParams();
+function BrowseRow({
+  doc,
+  folders,
+  isAdmin,
+  isZh,
+  onDelete,
+  onMove,
+}: {
+  doc: DocumentItem;
+  folders: FolderItem[];
+  isAdmin: boolean;
+  isZh: boolean;
+  onDelete: (docId: string) => void;
+  onMove: (docId: string) => void;
+}) {
   const router = useRouter();
-  const teamFilter = searchParams.get("team") || "all";
-  const folderFilter = searchParams.get("folder") || null;
+  const meta = getDocMeta(doc.doc_source);
+  const Icon = meta.icon;
+  const totalFb = (doc.feedback?.helped || 0) + (doc.feedback?.not_confident || 0) + (doc.feedback?.didnt_help || 0);
+  const needsReview = (doc.feedback?.not_confident || 0) + (doc.feedback?.didnt_help || 0) > 0;
+  const overdue = isOverdue(doc.review_by);
+  const parentFolder = doc.folder_id ? folders.find((f) => f.id === doc.folder_id) : null;
 
-  const [docs, setDocs] = useState<DocRow[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  return (
+    <div className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:gap-4 sm:p-4">
+      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10", meta.bg)}>
+        <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", meta.text)} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/library/${doc.doc_id}`}
+            className="truncate text-sm font-medium text-slate-900 transition-colors group-hover:text-purple-700"
+          >
+            {doc.title}
+          </Link>
+          <Badge variant="secondary" className="hidden h-5 shrink-0 text-[10px] font-medium sm:inline-flex">
+            {doc.doc_type}
+          </Badge>
+          {doc.access_level === "admin_only" && (
+            <Badge variant="outline" className="hidden h-5 shrink-0 text-[10px] font-medium text-amber-600 border-amber-200 bg-amber-50 sm:inline-flex">
+              <Shield className="mr-0.5 h-3 w-3" />
+              {isZh ? "管理員" : "Admin"}
+            </Badge>
+          )}
+          {parentFolder && (
+            <Badge variant="outline" className="hidden h-5 shrink-0 text-[10px] font-medium text-amber-700 border-amber-200 bg-amber-50 sm:inline-flex">
+              <span className="mr-0.5">{parentFolder.icon || "📁"}</span>
+              {parentFolder.name}
+            </Badge>
+          )}
+          {overdue && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-600">
+              ⚠️ {isZh ? "逾期審閱" : "Review overdue"}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+          <span>{meta.label}</span>
+          <span>·</span>
+          <span>{timeAgo(doc.updated_at, isZh)}</span>
+          {totalFb > 0 && (
+            <>
+              <span>·</span>
+              <span className={cn(needsReview && "text-amber-600 font-medium")}>
+                {isZh ? `${totalFb} 則回饋` : `${totalFb} feedback`}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 sm:gap-2">
+          <DocumentAccessToggle
+            docId={doc.doc_id}
+            currentLevel={doc.access_level || "all_members"}
+            isAdmin={isAdmin}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => router.push(`/library/${doc.doc_id}/edit`)} className="py-2.5">
+                <Edit3 className="mr-2 h-4 w-4" />
+                {isZh ? "編輯" : "Edit"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onMove(doc.doc_id)} className="py-2.5">
+                <FolderInput className="mr-2 h-4 w-4" />
+                {isZh ? "移動" : "Move"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete(doc.doc_id)}
+                className="py-2.5 text-red-600 focus:text-red-600 focus:bg-red-50"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {isZh ? "刪除" : "Delete"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {!isAdmin && (
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-purple-400" />
+      )}
+    </div>
+  );
+}
+
+function SearchResultRow({
+  result,
+  isAdmin,
+  isZh,
+  onDelete,
+  onMove,
+}: {
+  result: SearchResultItem;
+  isAdmin: boolean;
+  isZh: boolean;
+  onDelete: (docId: string) => void;
+  onMove: (docId: string) => void;
+}) {
+  const router = useRouter();
+  const meta = getDocMeta(result.doc_source);
+  const Icon = meta.icon;
+  const tier = scoreTier(result.score);
+  const totalFb = (result.feedback?.helped || 0) + (result.feedback?.not_confident || 0) + (result.feedback?.didnt_help || 0);
+
+  return (
+    <div className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 transition-all duration-200 hover:border-slate-300 hover:shadow-sm sm:gap-4 sm:p-4">
+      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10", meta.bg)}>
+        <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5", meta.text)} />
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/library/${result.doc_id}`}
+            className="truncate text-sm font-medium text-slate-900 transition-colors group-hover:text-purple-700"
+          >
+            {result.title}
+          </Link>
+          <Badge className={cn("h-5 shrink-0 text-[10px] font-bold tabular-nums border-0", tier.bg, tier.text)}>
+            {Math.round(result.score * 100)}%
+          </Badge>
+          <Badge variant="secondary" className="hidden h-5 shrink-0 text-[10px] font-medium sm:inline-flex">
+            {result.doc_type}
+          </Badge>
+        </div>
+
+        <div className="space-y-1">
+          {result.why_matched.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {result.why_matched.map((wm, i) => (
+                <span key={i} className="inline-flex items-center rounded-md bg-purple-50 px-1.5 py-0.5 text-[11px] font-medium text-purple-700">
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  {wm}
+                </span>
+              ))}
+            </div>
+          )}
+          {result.snippet && (
+            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+              {result.section_title && (
+                <span className="font-semibold text-slate-700">{result.section_title}: </span>
+              )}
+              {result.snippet}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+          <span>{meta.label}</span>
+          {totalFb > 0 && (
+            <>
+              <span>·</span>
+              <span>{isZh ? `${totalFb} 則回饋` : `${totalFb} feedback`}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => router.push(`/library/${result.doc_id}/edit`)} className="py-2.5">
+                <Edit3 className="mr-2 h-4 w-4" />
+                {isZh ? "編輯" : "Edit"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onMove(result.doc_id)} className="py-2.5">
+                <FolderInput className="mr-2 h-4 w-4" />
+                {isZh ? "移動" : "Move"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete(result.doc_id)}
+                className="py-2.5 text-red-600 focus:text-red-600 focus:bg-red-50"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {isZh ? "刪除" : "Delete"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {!isAdmin && (
+        <ChevronRight className="mt-2.5 h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-purple-400" />
+      )}
+    </div>
+  );
+}
+
+function LibrarySkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="border-slate-200">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <div className="space-y-2">
+                  <Skeleton className="h-7 w-16" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-11 w-full rounded-xl" />
+        <Skeleton className="h-9 w-64 rounded-lg" />
+      </div>
+      <div className="flex gap-2 overflow-hidden">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-9 w-28 shrink-0 rounded-full" />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 sm:gap-4 sm:p-4">
+            <Skeleton className="h-9 w-9 shrink-0 rounded-lg sm:h-10 sm:w-10" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  isAdmin,
+  folderFilter,
+  searchQuery,
+  teamFilter,
+  isZh,
+  onClear,
+}: {
+  isAdmin: boolean;
+  folderFilter: string | null;
+  searchQuery: string;
+  teamFilter: string;
+  isZh: boolean;
+  onClear: () => void;
+}) {
+  const router = useRouter();
+  const isAdminEmpty = isAdmin && !folderFilter && !searchQuery && teamFilter === "all";
+  const steps: OnboardingStep[] = [
+    { step: 1, icon: FileText, title: isZh ? "上傳文件" : "Upload Documents", desc: isZh ? "新增 HR 政策與規範" : "Add HR policies", href: "/library/new", done: false },
+    { step: 2, icon: StickyNote, title: isZh ? "撰寫筆記" : "Write Notes", desc: isZh ? "記錄團隊知識" : "Capture team knowledge", href: "/library/note/new", done: false },
+    { step: 3, icon: Zap, title: isZh ? "試用 AI 搜尋" : "Try Atlas AI", desc: isZh ? "用語意尋找文件" : "Search by meaning", href: "/library", done: false },
+  ];
+
+  if (isAdminEmpty) {
+    return (
+      <div className="mt-6">
+        <OnboardingCard
+          title={isZh ? "完成設定以解鎖 AI 功能" : "Complete setup to unlock AI features"}
+          subtitle={isZh ? "3 個步驟，不到 5 分鐘" : "3 steps, less than 5 minutes"}
+          steps={steps}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 py-12 sm:py-16">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
+        <Search className="h-6 w-6 text-slate-400" />
+      </div>
+      <p className="mt-4 text-sm font-medium text-slate-900">
+        {folderFilter
+          ? isZh ? "此資料夾尚無文件" : "No documents in this folder yet."
+          : teamFilter !== "all"
+          ? isZh ? "此篩選條件下無文件" : "No documents found in this filter."
+          : searchQuery
+          ? isZh ? `沒有符合「${searchQuery}」的結果` : `No results found for "${searchQuery}"`
+          : isZh ? "尚無文件" : "No documents found."}
+      </p>
+      <p className="mt-1 text-xs text-slate-500">
+        {searchQuery
+          ? isZh ? "嘗試不同關鍵字或切換搜尋模式" : "Try different keywords or switch search mode"
+          : isZh ? "上傳第一份文件開始使用" : "Upload your first document to get started"}
+      </p>
+      {(folderFilter || searchQuery || teamFilter !== "all") && (
+        <Button variant="outline" size="sm" className="mt-4 h-8" onClick={onClear}>
+          <X className="mr-1.5 h-3.5 w-3.5" />
+          {isZh ? "清除篩選" : "Clear filters"}
+        </Button>
+      )}
+      {isAdmin && !folderFilter && !searchQuery && teamFilter === "all" && (
+        <Button className="mt-4 h-8 bg-purple-600 hover:bg-purple-700" size="sm" onClick={() => router.push("/library/new")}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          {isZh ? "上傳文件" : "Upload"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Main Page
+   ═══════════════════════════════════════════════════════════════ */
+
+export default function LibraryPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isZh, setIsZh] = useState(true);
+
+  const [docs, setDocs] = useState<DocumentItem[]>([]);
+  const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [teams, setTeams] = useState<TeamItem[]>([]);
+  const [facets, setFacets] = useState<FacetsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showCreateFolder, setShowCreateFolder] = useState(false);
-  const [moveDocId, setMoveDocId] = useState<string | null>(null);
 
-  // ── Search state ──
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState<"browse" | "keyword" | "semantic" | "hybrid">("browse");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchErr, setSearchErr] = useState("");
-  const [facets, setFacets] = useState<Facets | null>(null);
+  const [searchErr, setSearchErr] = useState<string | null>(null);
+  const [isAdvancedSearchActive, setIsAdvancedSearchActive] = useState(false);
+
+  const [folderFilter, setFolderFilter] = useState<string | null>(null);
+  const [teamFilter, setTeamFilter] = useState("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterDocType, setFilterDocType] = useState("");
   const [filterDomain, setFilterDomain] = useState("");
   const [filterTag, setFilterTag] = useState("");
 
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [moveDocId, setMoveDocId] = useState<string | null>(null);
+
   const fetchData = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
     try {
-      setLoading(true);
-
-      const url = teamFilter && teamFilter !== "all"
-        ? `/api/learning-summary?team=${teamFilter}`
-        : "/api/learning-summary";
-
-      const [docRes, folderRes, profileRes, facetRes] = await Promise.all([
-        fetch(url),
+      const [docsRes, foldersRes, teamsRes, profileRes, facetsRes] = await Promise.all([
+        fetch("/api/documents"),
         fetch("/api/folders"),
+        fetch("/api/teams"),
         fetch("/api/profile"),
         fetch("/api/facets"),
       ]);
+      const docsData = await docsRes.json();
+      const foldersData = await foldersRes.json();
+      const teamsData = await teamsRes.json();
+      const profileData: ProfileData = profileRes.ok ? await profileRes.json() : {};
+      const facetsData = facetsRes.ok ? await facetsRes.json() : null;
 
-      const docData = await docRes.json();
-      const folderData = await folderRes.json();
-      const profileData = await profileRes.json();
+      setDocs(docsData.documents || []);
+      setFolders(foldersData.folders || []);
+      setTeams(teamsData.teams || []);
+      setFacets(facetsData);
 
-      if (!docRes.ok) throw new Error(docData?.error ?? "Failed to load");
-
-      setDocs(docData.documents ?? []);
-      setTeams(docData.teams ?? []);
-      setFolders(folderData.folders ?? []);
-
-      if (profileRes.ok && profileData.role) {
-        setIsAdmin(["owner", "admin"].includes(profileData.role));
+      if (typeof profileData.is_admin === "boolean") {
+        setIsAdmin(profileData.is_admin);
       }
-
-      if (facetRes.ok) {
-        const facetData = await facetRes.json();
-        setFacets(facetData);
+      if (profileData.language) {
+        setIsZh(profileData.language === "zh" || profileData.language === "zh-TW");
       }
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Error");
+    } catch (e) {
+      setErr("Failed to load library");
     } finally {
       setLoading(false);
     }
-  }, [teamFilter]);
+  }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  // ── Advanced search handler ──
-  const handleAdvancedSearch = async () => {
+  useEffect(() => {
+    const teamParam = searchParams?.get("team");
+    const folderParam = searchParams?.get("folder");
+    if (teamParam) setTeamFilter(teamParam);
+    if (folderParam) setFolderFilter(folderParam);
+  }, [searchParams]);
+
+  const handleAdvancedSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
-    setSearchErr("");
-    setSearchResults([]);
-
+    setSearchErr(null);
+    setIsAdvancedSearchActive(true);
     try {
-      const params = new URLSearchParams();
-      params.set("q", searchQuery.trim());
-      params.set("mode", searchMode === "browse" ? "hybrid" : searchMode);
+      const params = new URLSearchParams({
+        q: searchQuery,
+        mode: searchMode,
+      });
       if (filterDocType) params.set("doc_type", filterDocType);
       if (filterDomain) params.set("domain", filterDomain);
       if (filterTag) params.set("tag", filterTag);
 
-      const res = await fetch("/api/search?" + params.toString());
+      const res = await fetch(`/api/doc-snap?${params.toString()}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Search failed");
       setSearchResults(data.results || []);
-    } catch (e: any) {
-      setSearchErr(e?.message || "Search failed");
+      if (data.facets) setFacets(data.facets);
+    } catch (e) {
+      setSearchErr(isZh ? "搜尋失敗" : "Search failed");
     } finally {
       setSearchLoading(false);
     }
-  };
+  }, [searchQuery, searchMode, filterDocType, filterDomain, filterTag, isZh]);
 
-  const clearSearch = () => {
-    setSearchQuery("");
-    setSearchResults([]);
-    setSearchErr("");
-    setSearchMode("browse");
-    setFilterDocType("");
-    setFilterDomain("");
-    setFilterTag("");
-    setShowAdvancedFilters(false);
-  };
-
-  const isAdvancedSearchActive = searchMode !== "browse" || searchResults.length > 0;
-
-  const totalFeedback = docs.reduce(
-    (sum, d) =>
-      sum + d.feedback_counts.helped + d.feedback_counts.not_confident + d.feedback_counts.didnt_help,
-    0
+  const recentUploads = useMemo(
+    () => docs.filter((d) => new Date(d.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
+    [docs]
   );
 
-  // Filter docs by folder and basic search (browse mode)
-  const filteredDocs = docs
-    .filter(d => !folderFilter || d.folder_id === folderFilter)
-    .filter(d => {
-      if (searchMode !== "browse" || !searchQuery) return true;
+  const docsNeedingReview = useMemo(
+    () => docs.filter((d) => (d.feedback?.not_confident || 0) + (d.feedback?.didnt_help || 0) > 0).length,
+    [docs]
+  );
+
+  const overdueReviews = useMemo(
+    () => docs.filter((d) => isOverdue(d.review_by)).length,
+    [docs]
+  );
+
+  const currentFolder = useMemo(
+    () => folders.find((f) => f.id === folderFilter) || null,
+    [folders, folderFilter]
+  );
+
+  const filteredDocs = useMemo(() => {
+    let result = docs;
+    if (folderFilter) {
+      result = result.filter((d) => d.folder_id === folderFilter);
+    }
+    if (teamFilter !== "all") {
+      result = result.filter((d) => d.team_id === teamFilter || (teamFilter === "org-wide" && !d.team_id));
+    }
+    if (searchQuery && searchMode === "browse") {
       const q = searchQuery.toLowerCase();
-      return d.title.toLowerCase().includes(q) || 
-        d.doc_id.toLowerCase().includes(q) ||
-        (d.tags || []).some(t => t.toLowerCase().includes(q));
-    });
+      result = result.filter((d) => d.title.toLowerCase().includes(q));
+    }
+    return result;
+  }, [docs, folderFilter, teamFilter, searchQuery, searchMode]);
 
-  const currentFolder = folders.find((f) => f.id === folderFilter);
+  const filterOptions = useMemo(() => {
+    const allCount = docs.length;
+    const orgWideCount = docs.filter((d) => !d.team_id).length;
+    const adminCount = docs.filter((d) => d.access_level === "admin_only").length;
+    const engineeringCount = docs.filter((d) => d.team_id && teams.find((t) => t.id === d.team_id)?.name?.toLowerCase().includes("engineer")).length;
+    const salesCount = docs.filter((d) => d.team_id && teams.find((t) => t.id === d.team_id)?.name?.toLowerCase().includes("sales")).length;
+    return [
+      { id: "all", label: isZh ? "全部" : "All", count: allCount },
+      { id: "org-wide", label: isZh ? "全體" : "Org-Wide", count: orgWideCount },
+      { id: "admin", label: isZh ? "管理" : "Admin", count: adminCount },
+      { id: "engineering", label: isZh ? "工程" : "Engineering", count: engineeringCount },
+      { id: "sales", label: isZh ? "業務" : "Sales", count: salesCount },
+    ];
+  }, [docs, teams, isZh]);
 
-  const handleDeleteFolder = async (folderId: string) => {
-    if (!confirm("Delete this folder? Documents inside will be moved to unfiled.")) return;
+  const modeDescription = useMemo(() => {
+    switch (searchMode) {
+      case "hybrid":
+        return isZh ? "結合關鍵字與 AI 語意，獲得最佳結果" : "Combines keyword matching + AI meaning for the best results";
+      case "semantic":
+        return isZh ? "AI 透過語意尋找文件" : `AI finds documents by meaning — "keeping clients happy" finds "customer retention" docs`;
+      case "keyword":
+        return isZh ? "在標題與內容中尋找完全匹配" : "Finds exact text matches in document titles and content";
+      default:
+        return "";
+    }
+  }, [searchMode, isZh]);
+
+  const searchPlaceholder = useMemo(() => {
+    switch (searchMode) {
+      case "hybrid":
+        return isZh ? "關鍵字 + 語意搜尋..." : "Search by keyword + meaning...";
+      case "semantic":
+        return isZh ? "語意搜尋... 例如：如何處理加班" : "Search by meaning... e.g. 'how to handle overtime'";
+      case "keyword":
+        return isZh ? "精確關鍵字搜尋..." : "Search by exact keyword...";
+      default:
+        return isZh ? "搜尋文件..." : "Search documents...";
+    }
+  }, [searchMode, isZh]);
+
+  const handleDeleteDoc = useCallback(async (docId: string) => {
+    if (!confirm(isZh ? "確定刪除？" : "Delete this document?")) return;
     try {
-      await fetch(`/api/folders?id=${folderId}`, { method: "DELETE" });
-      router.push("/library");
+      await fetch(`/api/documents/${encodeURIComponent(docId)}`, { method: "DELETE" });
       fetchData();
-    } catch {}
-  };
+    } catch {
+      // toast error
+    }
+  }, [isZh, fetchData]);
 
-  const handleNavigateToDoc = (docId: string) => {
-    router.push(`/library/${encodeURIComponent(docId)}`);
-  };
+  const handleMoveDoc = useCallback((docId: string) => {
+    setMoveDocId(docId);
+  }, []);
 
-  const filterOptions = [
-    { label: "All", value: "all", count: docs.length },
-    { label: "Org-Wide", value: "org-wide", count: docs.filter(d => !d.team_id).length },
-    ...teams.map(t => ({
-      label: t.name,
-      value: t.id,
-      count: docs.filter(d => d.team_id === t.id).length,
-      color: t.color
-    }))
-  ];
+  const handleClearFilters = useCallback(() => {
+    setFolderFilter(null);
+    setSearchQuery("");
+    setTeamFilter("all");
+    setIsAdvancedSearchActive(false);
+    setSearchResults([]);
+  }, []);
 
-  const activeAdvancedFilterCount = [filterDocType, filterDomain, filterTag].filter(Boolean).length;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+        <LibrarySkeleton />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 lg:p-8 max-w-6xl mx-auto">
-      {/* Header */}
-      <header className="mb-8">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Knowledge Library</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Your company&apos;s single source of truth
-            </p>
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            {isZh ? "知識庫" : "Knowledge Library"}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {isZh ? "您公司的單一真相來源" : "Your company's single source of truth"}
+          </p>
+        </div>
+        {isAdmin && (
+          <QuickCreate onCreateFolder={() => setShowCreateFolder(true)} isAdmin={isAdmin} />
+        )}
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        <StatCard
+          label={isZh ? "近 7 日上傳" : "Recent uploads (7d)"}
+          value={recentUploads}
+          icon={Clock}
+          color="blue"
+        />
+        <StatCard
+          label={isZh ? "待審閱文件" : "Docs needing review"}
+          value={docsNeedingReview}
+          icon={AlertCircle}
+          color="danger"
+          pulse={docsNeedingReview > 0}
+        />
+        <StatCard
+          label={isZh ? "逾期審閱" : "Overdue reviews"}
+          value={overdueReviews}
+          icon={AlertCircle}
+          color="danger"
+          pulse={overdueReviews > 0}
+        />
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchMode !== "browse") {
+                  handleAdvancedSearch();
+                }
+              }}
+              placeholder={searchPlaceholder}
+              className="h-11 rounded-xl border-slate-200 pl-10 pr-10 text-sm shadow-sm transition-colors focus-visible:border-purple-300 focus-visible:ring-purple-200"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setIsAdvancedSearchActive(false);
+                  setSearchResults([]);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          {isAdmin && (
-            <QuickCreate onCreateFolder={() => setShowCreateFolder(true)} isAdmin={isAdmin} />
+          <SearchModeControl
+            searchMode={searchMode}
+            setSearchMode={setSearchMode}
+            setIsAdvancedSearchActive={setIsAdvancedSearchActive}
+            setSearchResults={setSearchResults}
+            isZh={isZh}
+          />
+          {searchMode !== "browse" && (
+            <Button
+              onClick={handleAdvancedSearch}
+              disabled={searchLoading || !searchQuery.trim()}
+              className="h-11 shrink-0 bg-purple-600 px-5 hover:bg-purple-700"
+            >
+              {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isZh ? "搜尋" : "Search"}
+            </Button>
           )}
         </div>
 
-        {/* Stats Row */}
-        {!loading && !err && (
-          <div className="flex items-center gap-8 mt-6 flex-wrap">
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-semibold text-slate-900">{docs.length}</span>
-              <span className="text-sm text-slate-500">Documents</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-semibold text-blue-600">{totalFeedback}</span>
-              <span className="text-sm text-slate-500">Feedback</span>
-            </div>
-            {folders.length > 0 && (
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-amber-500">{folders.length}</span>
-                <span className="text-sm text-slate-500">Folders</span>
-              </div>
-            )}
-            {teams.length > 0 && (
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold text-violet-500">{teams.length}</span>
-                <span className="text-sm text-slate-500">Groups</span>
+        {searchMode !== "browse" && (
+          <p className="text-xs text-slate-400 pl-1">{modeDescription}</p>
+        )}
+
+        {searchMode !== "browse" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowAdvancedFilters((s) => !s)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                showAdvancedFilters ? "bg-purple-50 text-purple-700 border border-purple-200" : "text-slate-500 hover:bg-slate-100 border border-transparent"
+              )}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              {isZh ? "進階篩選" : "Advanced Filters"}
+              <ChevronDown className={cn("h-3 w-3 transition-transform", showAdvancedFilters && "rotate-180")} />
+            </button>
+            {showAdvancedFilters && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  value={filterDocType}
+                  onChange={(e) => setFilterDocType(e.target.value)}
+                  placeholder={isZh ? "文件類型" : "Doc Type"}
+                  className="h-8 w-32 text-xs"
+                />
+                <Input
+                  value={filterDomain}
+                  onChange={(e) => setFilterDomain(e.target.value)}
+                  placeholder={isZh ? "領域" : "Domain"}
+                  className="h-8 w-32 text-xs"
+                />
+                <Input
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                  placeholder={isZh ? "標籤" : "Tag"}
+                  className="h-8 w-32 text-xs"
+                />
+                {facets?.top_tags && facets.top_tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {facets.top_tags.slice(0, 6).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setFilterTag(t)}
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+                          filterTag === t
+                            ? "bg-purple-100 text-purple-700 border border-purple-200"
+                            : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
-      </header>
 
-      {/* ═══ SEARCH BAR WITH MODES ═══ */}
-      {!loading && !err && (
-        <div className="mb-6 space-y-3">
-          {/* Search input row */}
-          <div className="flex gap-3 items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder={
-                  searchMode === "semantic" 
-                    ? "Search by meaning... e.g. 'how to handle overtime'" 
-                    : searchMode === "hybrid"
-                    ? "Search by keyword + meaning..."
-                    : searchMode === "keyword"
-                    ? "Search by exact keyword..."
-                    : "Search documents..."
-                }
-                className="pl-10 pr-10 bg-white"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    if (searchMode === "browse") {
-                      // Basic title filter — no API call needed
-                    } else {
-                      handleAdvancedSearch();
-                    }
-                  }
-                }}
-              />
-              {searchQuery && (
-                <button 
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Search mode toggle */}
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden flex-shrink-0">
-              <button
-                onClick={() => { setSearchMode("browse"); setSearchResults([]); }}
-                className={cn(
-                  "px-3 py-2 text-xs font-medium transition-all flex items-center gap-1.5",
-                  searchMode === "browse" 
-                    ? "bg-slate-900 text-white" 
-                    : "bg-white text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                Browse
-              </button>
-              <button
-                onClick={() => setSearchMode("hybrid")}
-                className={cn(
-                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
-                  searchMode === "hybrid" 
-                    ? "bg-violet-600 text-white" 
-                    : "bg-white text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Hybrid
-              </button>
-              <button
-                onClick={() => setSearchMode("keyword")}
-                className={cn(
-                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
-                  searchMode === "keyword" 
-                    ? "bg-blue-600 text-white" 
-                    : "bg-white text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <Type className="w-3.5 h-3.5" />
-                Keyword
-              </button>
-              <button
-                onClick={() => setSearchMode("semantic")}
-                className={cn(
-                  "px-3 py-2 text-xs font-medium transition-all border-l border-slate-200 flex items-center gap-1.5",
-                  searchMode === "semantic" 
-                    ? "bg-purple-600 text-white" 
-                    : "bg-white text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <Brain className="w-3.5 h-3.5" />
-                Semantic
-              </button>
-            </div>
-
-            {/* Search button (for AI modes) */}
-            {searchMode !== "browse" && (
-              <Button 
-                onClick={handleAdvancedSearch}
-                disabled={searchLoading || !searchQuery.trim()}
-                className="bg-violet-600 hover:bg-violet-700 gap-2 flex-shrink-0"
-              >
-                {searchLoading ? "Searching..." : "Search"}
-              </Button>
-            )}
+        {searchErr && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {searchErr}
           </div>
+        )}
 
-          {/* Advanced filters toggle (only for non-browse modes) */}
-          {searchMode !== "browse" && (
-            <div>
+        {searchMode === "browse" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">{isZh ? "篩選：" : "Filter:"}</span>
+            {filterOptions.map((filter) => (
               <button
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"
-              >
-                <Filter className="w-3.5 h-3.5" />
-                Advanced Filters
-                {activeAdvancedFilterCount > 0 && (
-                  <Badge className="bg-violet-100 text-violet-700 border-0 text-xs ml-1">
-                    {activeAdvancedFilterCount}
-                  </Badge>
+                key={filter.id}
+                onClick={() => setTeamFilter(filter.id)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                  teamFilter === filter.id
+                    ? "bg-purple-600 text-white border border-purple-600"
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                 )}
-                {showAdvancedFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              >
+                {filter.label}
+                <span className={cn("tabular-nums", teamFilter === filter.id ? "text-purple-200" : "text-slate-400")}>
+                  {filter.count}
+                </span>
               </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-              {showAdvancedFilters && (
-                <div className="flex gap-3 mt-3 flex-wrap">
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Doc Type</label>
-                    <select
-                      value={filterDocType}
-                      onChange={(e) => setFilterDocType(e.target.value)}
-                      className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700"
-                    >
-                      <option value="">All types</option>
-                      {(facets?.doc_types ?? []).map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Domain</label>
-                    <select
-                      value={filterDomain}
-                      onChange={(e) => setFilterDomain(e.target.value)}
-                      className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700"
-                    >
-                      <option value="">All domains</option>
-                      {(facets?.domains ?? []).map((v) => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Tag</label>
-                    <Input
-                      value={filterTag}
-                      onChange={(e) => setFilterTag(e.target.value)}
-                      placeholder="e.g., compliance"
-                      className="h-8 w-40 text-sm"
-                    />
-                  </div>
-                  {facets?.top_tags && facets.top_tags.length > 0 && (
-                    <div className="flex items-end gap-1.5 flex-wrap">
-                      {facets.top_tags.slice(0, 6).map((t) => (
-                        <button
-                          key={t.tag}
-                          onClick={() => setFilterTag(t.tag)}
-                          className={cn(
-                            "px-2.5 py-1 rounded-full text-xs border transition-all",
-                            filterTag === t.tag
-                              ? "bg-violet-100 border-violet-300 text-violet-700"
-                              : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                          )}
-                        >
-                          {t.tag}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Search mode description */}
-          {searchMode !== "browse" && (
-            <p className="text-xs text-slate-400">
-              {searchMode === "hybrid" 
-                ? "Combines keyword matching + AI meaning for the best results" 
-                : searchMode === "semantic"
-                ? "AI finds documents by meaning — \"keeping clients happy\" finds \"customer retention\" docs"
-                : "Finds exact text matches in document titles and content"}
-            </p>
-          )}
-
-          {/* Search error */}
-          {searchErr && (
-            <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-              {searchErr}
-            </div>
-          )}
-
-          {/* Team filter pills (browse mode) */}
-          {searchMode === "browse" && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <span className="text-sm text-slate-500">Filter:</span>
-              {filterOptions.map((filter) => (
-                <Link
-                  key={filter.value}
-                  href={filter.value === "all" ? "/library" : `/library?team=${filter.value}`}
-                  className={cn(
-                    "px-3 py-1.5 rounded-full text-sm transition-all duration-200",
-                    teamFilter === filter.value
-                      ? "bg-violet-600 text-white"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                  )}
-                >
-                  {filter.label}
-                  <span className={cn(
-                    "ml-1.5 text-xs",
-                    teamFilter === filter.value ? "text-violet-200" : "text-slate-400"
-                  )}>
-                    {filter.count}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ SEARCH RESULTS (when AI search is active) ═══ */}
       {isAdvancedSearchActive && searchMode !== "browse" && (
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-medium text-slate-900 flex items-center gap-2">
-              <Search className="w-4 h-4 text-slate-400" />
-              Search Results
-              {searchResults.length > 0 && (
-                <Badge variant="secondary" className="text-xs">{searchResults.length}</Badge>
-              )}
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+              {isZh ? "搜尋結果" : "Search Results"}
             </h2>
-            <Button variant="ghost" size="sm" onClick={clearSearch} className="text-slate-500 gap-1">
-              <X className="w-4 h-4" />
-              Clear search
-            </Button>
+            <button
+              onClick={() => {
+                setIsAdvancedSearchActive(false);
+                setSearchResults([]);
+                setSearchQuery("");
+              }}
+              className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+            >
+              <X className="h-3.5 w-3.5" />
+              {isZh ? "清除搜尋" : "Clear search"}
+            </button>
           </div>
 
           {searchLoading && (
-            <div className="flex items-center justify-center py-12 text-slate-500">
-              <span>{searchMode === "hybrid" ? "⚡ Running hybrid search..." : searchMode === "semantic" ? "🧠 AI searching..." : "Searching..."}</span>
+            <div className="flex items-center gap-2 py-4 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {searchMode === "hybrid" ? (isZh ? "⚡ 執行混合搜尋..." : "⚡ Running hybrid search...")
+                : searchMode === "semantic" ? (isZh ? "🧠 AI 搜尋中..." : "🧠 AI searching...")
+                : (isZh ? "搜尋中..." : "Searching...")}
             </div>
           )}
 
           {!searchLoading && searchResults.length === 0 && searchQuery && (
-            <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
-              <p className="text-slate-500">No results found for &ldquo;{searchQuery}&rdquo;</p>
-              <p className="text-xs text-slate-400 mt-2">Try different keywords or switch search mode</p>
-            </div>
+            <EmptyState
+              isAdmin={isAdmin}
+              folderFilter={folderFilter}
+              searchQuery={searchQuery}
+              teamFilter={teamFilter}
+              isZh={isZh}
+              onClear={handleClearFilters}
+            />
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {searchResults.map((result) => (
-              <SearchResultCard 
-                key={result.doc_id + "-" + result.version} 
-                result={result} 
-                onNavigate={handleNavigateToDoc}
+              <SearchResultRow
+                key={result.doc_id}
+                result={result}
+                isAdmin={isAdmin}
+                isZh={isZh}
+                onDelete={handleDeleteDoc}
+                onMove={handleMoveDoc}
               />
             ))}
           </div>
-        </section>
+        </div>
       )}
 
-      {/* Folder Breadcrumb */}
       {folderFilter && currentFolder && (
-        <div className="flex items-center gap-2 mb-6">
-          <Link 
-            href="/library" 
-            className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
+        <div className="mt-6 flex items-center gap-2 text-sm">
+          <button
+            onClick={() => setFolderFilter(null)}
+            className="font-medium text-slate-500 hover:text-purple-700 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
-            All Documents
-          </Link>
-          <span className="text-slate-300">/</span>
-          <span className="text-sm font-medium text-slate-900 flex items-center gap-2">
-            <span>{currentFolder.icon}</span>
-            {currentFolder.name}
-          </span>
+            {isZh ? "全部文件" : "All Documents"}
+          </button>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+          <span className="text-lg">{currentFolder.icon}</span>
+          <span className="font-semibold text-slate-900">{currentFolder.name}</span>
           {isAdmin && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDeleteFolder(currentFolder.id)}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2"
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                Delete
-              </Button>
-              <Link href={`/library/new?folder=${currentFolder.id}`}>
-                <Button size="sm" variant="outline" className="gap-1">
-                  <Plus className="w-4 h-4" />
-                  Upload
-                </Button>
-              </Link>
-            </>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-2 h-7 text-xs text-purple-600 hover:bg-purple-50 hover:text-purple-700"
+              onClick={() => setShowCreateFolder(true)}
+            >
+              <Plus className="mr-1 h-3 w-3" />
+              {isZh ? "子資料夾" : "Subfolder"}
+            </Button>
           )}
         </div>
       )}
 
-      {/* Folders Section (only in browse mode, not during search) */}
       {!loading && !err && folders.length > 0 && !folderFilter && searchMode === "browse" && !searchQuery && (
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
-            <FolderKanban className="w-4 h-4 text-slate-400" />
-            Folders
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900 mb-3">
+            {isZh ? "資料夾" : "Folders"}
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
             {folders.map((f) => {
-              const docCount = f.documents?.[0]?.count || docs.filter(d => d.folder_id === f.id).length;
+              const docCount = f.documents?.[0]?.count ?? docs.filter((d) => d.folder_id === f.id).length;
               return (
-                <Link
+                <button
                   key={f.id}
-                  href={`/library?folder=${f.id}`}
-                  className="group flex flex-col p-4 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:shadow-sm transition-all duration-200"
-                  style={{ borderLeftWidth: "4px", borderLeftColor: f.color }}
+                  onClick={() => setFolderFilter(f.id)}
+                  className={cn(
+                    "flex shrink-0 snap-start items-center gap-2.5 rounded-xl border px-4 py-2.5 text-left transition-all duration-200",
+                    "hover:border-slate-300 hover:shadow-sm hover:bg-slate-50",
+                    folderFilter === f.id
+                      ? "border-purple-300 bg-purple-50 ring-1 ring-purple-200"
+                      : "border-slate-200 bg-white"
+                  )}
                 >
-                  <span className="text-2xl mb-2">{f.icon}</span>
-                  <span className="font-medium text-slate-900 text-sm truncate">{f.name}</span>
-                  <span className="text-xs text-slate-400 mt-1">
-                    {docCount} doc{docCount !== 1 ? "s" : ""}
-                  </span>
-                </Link>
+                  <span className="text-xl">{f.icon}</span>
+                  <div>
+                    <div className="text-sm font-medium text-slate-900">{f.name}</div>
+                    <div className="text-[11px] text-slate-500">
+                      {docCount} {isZh ? "份文件" : `doc${docCount !== 1 ? "s" : ""}`}
+                    </div>
+                  </div>
+                </button>
               );
             })}
           </div>
         </div>
       )}
 
-      {/* Documents List (browse mode) */}
       {(searchMode === "browse" || !isAdvancedSearchActive) && (
-        <section>
-          <h2 className="text-sm font-medium text-slate-900 mb-3 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-slate-400" />
-            {folderFilter && currentFolder
-              ? currentFolder.name
-              : "Documents"}
-            {teamFilter !== "all" && teamFilter !== "org-wide" && teams.find(t => t.id === teamFilter) && (
-              <span className="text-slate-400 font-normal">
-                — {teams.find(t => t.id === teamFilter)?.name}
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+              {folderFilter && currentFolder
+                ? currentFolder.name
+                : isZh ? "文件" : "Documents"}
+              {teamFilter !== "all" && teamFilter !== "org-wide" && teams.find((t) => t.id === teamFilter) && (
+                <span className="ml-2 text-sm font-normal text-slate-500">
+                  — {teams.find((t) => t.id === teamFilter)?.name}
+                </span>
+              )}
+              {teamFilter === "org-wide" && (
+                <span className="ml-2 text-sm font-normal text-slate-500">
+                  — {isZh ? "全體成員" : "Organization-Wide"}
+                </span>
+              )}
+            </h2>
+            {filteredDocs.length > 0 && (
+              <span className="text-xs font-medium text-slate-400">
+                {filteredDocs.length} {isZh ? "份" : "docs"}
               </span>
             )}
-            {teamFilter === "org-wide" && (
-              <span className="text-slate-400 font-normal">— Organization-Wide</span>
-            )}
-          </h2>
-
-          {loading && (
-            <div className="flex items-center justify-center py-12 text-slate-500">
-              <span>Loading documents...</span>
-            </div>
-          )}
+          </div>
 
           {err && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
-              Error: {err}
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {isZh ? "錯誤：" : "Error: "}{err}
             </div>
           )}
 
-          {!loading && !err && (
-            <div className="space-y-3">
-              {filteredDocs.map((doc) => (
-                <DocumentCard
-                  key={doc.doc_id}
-                  doc={doc}
-                  folders={folders}
+          {!err && (
+            <>
+              {filteredDocs.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredDocs.map((doc) => (
+                    <BrowseRow
+                      key={doc.doc_id}
+                      doc={doc}
+                      folders={folders}
+                      isAdmin={isAdmin}
+                      isZh={isZh}
+                      onDelete={handleDeleteDoc}
+                      onMove={handleMoveDoc}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
                   isAdmin={isAdmin}
-                  onMove={setMoveDocId}
+                  folderFilter={folderFilter}
+                  searchQuery={searchQuery}
+                  teamFilter={teamFilter}
+                  isZh={isZh}
+                  onClear={handleClearFilters}
                 />
-              ))}
-            </div>
-          )}
-
-          {!loading && !err && filteredDocs.length === 0 && (
-            <div className="text-center py-12 bg-white border border-slate-200 rounded-xl">
-              <p className="text-slate-500">
-                {folderFilter
-                  ? "No documents in this folder yet."
-                  : teamFilter !== "all"
-                  ? "No documents found in this filter."
-                  : searchQuery
-                  ? "No documents match your search."
-                  : "No documents found."}
-              </p>
-              {isAdmin && !folderFilter && !searchQuery && (
-                <Link href="/library/new">
-                  <Button className="mt-4 bg-violet-600 hover:bg-violet-700 gap-2">
-                    <Plus className="w-4 h-4" />
-                    Upload Documents
-                  </Button>
-                </Link>
               )}
-              {(folderFilter || searchQuery) && (
-                <Button 
-                  variant="outline" 
-                  className="mt-4 gap-2 text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
-                  onClick={() => {
-                    if (folderFilter) router.push("/library");
-                    setSearchQuery("");
-                  }}
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to All
-                </Button>
-              )}
-            </div>
+            </>
           )}
-        </section>
+        </div>
       )}
 
-      {/* Modals */}
       <CreateFolderModal
         open={showCreateFolder}
         onClose={() => setShowCreateFolder(false)}
         onCreated={fetchData}
+        isZh={isZh}
       />
-
       {moveDocId && (
         <MoveToFolderModal
-          open={!!moveDocId}
           docId={moveDocId}
           folders={folders}
+          docs={docs}
+          open={!!moveDocId}
           onClose={() => setMoveDocId(null)}
           onMoved={fetchData}
+          isZh={isZh}
         />
       )}
     </div>
-  );
-}
-
-function LibraryLoading() {
-  return (
-    <div className="flex items-center justify-center py-12 text-slate-500">
-      <span>Loading library...</span>
-    </div>
-  );
-}
-
-export default function LibraryPage() {
-  return (
-    <ProtectedRoute>
-      <main className="min-h-screen bg-slate-50">
-        <Suspense fallback={<LibraryLoading />}>
-          <LibraryContent />
-        </Suspense>
-      </main>
-    </ProtectedRoute>
   );
 }
