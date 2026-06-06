@@ -113,8 +113,9 @@ interface FacetsData {
 }
 
 interface ProfileData {
-  is_admin?: boolean;
+  role?: string;
   language?: string;
+  organization_id?: string | null;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -743,8 +744,9 @@ export default function LibraryPage() {
       setTeams(teamsData.teams || []);
       setFacets(facetsData);
 
-      if (typeof profileData.is_admin === "boolean") {
-        setIsAdmin(profileData.is_admin);
+      // role comes from organization membership; admin/owner both count as admin
+      if (profileData.role) {
+        setIsAdmin(["owner", "admin"].includes(profileData.role));
       }
       if (profileData.language) {
         setIsZh(profileData.language === "zh" || profileData.language === "zh-TW");
