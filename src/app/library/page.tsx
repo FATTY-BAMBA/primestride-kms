@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -37,11 +37,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -342,6 +337,94 @@ function SearchModeControl({
   );
 }
 
+// ---------------------------------------------------------------------------
+// RowActionMenu — custom dropdown replacement for the broken shadcn DropdownMenu
+// in this codebase. Each row gets its own instance with isolated open state.
+// ---------------------------------------------------------------------------
+function RowActionMenu({
+  onEdit,
+  onMove,
+  onDelete,
+  isZh,
+}: {
+  onEdit: () => void;
+  onMove: () => void;
+  onDelete: () => void;
+  isZh: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    if (open) document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+        aria-label={isZh ? "更多操作" : "More actions"}
+        aria-expanded={open}
+      >
+        <MoreHorizontal className="h-5 w-5" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-50 py-1">
+          <button
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <Edit3 className="h-4 w-4" />
+            {isZh ? "編輯" : "Edit"}
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onMove();
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <FolderInput className="h-4 w-4" />
+            {isZh ? "移動" : "Move"}
+          </button>
+          <div className="my-1 h-px bg-slate-100" />
+          <button
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+          >
+            <Trash2 className="h-4 w-4" />
+            {isZh ? "刪除" : "Delete"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BrowseRow({
   doc,
   folders,
@@ -422,35 +505,12 @@ function BrowseRow({
             currentLevel={doc.access_level || "all_members"}
             isAdmin={isAdmin}
           />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <MoreHorizontal className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => router.push(`/library/${doc.doc_id}/edit`)} className="py-2.5">
-                <Edit3 className="mr-2 h-4 w-4" />
-                {isZh ? "編輯" : "Edit"}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(doc.doc_id)} className="py-2.5">
-                <FolderInput className="mr-2 h-4 w-4" />
-                {isZh ? "移動" : "Move"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => onDelete(doc.doc_id)}
-                className="py-2.5 text-red-600 focus:text-red-600 focus:bg-red-50"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {isZh ? "刪除" : "Delete"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <RowActionMenu
+            onEdit={() => router.push(`/library/${doc.doc_id}/edit`)}
+            onMove={() => onMove(doc.doc_id)}
+            onDelete={() => onDelete(doc.doc_id)}
+            isZh={isZh}
+          />
         </div>
       )}
 
@@ -536,35 +596,12 @@ function SearchResultRow({
 
       {isAdmin && (
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <MoreHorizontal className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => router.push(`/library/${result.doc_id}/edit`)} className="py-2.5">
-                <Edit3 className="mr-2 h-4 w-4" />
-                {isZh ? "編輯" : "Edit"}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onMove(result.doc_id)} className="py-2.5">
-                <FolderInput className="mr-2 h-4 w-4" />
-                {isZh ? "移動" : "Move"}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => onDelete(result.doc_id)}
-                className="py-2.5 text-red-600 focus:text-red-600 focus:bg-red-50"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {isZh ? "刪除" : "Delete"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <RowActionMenu
+            onEdit={() => router.push(`/library/${result.doc_id}/edit`)}
+            onMove={() => onMove(result.doc_id)}
+            onDelete={() => onDelete(result.doc_id)}
+            isZh={isZh}
+          />
         </div>
       )}
 
