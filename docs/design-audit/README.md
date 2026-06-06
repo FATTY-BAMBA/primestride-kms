@@ -109,5 +109,5 @@ Capture: populated state minimum. Empty state and mobile if relevant.
 
 ADR 0003 settles which design SYSTEM the code uses (shadcn/ui). These audits feed
 visual decisions: what the system should LOOK like when applied. ADR 0004
-(forthcoming) will codify those visual decisions. The audits are the empirical
+codifies those visual decisions. The audits are the empirical
 input to ADR 0004.
