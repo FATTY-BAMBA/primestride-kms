@@ -10,6 +10,7 @@ interface Profile {
   full_name: string | null;
   avatar_url: string | null;
   role: string;
+  language: string;
 }
 
 interface UserLike {
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: data.full_name || clerkUser.fullName || null,
             avatar_url: data.avatar_url || clerkUser.imageUrl || null,
             role: data.role || "member",
+            language: data.language || "zh",
           });
         } else {
           // API failed, use Clerk data as fallback
@@ -81,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: clerkUser.fullName || null,
             avatar_url: clerkUser.imageUrl || null,
             role: "member",
+            language: "zh",
           });
         }
       } catch (err) {
@@ -93,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             full_name: clerkUser.fullName || null,
             avatar_url: clerkUser.imageUrl || null,
             role: "member",
+            language: "zh",
           });
         }
       } finally {

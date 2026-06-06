@@ -9,8 +9,17 @@ type Language = "zh" | "en";
 
 export default function UserMenu({ collapsed }: { collapsed?: boolean }) {
   const { user, profile, isAdmin, signOut } = useAuth();
-  const [lang, setLang] = useState<Language>("zh");
+  const [lang, setLang] = useState<Language>(
+    profile?.language === "en" ? "en" : "zh"
+  );
   const [open, setOpen] = useState(false);
+
+  // Sync lang state when profile loads (profile may be null on first render)
+  useEffect(() => {
+    if (profile?.language === "en" || profile?.language === "zh") {
+      setLang(profile.language);
+    }
+  }, [profile?.language]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
